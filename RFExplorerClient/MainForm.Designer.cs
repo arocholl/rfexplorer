@@ -88,6 +88,8 @@
             this.m_sCenterFreq = new System.Windows.Forms.TextBox();
             this.tabReport = new System.Windows.Forms.TabPage();
             this.textBox_message = new System.Windows.Forms.TextBox();
+            this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
+            this.SaveCSVtoolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.MainMenu.SuspendLayout();
             this.MainTab.SuspendLayout();
             this.tabSpectrumAnalyzer.SuspendLayout();
@@ -117,7 +119,9 @@
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolStripMenuItemLoad,
             this.saveAsToolStripMenuItem,
+            this.SaveCSVtoolStripMenuItem,
             this.saveOnCloseToolStripMenuItem,
+            this.toolStripMenuItem1,
             this.toolStripSeparator2,
             this.toolStripMenuPortInfo,
             this.aboutToolStripMenuItem,
@@ -132,7 +136,7 @@
             // 
             this.toolStripMenuItemLoad.Name = "toolStripMenuItemLoad";
             this.toolStripMenuItemLoad.Size = new System.Drawing.Size(188, 22);
-            this.toolStripMenuItemLoad.Text = "Load...";
+            this.toolStripMenuItemLoad.Text = "&Load...";
             this.toolStripMenuItemLoad.Click += new System.EventHandler(this.toolStripMenuItemLoad_Click);
             // 
             // saveAsToolStripMenuItem
@@ -158,7 +162,7 @@
             // 
             this.toolStripMenuPortInfo.Name = "toolStripMenuPortInfo";
             this.toolStripMenuPortInfo.Size = new System.Drawing.Size(188, 22);
-            this.toolStripMenuPortInfo.Text = "Report COM port info";
+            this.toolStripMenuPortInfo.Text = "Report COM port &info";
             this.toolStripMenuPortInfo.Click += new System.EventHandler(this.toolStripMenuPortInfo_Click);
             // 
             // aboutToolStripMenuItem
@@ -696,6 +700,20 @@
             this.textBox_message.TabIndex = 49;
             this.textBox_message.WordWrap = false;
             // 
+            // toolStripMenuItem1
+            // 
+            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
+            this.toolStripMenuItem1.Size = new System.Drawing.Size(188, 22);
+            this.toolStripMenuItem1.Text = "Reinitialize &Data...";
+            this.toolStripMenuItem1.Click += new System.EventHandler(this.toolStripMenuItem1_Click);
+            // 
+            // SaveCSVtoolStripMenuItem
+            // 
+            this.SaveCSVtoolStripMenuItem.Name = "SaveCSVtoolStripMenuItem";
+            this.SaveCSVtoolStripMenuItem.Size = new System.Drawing.Size(188, 22);
+            this.SaveCSVtoolStripMenuItem.Text = "Save CS&V As...";
+            this.SaveCSVtoolStripMenuItem.Click += new System.EventHandler(this.SaveCSVtoolStripMenuItem_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
@@ -794,6 +812,8 @@
         private System.Windows.Forms.CheckBox chkCalcMax;
         private System.Windows.Forms.CheckBox chkCalcAverage;
         private System.Windows.Forms.CheckBox chkCalcRealtime;
+        private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem1;
+        private System.Windows.Forms.ToolStripMenuItem SaveCSVtoolStripMenuItem;
     }
 }
 
