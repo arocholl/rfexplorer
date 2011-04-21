@@ -39,7 +39,7 @@ namespace RFExplorerClient
         const int m_nTotalBufferSize = 10240;       //buffer size
         const UInt16 m_nFreqSpectrumSteps = 112;    //$S byte buffer
 
-        const double MIN_AMPLITUDE_DBM = -110.0;
+        const double MIN_AMPLITUDE_DBM = -120.0;
         const double MAX_AMPLITUDE_DBM = -1.0;
         const double MIN_AMPLITUDE_RANGE_DBM = 10;
         
@@ -136,7 +136,6 @@ namespace RFExplorerClient
             myPane.XAxis.Title.FontSpec.Size = 13;
             myPane.YAxis.Scale.FontSpec.Size = 10;
             myPane.XAxis.Scale.FontSpec.Size = 10;
-
         }
 
         private void GetNewFilename()
@@ -469,10 +468,10 @@ namespace RFExplorerClient
                             {
                                 byte nVal = Convert.ToByte(sLine[2 + nInd]);
                                 float fVal = 0;
-                                if (nVal > 53)
+                                if (nVal >= 35)
                                     fVal = 0.5f * (nVal - 35) - 119.0f;
                                 else
-                                    fVal = -110.0f; //noise floor
+                                    fVal = -119.0f; //noise floor
 
                                 m_arrData[m_nDataIndex, nInd] = fVal;
                             }
@@ -802,6 +801,28 @@ namespace RFExplorerClient
             catch (Exception obEx) { MessageBox.Show(obEx.Message); }
         }
 
+        private void SaveCSVtoolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
+                {
+                    MySaveFileDialog.Filter = "RFExplorer CSV files (*.csv)|*.csv|All files (*.*)|*.*";
+                    MySaveFileDialog.FilterIndex = 1;
+                    MySaveFileDialog.RestoreDirectory = false;
+
+                    GetNewFilename();
+                    MySaveFileDialog.FileName = m_sFilename.Replace(".rfe",".csv");
+
+                    if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        SaveFileCSV(MySaveFileDialog.FileName);
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
         private void fileToolStripMenuItem_DropDownOpening(object sender, EventArgs e)
         {
             saveAsToolStripMenuItem.Enabled = m_nMaxDataIndex > 0;
@@ -867,6 +888,35 @@ namespace RFExplorerClient
                                 binStream.Write((double)m_arrData[nPageInd, nByte]);
                             }
                         }
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void SaveFileCSV(string sFilename)
+        {
+            try
+            {
+                using (StreamWriter myFile = new StreamWriter(sFilename, true))
+                {
+                    myFile.WriteLine("RF Explorer CSV data file: " + FileHeaderVersioned());
+                    myFile.WriteLine("Start Frequency: " + m_fStartFrequencyMHZ.ToString()+
+                        "MHZ\r\nStep Frequency: " + (m_fStepFrequencyMHZ*1000).ToString()+
+                        "KHZ\r\nTotal data entries: " + m_nMaxDataIndex.ToString()+
+                        "\r\nSteps per entry: "+ m_nFreqSpectrumSteps.ToString());
+
+                    for (int nPageInd = 0; nPageInd < m_nMaxDataIndex; nPageInd++)
+                    {
+                        myFile.Write(nPageInd.ToString()+"\t");
+
+                        for (int nByte = 0; nByte < m_nFreqSpectrumSteps; nByte++)
+                        {
+                            myFile.Write(((double)m_arrData[nPageInd, nByte]).ToString());
+                            if (nByte!=(m_nFreqSpectrumSteps-1))
+                                myFile.Write("\t");
+                        }
+                        myFile.Write("\r\n");
                     }
                 }
             }
@@ -1227,6 +1277,16 @@ namespace RFExplorerClient
             m_bDrawRealtime = chkCalcRealtime.Checked;
             if (m_bHoldMode)
                 DisplayData();
+        }
+
+        private void toolStripMenuItem1_Click(object sender, EventArgs e)
+        {
+            if (DialogResult.Yes == MessageBox.Show("Are you sure to reinitialize data buffer?", "Reinitialize data buffer", MessageBoxButtons.YesNo))
+            {
+                m_nDataIndex = 0;
+                m_nMaxDataIndex = 0;
+                numericUpDown.Value = 0;
+            }
         }
     }
 }
