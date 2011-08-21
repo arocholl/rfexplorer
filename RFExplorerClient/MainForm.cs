@@ -22,6 +22,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.Drawing.Drawing2D;
 using System.Text;
 using System.Windows.Forms;
 using ZedGraph;
@@ -35,23 +37,48 @@ namespace RFExplorerClient
 {
     public partial class MainForm : Form
     {
-        const byte m_nFileFormat = 1;       //File format constant
-        const int m_nTotalBufferSize = 10240;       //buffer size
-        const UInt16 m_nFreqSpectrumSteps = 112;    //$S byte buffer
+
+        #region Data Members
+        const byte m_nFileFormat = 1;               //File format constant
+        const int m_nTotalBufferSize = 10240;       //buffer size 
 
         const double MIN_AMPLITUDE_DBM = -120.0;
         const double MAX_AMPLITUDE_DBM = -1.0;
         const double MIN_AMPLITUDE_RANGE_DBM = 10;
-        
+
+        UInt16 m_nFreqSpectrumSteps = 112;  //$S byte buffer by default
         int m_nDrawingIteration = 0;        //Iteration counter to do regular updates on GUI
+
+        enum eModel
+        {
+            MODEL_434=0,    //0
+            MODEL_868,      //1
+            MODEL_915,      //2
+            MODEL_WSUB1G,   //3
+            MODEL_2400,     //4
+            MODEL_NONE=0xFF //0xFF
+        };
+
+        eModel m_eMainBoardModel;           //The RF model installed in main board
+        eModel m_eExpansionBoardModel;      //The RF model installed in the expansion board
+        eModel m_eActiveModel;              //The model active, regardless being main or expansion board
+        UInt16 m_eMode;                     //The current operational mode
+        bool m_bExpansionBoardActive;       //True when the expansion board is active, false otherwise
+
+        double m_fMinSpanMHZ = 0.112;       //Min valid span in MHZ for connected model
+        double m_fMaxSpanMHZ = 100.0;       //Max valid span in MHZ for connected model
+        double m_fMinFreqMHZ = 430.0;       //Min valid frequency in MHZ for connected model
+        double m_fMaxFreqMHZ = 440.0;       //Max valid frequency in MHZ for connected model
 
         string m_sFilename="";              //Value
         string m_sReportFilePath="";        //Path and name of the report log file
 
         Boolean m_bPortConnected = false;   //Will be true while COM port is connected, as IsOpen() is not reliable
         float[,] m_arrData;                 //Collection of available spectrum data
-        UInt16 m_nDataIndex = 0;            //Index pointing to latest image data received
+        UInt16 m_nDataIndex = 0;            //Index pointing to latest spectrum data received
         UInt16 m_nMaxDataIndex = 0;         //Max value for m_nDataIndex with available data
+        UInt16 m_nScreenIndex = 0;          //Index pointing to the latest Dump screen received
+        UInt16 m_nMaxScreenIndex = 0;       //Max value for m_nScreenIndex with available data
 
         string[] m_arrConnectedPorts;      //Collection of available COM ports
         string[] m_arrValidCP2101Ports;    //Collection of true CP2102 COM ports
@@ -70,6 +97,7 @@ namespace RFExplorerClient
         bool m_bDrawAverage = true;         //True if averaged data should be displayed
         bool m_bDrawMax = true;             //True if max data should be displayed
         bool m_bDrawMin = true;             //True if min data should be displayed
+        bool m_bShowPeaks = true;           //True if peak text with MHZ/dBm should be displayed
 
         double m_fAmplitudeTop = -30;       //dBm for top graph limit
         double m_fAmplitudeBottom = MIN_AMPLITUDE_DBM;   //dBm for bottom graph limit
@@ -77,8 +105,21 @@ namespace RFExplorerClient
         bool m_bFirstTick = true;           //Used to put some text and guarantee action done once after mainform load
         bool m_bFirstText = true;           //First report text printed
 
+        Pen m_PenDarkBlue;                  //Graphis objects cached to reduce drawing overhead
+        Pen m_PenRed;
+        Brush m_BrushDarkBlue;
+        TextObj m_RealtimePeak, m_AveragePeak, m_MaxPeak;
+
+        bool m_bIsWinXP = false;            //True if it is a Windows XP platform, which has some GUI differences with Win7/Vista
+        #endregion
+
+        #region Main Window
         public MainForm()
         {
+            SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
+            SetStyle(ControlStyles.AllPaintingInWmPaint, true);
+            SetStyle(ControlStyles.UserPaint, true);
+
             InitializeComponent();
         }
 
@@ -87,6 +128,7 @@ namespace RFExplorerClient
             this.BackColor = Color.LightYellow;
             tabSpectrumAnalyzer.BackColor = Color.LightYellow;
             tabReport.BackColor = Color.LightYellow;
+            tabRemoteScreen.BackColor = Color.LightYellow;
 
             // Get a reference to the GraphPane instance in the ZedGraphControl
             GraphPane myPane = objGraph.GraphPane;
@@ -136,6 +178,35 @@ namespace RFExplorerClient
             myPane.XAxis.Title.FontSpec.Size = 13;
             myPane.YAxis.Scale.FontSpec.Size = 10;
             myPane.XAxis.Scale.FontSpec.Size = 10;
+
+            m_RealtimePeak = new TextObj("", 0, 0, CoordType.AxisXYScale);
+            m_RealtimePeak.Location.AlignH = AlignH.Center;
+            m_RealtimePeak.Location.AlignV = AlignV.Bottom;
+            m_RealtimePeak.FontSpec.Size = 8;
+            m_RealtimePeak.FontSpec.Border.IsVisible = false;
+            m_RealtimePeak.FontSpec.FontColor = Color.Blue;
+            m_RealtimePeak.FontSpec.StringAlignment = StringAlignment.Center;
+            myPane.GraphObjList.Add(m_RealtimePeak);
+
+            m_MaxPeak= new TextObj("", 0, 0, CoordType.AxisXYScale);
+            m_MaxPeak.Location.AlignH = AlignH.Center;
+            m_MaxPeak.Location.AlignV = AlignV.Bottom;
+            m_MaxPeak.FontSpec.Size = 8;
+            m_MaxPeak.FontSpec.Border.IsVisible = false;
+            m_MaxPeak.FontSpec.FontColor = Color.Red;
+            m_MaxPeak.FontSpec.StringAlignment = StringAlignment.Center;
+            myPane.GraphObjList.Add(m_MaxPeak);
+
+            m_AveragePeak= new TextObj("", 0, 0, CoordType.AxisXYScale);
+            m_AveragePeak.Location.AlignH = AlignH.Center;
+            m_AveragePeak.Location.AlignV = AlignV.Bottom;
+            m_AveragePeak.FontSpec.Size = 8;
+            m_AveragePeak.FontSpec.Border.IsVisible = false;
+            m_AveragePeak.FontSpec.FontColor = Color.Brown;
+            m_AveragePeak.FontSpec.StringAlignment = StringAlignment.Center;
+            myPane.GraphObjList.Add(m_AveragePeak);
+
+        
         }
 
         private void GetNewFilename()
@@ -144,47 +215,33 @@ namespace RFExplorerClient
             m_sFilename = "RFExplorer_Client_Data_" + DateTime.Now.ToString("yyyy_MM_dd_HH_mm_ss") + ".rfe";
         }
 
-        private void ReportLog(string sLine)
-        {
-            if (m_bFirstText)
-            {
-                m_sReportFilePath = Environment.GetEnvironmentVariable("APPDATA") + "\\RFExplorerClient_report.log";
-                textBox_message.AppendText("Welcome to RFExplorer Client - report being saved to " + m_sReportFilePath + Environment.NewLine);
-            }
-            else
-                sLine = Environment.NewLine + sLine;
-
-            textBox_message.AppendText(sLine);
-
-            using (StreamWriter sr = new StreamWriter(m_sReportFilePath, true))
-            {
-                if (m_bFirstText)
-                {
-                    sr.WriteLine(Environment.NewLine + Environment.NewLine + 
-                        "===========================================");
-                    sr.WriteLine(
-                        "RFExplorer client session " + DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToShortTimeString());
-                    sr.WriteLine(
-                        "===========================================" + Environment.NewLine + Environment.NewLine);
-                }
-                sr.Write(sLine);
-            }
-
-            m_bFirstText = false;
-        }
-
         private void MainForm_Load(object sender, EventArgs e)
         {
             m_arrData               = new float[m_nTotalBufferSize, m_nFreqSpectrumSteps]; //up to m_nTotalBufferSize pages of 128 bytes each
+            m_arrRemoteScreenData   = new byte[m_nTotalBufferSize, 128 * 8];
+            m_arrRemoteScreenData.Initialize();
+            m_nScreenIndex          = 0;
+            m_nMaxScreenIndex       = 0;
 
             toolStripMemory.Maximum = m_nTotalBufferSize;
             toolStripMemory.Step    = m_nTotalBufferSize / 25;
 
+            numericUpDown.Minimum   = 0;
             numericUpDown.Maximum   = m_nTotalBufferSize;
             numericUpDown.Value     = 0;
 
+            numScreenIndex.Minimum  = 0;
+            numScreenIndex.Maximum  = m_nTotalBufferSize;
+            numScreenIndex.Value    = 0;
+
             numericIterations.Maximum = m_nTotalBufferSize;
             numericIterations.Value = 10;
+
+            m_PenDarkBlue           = new Pen(Color.DarkBlue, 1);
+            m_PenRed                = new Pen(Color.Red, 1);
+            m_BrushDarkBlue         = new SolidBrush(Color.DarkBlue);
+
+            m_bIsWinXP = (Environment.OSVersion.Version.Major <= 5);
 
             InitializeGraph();
 
@@ -239,7 +296,7 @@ namespace RFExplorerClient
             catch (Exception obEx)
             {
                 ReportLog("Error scanning COM ports: " + obEx.Message); 
-            };
+            }
         }
 
         private void UpdateButtonStatus()
@@ -249,6 +306,7 @@ namespace RFExplorerClient
             COMPortCombo.Enabled = !m_bPortConnected;
             comboBaudRate.Enabled = !m_bPortConnected;
             btnRescan.Enabled = !m_bPortConnected;
+            chkDumpScreen.Enabled = m_bPortConnected;
 
             groupSettings.Enabled = m_bPortConnected;
             chkHoldMode.Enabled = m_bPortConnected;
@@ -313,6 +371,8 @@ namespace RFExplorerClient
             m_bDrawMin                  = RFExplorerClient.Properties.Settings.Default.ViewMin;
             m_bDrawRealtime             = RFExplorerClient.Properties.Settings.Default.ViewRT;
             m_bDrawAverage              = RFExplorerClient.Properties.Settings.Default.ViewAvg;
+            numericZoom.Value           = RFExplorerClient.Properties.Settings.Default.ScreenZoom;
+            m_bShowPeaks                = RFExplorerClient.Properties.Settings.Default.ViewPeaks;
         }
 
         private void SaveProperties()
@@ -333,7 +393,8 @@ namespace RFExplorerClient
             RFExplorerClient.Properties.Settings.Default.ViewMin = m_bDrawMin;
             RFExplorerClient.Properties.Settings.Default.ViewRT = m_bDrawRealtime;
             RFExplorerClient.Properties.Settings.Default.ViewAvg = m_bDrawAverage;
-
+            RFExplorerClient.Properties.Settings.Default.ScreenZoom = (int)numericZoom.Value;
+            RFExplorerClient.Properties.Settings.Default.ViewPeaks = m_bShowPeaks;
             RFExplorerClient.Properties.Settings.Default.Save();
         }
 
@@ -396,17 +457,25 @@ namespace RFExplorerClient
                         strReceived += sNewText;
                         sNewText = "";
                     }
+                    if (strReceived.Length > 10240)
+                    {
+                        //Safety code, some error prevented the string from being processed in several loop cycles. Reset it.
+                        strReceived = "";
+                    }
                     if (strReceived.Length > 0)
                     {
                         if (strReceived[0] == '$')
                         {
                             if ((strReceived.Length > 1) && (strReceived[1] == 'D'))
                             {
-                                if (strReceived.Length >= (2 + 128 * 8 * 2))
+                                if (strReceived.Length >= (4 + 128 * 8))
                                 {
-                                    //ignore this string
-                                    string sLeftOver = strReceived.Substring(1 + 128 * 8);
+                                    string sNewLine = "$D" + strReceived.Substring(2, 128 * 8);
+                                    string sLeftOver = strReceived.Substring(4 + 128 * 8);
                                     strReceived = sLeftOver;
+                                    Monitor.Enter(m_arrReceivedStrings);
+                                    m_arrReceivedStrings.Enqueue(sNewLine);
+                                    Monitor.Exit(m_arrReceivedStrings);
                                 }
                             }
                             if ((strReceived.Length > 2) && (strReceived[1] == 'S') && ((byte)strReceived[2] == m_nFreqSpectrumSteps))
@@ -456,22 +525,19 @@ namespace RFExplorerClient
             {
                 Monitor.Enter(m_arrReceivedStrings);
                 bool bDraw = false;
+                bool bWrongFormat = false;
                 while (m_arrReceivedStrings.Count > 0)
                 {
                     string sLine = m_arrReceivedStrings.Dequeue().ToString();
 
-                    if (sLine.Contains("$S") && (m_fStartFrequencyMHZ > 100.0))
+                    if ((sLine.Substring(0,2)=="$S") && (m_fStartFrequencyMHZ > 100.0))
                     {
                         if (!m_bHoldMode && m_nDataIndex < m_nTotalBufferSize)
                         {
                             for (int nInd = 0; nInd < m_nFreqSpectrumSteps; nInd++)
                             {
                                 byte nVal = Convert.ToByte(sLine[2 + nInd]);
-                                float fVal = 0;
-                                if (nVal >= 35)
-                                    fVal = 0.5f * (nVal - 35) - 119.0f;
-                                else
-                                    fVal = -119.0f; //noise floor
+                                float fVal = nVal / -2.0f;
 
                                 m_arrData[m_nDataIndex, nInd] = fVal;
                             }
@@ -488,26 +554,89 @@ namespace RFExplorerClient
                             numericUpDown.Value = m_nDataIndex;
                         }
                     }
-                    else if (sLine.Contains("#C1-F:"))
+                    else if ( sLine.Substring(0,2)=="$D" )
+                    {
+                        if (m_nScreenIndex <= m_nMaxScreenIndex)
+                        {
+                            //force to draw in a new position
+                            m_nScreenIndex = m_nMaxScreenIndex;
+                            m_nScreenIndex++;
+                        }
+
+                        if (m_nScreenIndex < m_nTotalBufferSize)
+                        {
+                            //Capture only if we are inside bounds
+                            for (int nInd = 0; nInd < 128 * 8; nInd++)
+                            {
+                                m_arrRemoteScreenData[m_nScreenIndex, nInd] = Convert.ToByte(sLine[nInd + 2]);
+                            }
+                            tabRemoteScreen.Invalidate();
+                            m_nMaxScreenIndex = m_nScreenIndex;
+                            m_nScreenIndex++;
+                            numScreenIndex.Value = m_nScreenIndex;
+                        }
+                    }
+                    else if (sLine.Substring(0, 6) == "#C2-M:")
+                    {
+                        ReportLog("Received RFExplorer device model info:" + sLine);
+                        m_eMainBoardModel = (eModel)Convert.ToUInt16(sLine.Substring(6, 3));
+                        m_eExpansionBoardModel = (eModel)Convert.ToUInt16(sLine.Substring(10, 3));
+                    }
+                    else if (sLine.Substring(0, 6) == "#C2-F:")
                     {
                         ReportLog("Received configuration from RFExplorer device:" + sLine);
-                        double fStart = Convert.ToInt32(sLine.Substring(6, 6)) / 1000.0; //note it comes in KHZ
-                        double fStep = Convert.ToInt32(sLine.Substring(13, 5)) / 1000000.0;  //Note it comes in HZ
-                        if ((Math.Abs(m_fStartFrequencyMHZ - fStart) >= 0.001) || (Math.Abs(m_fStepFrequencyMHZ - fStep) >= 0.001))
+                        if (sLine.Length >= 50)
                         {
-                            m_fStartFrequencyMHZ = fStart;
-                            m_fStepFrequencyMHZ = fStep;
-                            m_nDataIndex = 0; //we cannot use previous data for avg, etc when new frequency range is selected
-                            ReportLog("New Freq range - buffer cleared.");
+                            double fStartMHZ = Convert.ToInt32(sLine.Substring(6, 7)) / 1000.0; //note it comes in KHZ
+                            double fStepMHZ = Convert.ToInt32(sLine.Substring(14, 7)) / 1000000.0;  //Note it comes in HZ
+                            if ((Math.Abs(m_fStartFrequencyMHZ - fStartMHZ) >= 0.001) || (Math.Abs(m_fStepFrequencyMHZ - fStepMHZ) >= 0.001))
+                            {
+                                m_fStartFrequencyMHZ = fStartMHZ;
+                                m_fStepFrequencyMHZ = fStepMHZ;
+                                m_nDataIndex = 0; //we cannot use previous data for avg, etc when new frequency range is selected
+                                ReportLog("New Freq range - buffer cleared.");
+                            }
+                            m_fAmplitudeTop = Convert.ToInt32(sLine.Substring(22, 4));
+                            m_fAmplitudeBottom = Convert.ToInt32(sLine.Substring(27, 4));
+                            m_nFreqSpectrumSteps = Convert.ToUInt16(sLine.Substring(32, 4));
+                            m_bExpansionBoardActive = (sLine[37] == '1');
+                            if (m_bExpansionBoardActive)
+                                m_eActiveModel = m_eExpansionBoardModel;
+                            else
+                                m_eActiveModel = m_eMainBoardModel;
+                            m_eMode = Convert.ToUInt16(sLine.Substring(39, 3));
+
+                            m_fMinFreqMHZ = Convert.ToInt32(sLine.Substring(43, 7)) / 1000.0;
+                            m_fMaxFreqMHZ = Convert.ToInt32(sLine.Substring(51, 7)) / 1000.0;
+                            m_fMaxSpanMHZ = Convert.ToInt32(sLine.Substring(59, 7)) / 1000.0;
+
+                            if (m_eActiveModel == eModel.MODEL_2400)
+                            {
+                                m_fMinSpanMHZ = 2.0;
+                            }
+                            else
+                            {
+                                m_fMinSpanMHZ = 0.112;
+                            }
+
+                            SetupAxis();
+                            SaveProperties();
                         }
-                        m_fAmplitudeTop=Convert.ToInt32(sLine.Substring(19, 4));
-                        m_fAmplitudeBottom = Convert.ToInt32(sLine.Substring(24, 4));
-                        SetupAxis();
-                        SaveProperties();
+                        else
+                            bWrongFormat = true;
+                    }
+                    else if (sLine.Substring(0, 6) == "#C1-F:")
+                    {
+                        bWrongFormat = true;
                     }
                     else
                     {
                         ReportLog(sLine);
+                    }
+                    if (bWrongFormat)
+                    {
+                        ReportLog("Received unexpected data from RFExplorer device:" + sLine);
+                        ReportLog("Please update your RF Explorer to a recent firmware version.");
                     }
                 }
                 if (bDraw)
@@ -541,22 +670,27 @@ namespace RFExplorerClient
             SaveProperties();
         }
 
-        private double CalculateEndFrequencyMHZ()
-        {
-            return m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * (m_nFreqSpectrumSteps - 1);
-        }
-
         private void SetupAxis()
         {
             double fStart = m_fStartFrequencyMHZ;
-            double fEnd = CalculateEndFrequencyMHZ();
+            double fEnd = CalculateEndFrequencyMHZ()-m_fStepFrequencyMHZ;
             double fMajorStep = 1.0;
 
             objGraph.GraphPane.XAxis.Scale.Min = fStart;
             objGraph.GraphPane.XAxis.Scale.Max = fEnd;
 
             if ((fEnd - fStart) < 1.0)
+            {
                 fMajorStep = 0.1;
+            }
+            else if ((fEnd - fStart) < 10)
+            {
+                fMajorStep = 1.0;
+            }
+            else if ((fEnd - fStart) < 100)
+            {
+                fMajorStep = 10;
+            }
 
             objGraph.GraphPane.XAxis.Scale.MajorStep = fMajorStep;
             objGraph.GraphPane.XAxis.Scale.MinorStep = fMajorStep/10.0;
@@ -592,9 +726,25 @@ namespace RFExplorerClient
                     toolCOMStatus.Text = "Disconnected";
             }
 
+            double fRealtimeMax_Amp = -200.0;
+            int fRealtimeMax_Iter = 0;
+            double fAverageMax_Amp = -200.0;
+            int fAverageMax_Iter = 0;
+            double fMaxMax_Amp = -200.0;
+            int fMaxMax_Iter = 0;
+
+            m_AveragePeak.Text = "";
+            m_RealtimePeak.Text = "";
+            m_MaxPeak.Text = "";
+
             for (int nInd = 0; nInd < m_nFreqSpectrumSteps; nInd++)
             {
                 double fVal = m_arrData[nIndex, nInd];
+                if (fVal > fRealtimeMax_Amp)
+                {
+                    fRealtimeMax_Amp = fVal;
+                    fRealtimeMax_Iter = nInd;
+                }
 
                 double fFreq=m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * nInd;
 
@@ -607,24 +757,36 @@ namespace RFExplorerClient
                     //Calculate average, max and min over Calculator range
                     double fVal2 = m_arrData[nIterator, nInd];
 
-                    if (fVal2 > fMax)
-                        fMax = fVal2;
-                    if (fVal2 < fMin)
-                        fMin = fVal2;
+                    fMax = Math.Max(fMax, fVal2);
+                    fMin = Math.Min(fMin, fVal2);
 
                     fValAvg += fVal2;
                 }
 
                 if (m_bDrawRealtime)
                     RTList.Add(fFreq, fVal);
-                if (m_bDrawMax)
-                    MaxList.Add(fFreq, fMax);
                 if (m_bDrawMin)
                     MinList.Add(fFreq, fMin);
+
+                if (m_bDrawMax)
+                {
+                    MaxList.Add(fFreq, fMax);
+                    if (fMax > fMaxMax_Amp)
+                    {
+                        fMaxMax_Amp = fMax;
+                        fMaxMax_Iter = nInd;
+                    }
+                }
+
                 if (m_bDrawAverage)
                 {
                     fValAvg = fValAvg / (nCalculatorMax + 1);
                     AvgList.Add(fFreq, fValAvg);
+                    if (fValAvg > fAverageMax_Amp)
+                    {
+                        fAverageMax_Amp = fValAvg;
+                        fAverageMax_Iter = nInd;
+                    }
                 }
             }
 
@@ -633,11 +795,25 @@ namespace RFExplorerClient
             {
                 LineItem RealtimeLine = objGraph.GraphPane.AddCurve("Realtime", RTList, Color.Blue, SymbolType.None);
                 RealtimeLine.Line.Width = 3;
+                if (m_bShowPeaks)
+                {
+                    double fFreqMark = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fRealtimeMax_Iter);
+                    m_RealtimePeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fRealtimeMax_Amp.ToString() + "dBm";
+                    m_RealtimePeak.Location.X = fFreqMark;
+                    m_RealtimePeak.Location.Y = fRealtimeMax_Amp;
+                }
             }
             if (m_bDrawMax)
             {
                 LineItem MaxLine = objGraph.GraphPane.AddCurve("Max", MaxList, Color.Red, SymbolType.None);
                 MaxLine.Line.Width = 2;
+                if (m_bShowPeaks)
+                {
+                    double fFreqMark = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fMaxMax_Iter);
+                    m_MaxPeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fMaxMax_Amp.ToString() + "dBm";
+                    m_MaxPeak.Location.X = fFreqMark;
+                    m_MaxPeak.Location.Y = fMaxMax_Amp;
+                }
             }
             if (m_bDrawMin)
             {
@@ -648,7 +824,15 @@ namespace RFExplorerClient
             {
                 LineItem AvgLine = objGraph.GraphPane.AddCurve("Avg", AvgList, Color.Brown, SymbolType.None);
                 AvgLine.Line.Width = 2;
+                if (m_bShowPeaks)
+                {
+                    double fFreqMark = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fAverageMax_Iter);
+                    m_AveragePeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fAverageMax_Amp.ToString("0.0") + "dBm";
+                    m_AveragePeak.Location.X = fFreqMark;
+                    m_AveragePeak.Location.Y = fAverageMax_Amp;
+                }
             }
+
             objGraph.Refresh();
         }
 
@@ -688,14 +872,17 @@ namespace RFExplorerClient
         {
             if (m_bPortConnected)
             {
-                //#C[30]-F:ssssss,eeeeee,tttt,bbbb
-                UInt32 nStartKhz = (UInt32)(m_fStartFrequencyMHZ * 1000);
-                UInt32 nEndKhz = (UInt32)(CalculateEndFrequencyMHZ() * 1000);
-                Int16 nTopDBM = (Int16)(m_fAmplitudeTop);
-                Int16 nBottomDBM = (Int16)(m_fAmplitudeBottom);
+                double fStartFreq = Convert.ToDouble(m_sStartFreq.Text);
+                double fEndFreq = Convert.ToDouble(m_sEndFreq.Text);
 
-                string sData = "#\x001EC1-F:" +
-                    nStartKhz.ToString("D6") + "," + nEndKhz.ToString("D6") + "," +
+                //#[32]C2-F:Sssssss,Eeeeeee,tttt,bbbb
+                UInt32 nStartKhz = (UInt32)(fStartFreq * 1000);
+                UInt32 nEndKhz = (UInt32)(fEndFreq * 1000);
+                Int16 nTopDBM = (Int16)(Convert.ToDouble(m_sTopDBM.Text));
+                Int16 nBottomDBM = (Int16)(Convert.ToDouble(m_sBottomDBM.Text));
+
+                string sData = "#\x001EC2-F:" +
+                    nStartKhz.ToString("D7") + "," + nEndKhz.ToString("D7") + "," +
                     nTopDBM.ToString("D3") + "," + nBottomDBM.ToString("D3");
                 SendCommand(sData);
             }
@@ -726,6 +913,16 @@ namespace RFExplorerClient
         private void chkHoldMode_CheckedChanged(object sender, EventArgs e)
         {
             m_bHoldMode = chkHoldMode.Checked;
+            if (m_bHoldMode)
+            {
+                //Send hold mode to RF Explorer to stop RS232 traffic
+                SendCommand("#\0004CH");
+            }
+            else
+            {
+                //Not on hold anymore, restore RS232 traffic
+                AskConfigData();
+            }
             UpdateFeedMode();
         }
 
@@ -762,6 +959,7 @@ namespace RFExplorerClient
             averagedDataToolStripMenuItem.Checked = m_bDrawAverage;
             maxDataToolStripMenuItem.Checked = m_bDrawMax;
             minDataToolStripMenuItem.Checked = m_bDrawMin;
+            mnuItem_ShowPeak.Checked = m_bShowPeaks;
         }
 
         private void click_view_mode(object sender, EventArgs e)
@@ -770,6 +968,8 @@ namespace RFExplorerClient
             m_bDrawAverage = averagedDataToolStripMenuItem.Checked;
             m_bDrawMax = maxDataToolStripMenuItem.Checked;
             m_bDrawMin = minDataToolStripMenuItem.Checked;
+            m_bShowPeaks = mnuItem_ShowPeak.Checked;
+            UpdateButtonStatus();
             if (m_bHoldMode)
                 DisplayData();
         }
@@ -825,7 +1025,13 @@ namespace RFExplorerClient
 
         private void fileToolStripMenuItem_DropDownOpening(object sender, EventArgs e)
         {
-            saveAsToolStripMenuItem.Enabled = m_nMaxDataIndex > 0;
+            saveAsToolStripMenuItem.Enabled = (m_nMaxDataIndex > 0) && (MainTab.SelectedTab == tabSpectrumAnalyzer);
+            SaveCSVtoolStripMenuItem.Enabled = (m_nMaxDataIndex > 0) && (MainTab.SelectedTab == tabSpectrumAnalyzer);
+            toolStripMenuItemLoad.Enabled = MainTab.SelectedTab == tabSpectrumAnalyzer;
+
+            SaveImagetoolStrip.Enabled = (m_nMaxScreenIndex > 0) && (MainTab.SelectedTab == tabRemoteScreen);
+            menu_LoadRFS.Enabled = MainTab.SelectedTab == tabRemoteScreen;
+            menu_SaveRFS.Enabled = (m_nMaxScreenIndex > 0) && (MainTab.SelectedTab == tabRemoteScreen);
         }
 
         private void UpdateFeedMode()
@@ -1147,7 +1353,10 @@ namespace RFExplorerClient
         {
             ListAllCOMPorts();
         }
-
+        private void btnReset_Click(object sender, EventArgs e)
+        {
+            UpdateDialogFromFreqSettings();
+        }
         private void UpdateDialogFromFreqSettings()
         {
             m_sBottomDBM.Text = m_fAmplitudeBottom.ToString();
@@ -1163,82 +1372,131 @@ namespace RFExplorerClient
             return (Math.Abs(d1 - d2) > dEpsilon);
         }
 
-        private void UpdateSettingsFromDialog(object sender, EventArgs e)
+        private void btnSend_Click(object sender, EventArgs e)
         {
-            bool bNewAmplitude = false;
-            bool bNewFrequency = false;
+            UpdateYAxis();
+            UpdateRemoteConfigData();
+        }
 
-            double fBottomDBM   = Convert.ToDouble(m_sBottomDBM.Text);
-            double fTopDBM      = Convert.ToDouble(m_sTopDBM.Text);
-            double fStartFreq   = Convert.ToDouble(m_sStartFreq.Text);
-            double fEndFreq     = Convert.ToDouble(m_sEndFreq.Text);
-            double fCenterFreq  = Convert.ToDouble(m_sCenterFreq.Text);
-            double fFreqSpan    = Convert.ToDouble(m_sFreqSpan.Text);
+        private void m_sStartFreq_Leave(object sender, EventArgs e)
+        {
+            double fStartFreq = Convert.ToDouble(m_sStartFreq.Text);
+            fStartFreq = Math.Max(m_fMinFreqMHZ, fStartFreq);
+            fStartFreq = Math.Min(m_fMaxFreqMHZ - m_fMinSpanMHZ, fStartFreq);
 
-            if (IsDifferent(fBottomDBM, m_fAmplitudeBottom, 0.1))
-            {
-                m_fAmplitudeBottom = fBottomDBM;
-                bNewAmplitude = true;
-            }
-            if (IsDifferent(fTopDBM, m_fAmplitudeTop, 1.0))
-            {
-                m_fAmplitudeTop = fTopDBM;
-                bNewAmplitude = true;
-            }
-            if (IsDifferent(fStartFreq, m_fStartFrequencyMHZ))
-            {
-                m_fStartFrequencyMHZ=fStartFreq;
-                bNewFrequency = true;
-            }
-            if (IsDifferent(fEndFreq, CalculateEndFrequencyMHZ()))
-            {
-                m_fStepFrequencyMHZ=(fEndFreq-m_fStartFrequencyMHZ)/(m_nFreqSpectrumSteps-1);
-                bNewFrequency = true;
-            }
-            if (!bNewFrequency)
-            {
-                //only recalculate center+span if start/end weren't manually changed
-                if (IsDifferent(fCenterFreq, CalculateCenterFrequencyMHZ()))
-                {
-                    m_fStartFrequencyMHZ = fCenterFreq - CalculateFrequencySpanMHZ() / 2.0;
-                    bNewFrequency = true;
-                }
-                if (IsDifferent(fFreqSpan, CalculateFrequencySpanMHZ()))
-                {
-                    m_fStartFrequencyMHZ = fCenterFreq - fFreqSpan / 2.0;
-                    m_fStepFrequencyMHZ = fFreqSpan / (m_nFreqSpectrumSteps - 1);
-                    bNewFrequency = true;
-                }
-            }
+            double fEndFreq = Convert.ToDouble(m_sEndFreq.Text);
+            fEndFreq = Math.Max(m_fMinFreqMHZ + m_fMinSpanMHZ, fEndFreq);
+            fEndFreq = Math.Min(m_fMaxFreqMHZ, fEndFreq);
 
-            if (bNewAmplitude)
-            {
-                UpdateYAxis();
-                UpdateDialogFromFreqSettings();
-            }
+            double fFreqSpan = (fEndFreq - fStartFreq);
+            fFreqSpan = Math.Max(m_fMinSpanMHZ, fFreqSpan);
+            fFreqSpan = Math.Min(m_fMaxSpanMHZ, fFreqSpan);
 
-            if (bNewFrequency)
-            {
-                ReportLog("New Freq range - buffer cleared.");
-                bNewFrequency = true;
-                m_nDataIndex = 0; //we cannot use previous data for avg, etc when new frequency range is selected
-                UpdateRemoteConfigData();
-            }
+            fEndFreq = fStartFreq + fFreqSpan;
+
+            m_sStartFreq.Text = fStartFreq.ToString("f3");
+            m_sEndFreq.Text = fEndFreq.ToString("f3");
+
+            m_sCenterFreq.Text = (fStartFreq + fFreqSpan / 2.0).ToString("f3");
+            m_sFreqSpan.Text = (fFreqSpan).ToString("f3");
+        }
+
+        private void m_sEndFreq_Leave(object sender, EventArgs e)
+        {
+            double fStartFreq = Convert.ToDouble(m_sStartFreq.Text);
+            fStartFreq = Math.Max(m_fMinFreqMHZ, fStartFreq);
+            fStartFreq = Math.Min(m_fMaxFreqMHZ - m_fMinSpanMHZ, fStartFreq);
+
+            double fEndFreq = Convert.ToDouble(m_sEndFreq.Text);
+            fEndFreq = Math.Max(m_fMinFreqMHZ + m_fMinSpanMHZ, fEndFreq);
+            fEndFreq = Math.Min(m_fMaxFreqMHZ, fEndFreq);
+
+            double fFreqSpan = (fEndFreq - fStartFreq);
+            fFreqSpan = Math.Max(m_fMinSpanMHZ, fFreqSpan);
+            fFreqSpan = Math.Min(m_fMaxSpanMHZ, fFreqSpan);
+
+            fStartFreq = fEndFreq - fFreqSpan;
+
+            m_sStartFreq.Text = fStartFreq.ToString("f3");
+            m_sEndFreq.Text = fEndFreq.ToString("f3");
+
+            m_sCenterFreq.Text = (fStartFreq + fFreqSpan / 2.0).ToString("f3");
+            m_sFreqSpan.Text = (fFreqSpan).ToString("f3");
+        }
+
+        private void m_sFreqSpan_Leave(object sender, EventArgs e)
+        {
+            double fFreqSpan = Convert.ToDouble(m_sFreqSpan.Text);
+            fFreqSpan = Math.Max(m_fMinSpanMHZ,fFreqSpan);
+            fFreqSpan = Math.Min(m_fMaxSpanMHZ, fFreqSpan);
+
+            double fCenterFreq = Convert.ToDouble(m_sCenterFreq.Text);
+            if ((fCenterFreq - (fFreqSpan / 2.0)) < m_fMinFreqMHZ)
+                fCenterFreq = (m_fMinFreqMHZ + (fFreqSpan / 2.0));
+            if ((fCenterFreq + (fFreqSpan / 2.0)) > m_fMaxFreqMHZ)
+                fCenterFreq = (m_fMaxFreqMHZ - (fFreqSpan / 2.0));
+
+            m_sFreqSpan.Text = fFreqSpan.ToString("f3");
+            m_sCenterFreq.Text = fCenterFreq.ToString("f3");
+
+            double fStartMHZ = fCenterFreq - fFreqSpan / 2.0;
+            m_sStartFreq.Text = fStartMHZ.ToString("f3");
+            m_sEndFreq.Text = (fStartMHZ + fFreqSpan).ToString("f3");
+        }
+
+        private void m_sCenterFreq_Leave(object sender, EventArgs e)
+        {
+            double fCenterFreq = Convert.ToDouble(m_sCenterFreq.Text);
+            if (fCenterFreq > (m_fMaxFreqMHZ-(m_fMinSpanMHZ/2.0)))
+                fCenterFreq = (m_fMaxFreqMHZ-(m_fMinSpanMHZ/2.0));
+            if (fCenterFreq < (m_fMinFreqMHZ+(m_fMinSpanMHZ/2.0)))
+                fCenterFreq = (m_fMinFreqMHZ+(m_fMinSpanMHZ/2.0));
+
+            double fFreqSpan = Convert.ToDouble(m_sFreqSpan.Text);
+            if ((fCenterFreq-(fFreqSpan/2.0))<m_fMinFreqMHZ)
+                fFreqSpan=(fCenterFreq-m_fMinFreqMHZ)*2.0;
+            if ((fCenterFreq+(fFreqSpan/2.0))>m_fMaxFreqMHZ)
+                fFreqSpan=(m_fMaxFreqMHZ-fCenterFreq)*2.0;
+            m_sFreqSpan.Text = fFreqSpan.ToString("f3");
+            m_sCenterFreq.Text = fCenterFreq.ToString("f3");
+
+            double fStartMHZ = fCenterFreq - fFreqSpan / 2.0;
+            m_sStartFreq.Text = fStartMHZ.ToString("f3");
+            m_sEndFreq.Text = (fStartMHZ + fFreqSpan).ToString("f3");
+        }
+
+        private void m_sBottomDBM_Leave(object sender, EventArgs e)
+        {
+            double fAmplitudeBottom = Convert.ToDouble(m_sBottomDBM.Text);
+            double fAmplitudeTop = Convert.ToDouble(m_sTopDBM.Text);
+
+            if (fAmplitudeBottom < MIN_AMPLITUDE_DBM)
+                fAmplitudeBottom = MIN_AMPLITUDE_DBM;
+            if (fAmplitudeBottom > (fAmplitudeTop - MIN_AMPLITUDE_RANGE_DBM))
+                fAmplitudeBottom = (fAmplitudeTop - MIN_AMPLITUDE_RANGE_DBM);
+
+            if (fAmplitudeTop > MAX_AMPLITUDE_DBM)
+                fAmplitudeTop = MAX_AMPLITUDE_DBM;
+            if (fAmplitudeTop < (fAmplitudeBottom + MIN_AMPLITUDE_RANGE_DBM))
+                fAmplitudeTop = (fAmplitudeBottom + MIN_AMPLITUDE_RANGE_DBM);
+
+            m_sBottomDBM.Text = fAmplitudeBottom.ToString();
+            m_sTopDBM.Text = fAmplitudeTop.ToString();
+        }
+
+        private double CalculateEndFrequencyMHZ()
+        {
+            return m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * m_nFreqSpectrumSteps;
         }
 
         private double CalculateFrequencySpanMHZ()
         {
-            return m_fStepFrequencyMHZ * (m_nFreqSpectrumSteps - 1);
+            return m_fStepFrequencyMHZ * m_nFreqSpectrumSteps;
         }
 
         private double CalculateCenterFrequencyMHZ()
         {
             return m_fStartFrequencyMHZ + CalculateFrequencySpanMHZ()/2.0;
-        }
-
-        private void tabReport_Enter(object sender, EventArgs e)
-        {
-            groupCOM.Parent = tabReport;
         }
 
         private void tabSpectrumAnalyzer_Enter(object sender, EventArgs e)
@@ -1279,6 +1537,13 @@ namespace RFExplorerClient
                 DisplayData();
         }
 
+        private void mnuItem_ShowPeak_CheckedChanged(object sender, EventArgs e)
+        {
+            m_bShowPeaks = mnuItem_ShowPeak.Checked;
+            if (m_bHoldMode)
+                DisplayData();
+        }
+
         private void toolStripMenuItem1_Click(object sender, EventArgs e)
         {
             if (DialogResult.Yes == MessageBox.Show("Are you sure to reinitialize data buffer?", "Reinitialize data buffer", MessageBoxButtons.YesNo))
@@ -1288,5 +1553,297 @@ namespace RFExplorerClient
                 numericUpDown.Value = 0;
             }
         }
+        #endregion
+
+        #region Remote screen
+
+        byte[,] m_arrRemoteScreenData;
+
+        int m_nRSOrigin_X = 10;
+        int m_nRSOrigin_Y = 125;
+
+        LinearGradientBrush m_BrushlinGrBrush;
+
+        private void tabRemoteScreen_UpdateZoomValues()
+        {
+            int nSize = (int)(numericZoom.Value);
+
+            m_nRSOrigin_X = ((Width - 128 * nSize + 9) / 2) - 20;
+            m_nRSOrigin_Y = 125 + ((519 - 64 * nSize + 9) / 2);
+
+            m_BrushlinGrBrush = new LinearGradientBrush(
+               new Point(0, m_nRSOrigin_Y - 5),
+               new Point(0, m_nRSOrigin_Y - 5 + 64 * nSize + 9),
+               Color.White,
+               Color.LightBlue);
+        }
+
+        private void tabRemoteScreen_Enter(object sender, EventArgs e)
+        {
+            groupCOM.Parent = tabRemoteScreen;
+
+            //TODO Note: automatic double buffer doesn't work for a tab, we need to create a custom control
+            SetStyle(ControlStyles.AllPaintingInWmPaint, true);
+            SetStyle(ControlStyles.UserPaint, true);
+            SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
+
+            tabRemoteScreen_UpdateZoomValues();
+        }
+
+        private void numScreenIndex_ValueChanged(object sender, EventArgs e)
+        {
+            m_nScreenIndex = (UInt16)numScreenIndex.Value;
+            if (m_nScreenIndex > m_nMaxScreenIndex)
+            {
+                m_nScreenIndex = m_nMaxScreenIndex;
+                numScreenIndex.Value = m_nScreenIndex;
+            }
+            tabRemoteScreen.Invalidate();
+        }
+
+        //Remote screen functions - TODO: refactor it to a separate class
+        void DrawData(Graphics objGraphics)
+        {
+            int nSize = (int)(numericZoom.Value);
+            int nGap = 1;
+            if (nSize <= 3)
+                nGap = 0;
+                /*
+                 * only for video, too blur for static image
+            else
+                objGraphics.SmoothingMode = SmoothingMode.AntiAlias;
+                 */
+
+            objGraphics.FillRectangle(m_BrushlinGrBrush, m_nRSOrigin_X - 4, m_nRSOrigin_Y - 5, 128 * nSize + 9, 64 * nSize + 9);
+            objGraphics.DrawRectangle(m_PenDarkBlue, m_nRSOrigin_X - 4, m_nRSOrigin_Y - 5, 128 * nSize + 9, 64 * nSize + 9);
+
+            for (int nIndY = 0; nIndY < 8; nIndY++)
+            {
+                for (int nIndX = 0; nIndX < 128; nIndX++)
+                {
+                    for (byte nBit = 0; nBit < 8; nBit++)
+                    {
+                        byte nVal = 0x01;
+                        nVal = (byte)(nVal << nBit);
+                        byte nData = m_arrRemoteScreenData[(UInt16)numScreenIndex.Value, nIndX + 128 * nIndY];
+                        nVal = (byte)(nVal & nData);
+                        if (nVal != 0)
+                            objGraphics.FillRectangle(m_BrushDarkBlue, m_nRSOrigin_X + nIndX * nSize, m_nRSOrigin_Y + (nIndY * 8 + nBit) * nSize, nSize - nGap, nSize - nGap);
+                    }
+                }
+            }
+        }
+
+        private void tabRemoteScreen_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics objGraphics = e.Graphics;
+            DrawData(objGraphics);
+        }
+
+        private void numericZoom_ValueChanged(object sender, EventArgs e)
+        {
+            tabRemoteScreen_UpdateZoomValues();
+            tabRemoteScreen.Invalidate();
+        }
+
+        private void chkDumpScreen_CheckedChanged(object sender, EventArgs e)
+        {
+            if (chkDumpScreen.Checked)
+            {
+                SendCommand("#\x0004D1");
+            }
+            else
+            {
+                //sent twice to guarantee process in high load condition
+                SendCommand("#\x0004D0");
+                SendCommand("#\x0004D0");
+            }
+        }
+
+        private void SavePNG(string sFilename)
+        {
+            Rectangle rectBounds = new Rectangle(0, 0, Width, Height);
+            using (Bitmap objAppBmp = new Bitmap(Width, Height))
+            {
+                DrawToBitmap(objAppBmp, rectBounds);
+
+                int nSize = (int)(numericZoom.Value);
+                using (Bitmap objImage = new Bitmap(128 * nSize + 15, 64 * nSize + 15))
+                {
+                    int nOriginX = -m_nRSOrigin_X-2;
+                    int nOriginY = -m_nRSOrigin_Y - 76;
+                    if (!m_bIsWinXP)
+                        nOriginY += 4; //Difference in Win7 by trial/error. TODO: We need a better method to adjust this
+                    Rectangle rectBounds2 = new Rectangle(nOriginX, nOriginY, Width, Height);
+                    Graphics.FromImage(objImage).DrawImage(objAppBmp, rectBounds2);
+                    objImage.Save(sFilename, ImageFormat.Png);
+                }
+            }
+        }
+
+        private void SaveImagetoolStrip_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
+                {
+                    MySaveFileDialog.Filter = "Image PNG files (*.png)|*.png|All files (*.*)|*.*";
+                    MySaveFileDialog.FilterIndex = 1;
+                    MySaveFileDialog.RestoreDirectory = false;
+
+                    GetNewFilename();
+                    MySaveFileDialog.FileName = m_sFilename.Replace(".rfe", ".png");
+
+                    if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        SavePNG(MySaveFileDialog.FileName);
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void SaveFileRFS(string sFilename)
+        {
+            try
+            {
+                using (FileStream myFile = new FileStream(sFilename, FileMode.Create))
+                {
+                    using (BinaryWriter binStream = new BinaryWriter(myFile))
+                    {
+                        binStream.Write("RF Explorer RFS screen file: " + FileHeaderVersioned());
+                        binStream.Write(m_nMaxScreenIndex);
+                        for (UInt16 nPageInd = 0; nPageInd <= m_nMaxScreenIndex; nPageInd++)
+                        {
+                            binStream.Write(nPageInd);
+
+                            for (int nIndY = 0; nIndY < 8; nIndY++)
+                            {
+                                for (int nIndX = 0; nIndX < 128; nIndX++)
+                                {
+                                    byte nData = m_arrRemoteScreenData[nPageInd, nIndX + 128 * nIndY];
+                                    binStream.Write(nData);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void LoadFileRFS(string sFilename)
+        {
+            try
+            {
+                using (FileStream myFile = new FileStream(sFilename, FileMode.Open))
+                {
+                    using (BinaryReader binStream = new BinaryReader(myFile))
+                    {
+                        string sHeader = binStream.ReadString();
+                        m_nMaxScreenIndex = binStream.ReadUInt16();
+                        ReportLog("RFS file loaded: " + sHeader + " with total samples:" + m_nMaxScreenIndex.ToString());
+                        for (UInt16 nPageInd = 0; nPageInd <= m_nMaxScreenIndex; nPageInd++)
+                        {
+                            binStream.ReadUInt16(); //page number, can be ignored here
+
+                            for (int nIndY = 0; nIndY < 8; nIndY++)
+                            {
+                                for (int nIndX = 0; nIndX < 128; nIndX++)
+                                {
+                                    byte nData = binStream.ReadByte();
+                                    m_arrRemoteScreenData[nPageInd, nIndX + 128 * nIndY] = nData;
+                                }
+                            }
+                        }
+                        numScreenIndex.Value = m_nMaxScreenIndex;
+                        m_nScreenIndex = (ushort)numScreenIndex.Value;
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void menu_SaveRFS_Click(object sender, EventArgs e)
+        {
+            if (m_nMaxScreenIndex > 0)
+            {
+                try
+                {
+                    using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
+                    {
+                        MySaveFileDialog.Filter = "RF Explorer RFS Screen files (*.rfs)|*.rfs|All files (*.*)|*.*";
+                        MySaveFileDialog.FilterIndex = 1;
+                        MySaveFileDialog.RestoreDirectory = false;
+
+                        GetNewFilename();
+                        MySaveFileDialog.FileName = m_sFilename.Replace(".rfe", ".rfs");
+
+                        if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
+                        {
+                            SaveFileRFS(MySaveFileDialog.FileName);
+                        }
+                    }
+                }
+                catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+            }
+        }
+
+        private void menu_LoadRFS_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog MyOpenFileDialog = new OpenFileDialog())
+            {
+                MyOpenFileDialog.Filter = "RFExplorer files (*.rfs)|*.rfs|All files (*.*)|*.*";
+                MyOpenFileDialog.FilterIndex = 1;
+                MyOpenFileDialog.RestoreDirectory = false;
+
+                if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    LoadFileRFS(MyOpenFileDialog.FileName);
+                }
+            }            
+        }
+
+        #endregion
+
+        #region Report Window
+
+        private void tabReport_Enter(object sender, EventArgs e)
+        {
+            groupCOM.Parent = tabReport;
+        }
+
+        private void ReportLog(string sLine)
+        {
+            if (m_bFirstText)
+            {
+                m_sReportFilePath = Environment.GetEnvironmentVariable("APPDATA") + "\\RFExplorerClient_report.log";
+                textBox_message.AppendText("Welcome to RFExplorer Client - report being saved to " + m_sReportFilePath + Environment.NewLine);
+            }
+            else
+                sLine = Environment.NewLine + sLine;
+
+            textBox_message.AppendText(sLine);
+
+            using (StreamWriter sr = new StreamWriter(m_sReportFilePath, true))
+            {
+                if (m_bFirstText)
+                {
+                    sr.WriteLine(Environment.NewLine + Environment.NewLine +
+                        "===========================================");
+                    sr.WriteLine(
+                        "RFExplorer client session " + DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToShortTimeString());
+                    sr.WriteLine(
+                        "===========================================" + Environment.NewLine + Environment.NewLine);
+                }
+                sr.Write(sLine);
+            }
+
+            m_bFirstText = false;
+        }
+        #endregion
+
     }
+
+
 }

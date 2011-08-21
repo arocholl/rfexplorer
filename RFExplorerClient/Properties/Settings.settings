@@ -15,7 +15,7 @@
       <Value Profile="(Default)">-60</Value>
     </Setting>
     <Setting Name="BottomAmp" Type="System.Double" Scope="User">
-      <Value Profile="(Default)">-110</Value>
+      <Value Profile="(Default)">-120</Value>
     </Setting>
     <Setting Name="StartFreq" Type="System.Double" Scope="User">
       <Value Profile="(Default)">430</Value>
@@ -36,6 +36,12 @@
       <Value Profile="(Default)">True</Value>
     </Setting>
     <Setting Name="ViewAvg" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ScreenZoom" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">7</Value>
+    </Setting>
+    <Setting Name="ViewPeaks" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
   </Settings>

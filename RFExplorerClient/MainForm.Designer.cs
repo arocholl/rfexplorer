@@ -1,4 +1,23 @@
-﻿namespace RFExplorerClient
+﻿//============================================================================
+//RF Explorer PC Client - A Handheld Spectrum Analyzer for everyone!
+//Copyright © 2010-11 Ariel Rocholl, www.rf-explorer.com
+//
+//This application is free software; you can redistribute it and/or
+//modify it under the terms of the GNU Lesser General Public
+//License as published by the Free Software Foundation; either
+//version 3.0 of the License, or (at your option) any later version.
+//
+//This software is distributed in the hope that it will be useful,
+//but WITHOUT ANY WARRANTY; without even the implied warranty of
+//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+//General Public License for more details.
+//
+//You should have received a copy of the GNU General Public
+//License along with this library; if not, write to the Free Software
+//Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//=============================================================================
+
+namespace RFExplorerClient
 {
     partial class MainForm
     {
@@ -34,7 +53,15 @@
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripMenuItemLoad = new System.Windows.Forms.ToolStripMenuItem();
             this.saveAsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator4 = new System.Windows.Forms.ToolStripSeparator();
+            this.SaveCSVtoolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator5 = new System.Windows.Forms.ToolStripSeparator();
+            this.menu_SaveRFS = new System.Windows.Forms.ToolStripMenuItem();
+            this.menu_LoadRFS = new System.Windows.Forms.ToolStripMenuItem();
+            this.SaveImagetoolStrip = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator6 = new System.Windows.Forms.ToolStripSeparator();
             this.saveOnCloseToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.toolStripMenuPortInfo = new System.Windows.Forms.ToolStripMenuItem();
             this.aboutToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -74,6 +101,8 @@
             this.COMPortCombo = new System.Windows.Forms.ComboBox();
             this.objGraph = new ZedGraph.ZedGraphControl();
             this.groupSettings = new System.Windows.Forms.GroupBox();
+            this.btnReset = new System.Windows.Forms.Button();
+            this.btnSend = new System.Windows.Forms.Button();
             this.label8 = new System.Windows.Forms.Label();
             this.m_sBottomDBM = new System.Windows.Forms.TextBox();
             this.label7 = new System.Windows.Forms.Label();
@@ -86,10 +115,16 @@
             this.m_sStartFreq = new System.Windows.Forms.TextBox();
             this.label3 = new System.Windows.Forms.Label();
             this.m_sCenterFreq = new System.Windows.Forms.TextBox();
+            this.tabRemoteScreen = new System.Windows.Forms.TabPage();
+            this.groupRemoteScreen = new System.Windows.Forms.GroupBox();
+            this.numScreenIndex = new System.Windows.Forms.NumericUpDown();
+            this.label9 = new System.Windows.Forms.Label();
+            this.numericZoom = new System.Windows.Forms.NumericUpDown();
+            this.chkDumpScreen = new System.Windows.Forms.CheckBox();
+            this.label10 = new System.Windows.Forms.Label();
             this.tabReport = new System.Windows.Forms.TabPage();
             this.textBox_message = new System.Windows.Forms.TextBox();
-            this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripMenuItem();
-            this.SaveCSVtoolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.mnuItem_ShowPeak = new System.Windows.Forms.ToolStripMenuItem();
             this.MainMenu.SuspendLayout();
             this.MainTab.SuspendLayout();
             this.tabSpectrumAnalyzer.SuspendLayout();
@@ -99,6 +134,10 @@
             this.MainStatusBar.SuspendLayout();
             this.groupCOM.SuspendLayout();
             this.groupSettings.SuspendLayout();
+            this.tabRemoteScreen.SuspendLayout();
+            this.groupRemoteScreen.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numScreenIndex)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericZoom)).BeginInit();
             this.tabReport.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -119,7 +158,13 @@
             this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolStripMenuItemLoad,
             this.saveAsToolStripMenuItem,
+            this.toolStripSeparator4,
             this.SaveCSVtoolStripMenuItem,
+            this.toolStripSeparator5,
+            this.menu_SaveRFS,
+            this.menu_LoadRFS,
+            this.SaveImagetoolStrip,
+            this.toolStripSeparator6,
             this.saveOnCloseToolStripMenuItem,
             this.toolStripMenuItem1,
             this.toolStripSeparator2,
@@ -135,52 +180,102 @@
             // toolStripMenuItemLoad
             // 
             this.toolStripMenuItemLoad.Name = "toolStripMenuItemLoad";
-            this.toolStripMenuItemLoad.Size = new System.Drawing.Size(188, 22);
-            this.toolStripMenuItemLoad.Text = "&Load...";
+            this.toolStripMenuItemLoad.Size = new System.Drawing.Size(214, 22);
+            this.toolStripMenuItemLoad.Text = "&Load RFE data file...";
             this.toolStripMenuItemLoad.Click += new System.EventHandler(this.toolStripMenuItemLoad_Click);
             // 
             // saveAsToolStripMenuItem
             // 
             this.saveAsToolStripMenuItem.Name = "saveAsToolStripMenuItem";
-            this.saveAsToolStripMenuItem.Size = new System.Drawing.Size(188, 22);
-            this.saveAsToolStripMenuItem.Text = "Sa&ve As...";
+            this.saveAsToolStripMenuItem.Size = new System.Drawing.Size(214, 22);
+            this.saveAsToolStripMenuItem.Text = "Sa&ve RFE data As...";
             this.saveAsToolStripMenuItem.Click += new System.EventHandler(this.saveAsToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator4
+            // 
+            this.toolStripSeparator4.Name = "toolStripSeparator4";
+            this.toolStripSeparator4.Size = new System.Drawing.Size(211, 6);
+            // 
+            // SaveCSVtoolStripMenuItem
+            // 
+            this.SaveCSVtoolStripMenuItem.Name = "SaveCSVtoolStripMenuItem";
+            this.SaveCSVtoolStripMenuItem.Size = new System.Drawing.Size(214, 22);
+            this.SaveCSVtoolStripMenuItem.Text = "Export CS&V As...";
+            this.SaveCSVtoolStripMenuItem.Click += new System.EventHandler(this.SaveCSVtoolStripMenuItem_Click);
+            // 
+            // toolStripSeparator5
+            // 
+            this.toolStripSeparator5.Name = "toolStripSeparator5";
+            this.toolStripSeparator5.Size = new System.Drawing.Size(211, 6);
+            // 
+            // menu_SaveRFS
+            // 
+            this.menu_SaveRFS.Name = "menu_SaveRFS";
+            this.menu_SaveRFS.Size = new System.Drawing.Size(214, 22);
+            this.menu_SaveRFS.Text = "Save RFS Screen file As... ";
+            this.menu_SaveRFS.Click += new System.EventHandler(this.menu_SaveRFS_Click);
+            // 
+            // menu_LoadRFS
+            // 
+            this.menu_LoadRFS.Name = "menu_LoadRFS";
+            this.menu_LoadRFS.Size = new System.Drawing.Size(214, 22);
+            this.menu_LoadRFS.Text = "Load RFS Screen file As...";
+            this.menu_LoadRFS.Click += new System.EventHandler(this.menu_LoadRFS_Click);
+            // 
+            // SaveImagetoolStrip
+            // 
+            this.SaveImagetoolStrip.Name = "SaveImagetoolStrip";
+            this.SaveImagetoolStrip.Size = new System.Drawing.Size(214, 22);
+            this.SaveImagetoolStrip.Text = "Save Remote Ima&ge As...";
+            this.SaveImagetoolStrip.Click += new System.EventHandler(this.SaveImagetoolStrip_Click);
+            // 
+            // toolStripSeparator6
+            // 
+            this.toolStripSeparator6.Name = "toolStripSeparator6";
+            this.toolStripSeparator6.Size = new System.Drawing.Size(211, 6);
             // 
             // saveOnCloseToolStripMenuItem
             // 
             this.saveOnCloseToolStripMenuItem.CheckOnClick = true;
             this.saveOnCloseToolStripMenuItem.Name = "saveOnCloseToolStripMenuItem";
-            this.saveOnCloseToolStripMenuItem.Size = new System.Drawing.Size(188, 22);
+            this.saveOnCloseToolStripMenuItem.Size = new System.Drawing.Size(214, 22);
             this.saveOnCloseToolStripMenuItem.Text = "&Save on Close";
+            // 
+            // toolStripMenuItem1
+            // 
+            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
+            this.toolStripMenuItem1.Size = new System.Drawing.Size(214, 22);
+            this.toolStripMenuItem1.Text = "Reinitialize &Data...";
+            this.toolStripMenuItem1.Click += new System.EventHandler(this.toolStripMenuItem1_Click);
             // 
             // toolStripSeparator2
             // 
             this.toolStripSeparator2.Name = "toolStripSeparator2";
-            this.toolStripSeparator2.Size = new System.Drawing.Size(185, 6);
+            this.toolStripSeparator2.Size = new System.Drawing.Size(211, 6);
             // 
             // toolStripMenuPortInfo
             // 
             this.toolStripMenuPortInfo.Name = "toolStripMenuPortInfo";
-            this.toolStripMenuPortInfo.Size = new System.Drawing.Size(188, 22);
+            this.toolStripMenuPortInfo.Size = new System.Drawing.Size(214, 22);
             this.toolStripMenuPortInfo.Text = "Report COM port &info";
             this.toolStripMenuPortInfo.Click += new System.EventHandler(this.toolStripMenuPortInfo_Click);
             // 
             // aboutToolStripMenuItem
             // 
             this.aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
-            this.aboutToolStripMenuItem.Size = new System.Drawing.Size(188, 22);
+            this.aboutToolStripMenuItem.Size = new System.Drawing.Size(214, 22);
             this.aboutToolStripMenuItem.Text = "&About...";
             this.aboutToolStripMenuItem.Click += new System.EventHandler(this.aboutToolStripMenuItem_Click);
             // 
             // toolStripSeparator1
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
-            this.toolStripSeparator1.Size = new System.Drawing.Size(185, 6);
+            this.toolStripSeparator1.Size = new System.Drawing.Size(211, 6);
             // 
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(188, 22);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(214, 22);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
@@ -191,6 +286,7 @@
             this.averagedDataToolStripMenuItem,
             this.maxDataToolStripMenuItem,
             this.minDataToolStripMenuItem,
+            this.mnuItem_ShowPeak,
             this.toolStripSeparator3,
             this.toolStripCleanReport});
             this.viewToolStripMenuItem.Name = "viewToolStripMenuItem";
@@ -202,7 +298,7 @@
             // 
             this.realtimeDataToolStripMenuItem.CheckOnClick = true;
             this.realtimeDataToolStripMenuItem.Name = "realtimeDataToolStripMenuItem";
-            this.realtimeDataToolStripMenuItem.Size = new System.Drawing.Size(157, 22);
+            this.realtimeDataToolStripMenuItem.Size = new System.Drawing.Size(171, 22);
             this.realtimeDataToolStripMenuItem.Text = "&Realtime data";
             this.realtimeDataToolStripMenuItem.Click += new System.EventHandler(this.click_view_mode);
             // 
@@ -210,7 +306,7 @@
             // 
             this.averagedDataToolStripMenuItem.CheckOnClick = true;
             this.averagedDataToolStripMenuItem.Name = "averagedDataToolStripMenuItem";
-            this.averagedDataToolStripMenuItem.Size = new System.Drawing.Size(157, 22);
+            this.averagedDataToolStripMenuItem.Size = new System.Drawing.Size(171, 22);
             this.averagedDataToolStripMenuItem.Text = "&Averaged data";
             this.averagedDataToolStripMenuItem.Click += new System.EventHandler(this.click_view_mode);
             // 
@@ -218,7 +314,7 @@
             // 
             this.maxDataToolStripMenuItem.CheckOnClick = true;
             this.maxDataToolStripMenuItem.Name = "maxDataToolStripMenuItem";
-            this.maxDataToolStripMenuItem.Size = new System.Drawing.Size(157, 22);
+            this.maxDataToolStripMenuItem.Size = new System.Drawing.Size(171, 22);
             this.maxDataToolStripMenuItem.Text = "Ma&x data";
             this.maxDataToolStripMenuItem.Click += new System.EventHandler(this.click_view_mode);
             // 
@@ -226,19 +322,19 @@
             // 
             this.minDataToolStripMenuItem.CheckOnClick = true;
             this.minDataToolStripMenuItem.Name = "minDataToolStripMenuItem";
-            this.minDataToolStripMenuItem.Size = new System.Drawing.Size(157, 22);
+            this.minDataToolStripMenuItem.Size = new System.Drawing.Size(171, 22);
             this.minDataToolStripMenuItem.Text = "M&in data";
             this.minDataToolStripMenuItem.Click += new System.EventHandler(this.click_view_mode);
             // 
             // toolStripSeparator3
             // 
             this.toolStripSeparator3.Name = "toolStripSeparator3";
-            this.toolStripSeparator3.Size = new System.Drawing.Size(154, 6);
+            this.toolStripSeparator3.Size = new System.Drawing.Size(168, 6);
             // 
             // toolStripCleanReport
             // 
             this.toolStripCleanReport.Name = "toolStripCleanReport";
-            this.toolStripCleanReport.Size = new System.Drawing.Size(157, 22);
+            this.toolStripCleanReport.Size = new System.Drawing.Size(171, 22);
             this.toolStripCleanReport.Text = "C&lean Report";
             this.toolStripCleanReport.Click += new System.EventHandler(this.toolStripCleanReport_Click);
             // 
@@ -250,6 +346,7 @@
             // MainTab
             // 
             this.MainTab.Controls.Add(this.tabSpectrumAnalyzer);
+            this.MainTab.Controls.Add(this.tabRemoteScreen);
             this.MainTab.Controls.Add(this.tabReport);
             this.MainTab.Location = new System.Drawing.Point(0, 27);
             this.MainTab.Name = "MainTab";
@@ -532,6 +629,8 @@
             // 
             // groupSettings
             // 
+            this.groupSettings.Controls.Add(this.btnReset);
+            this.groupSettings.Controls.Add(this.btnSend);
             this.groupSettings.Controls.Add(this.label8);
             this.groupSettings.Controls.Add(this.m_sBottomDBM);
             this.groupSettings.Controls.Add(this.label7);
@@ -547,10 +646,30 @@
             this.groupSettings.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.groupSettings.Location = new System.Drawing.Point(514, 7);
             this.groupSettings.Name = "groupSettings";
-            this.groupSettings.Size = new System.Drawing.Size(276, 107);
+            this.groupSettings.Size = new System.Drawing.Size(331, 107);
             this.groupSettings.TabIndex = 48;
             this.groupSettings.TabStop = false;
-            this.groupSettings.Text = "Frequency and Power Settings";
+            this.groupSettings.Text = "Remote Frequency and Power control";
+            // 
+            // btnReset
+            // 
+            this.btnReset.Location = new System.Drawing.Point(269, 21);
+            this.btnReset.Name = "btnReset";
+            this.btnReset.Size = new System.Drawing.Size(56, 34);
+            this.btnReset.TabIndex = 13;
+            this.btnReset.Text = "Reset";
+            this.btnReset.UseVisualStyleBackColor = true;
+            this.btnReset.Click += new System.EventHandler(this.btnReset_Click);
+            // 
+            // btnSend
+            // 
+            this.btnSend.Location = new System.Drawing.Point(269, 61);
+            this.btnSend.Name = "btnSend";
+            this.btnSend.Size = new System.Drawing.Size(56, 34);
+            this.btnSend.TabIndex = 12;
+            this.btnSend.Text = "Send";
+            this.btnSend.UseVisualStyleBackColor = true;
+            this.btnSend.Click += new System.EventHandler(this.btnSend_Click);
             // 
             // label8
             // 
@@ -569,7 +688,7 @@
             this.m_sBottomDBM.TabIndex = 6;
             this.m_sBottomDBM.Text = "-120";
             this.m_sBottomDBM.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_sBottomDBM.Leave += new System.EventHandler(this.UpdateSettingsFromDialog);
+            this.m_sBottomDBM.Leave += new System.EventHandler(this.m_sBottomDBM_Leave);
             // 
             // label7
             // 
@@ -588,7 +707,6 @@
             this.m_sTopDBM.TabIndex = 5;
             this.m_sTopDBM.Text = "-20";
             this.m_sTopDBM.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_sTopDBM.Leave += new System.EventHandler(this.UpdateSettingsFromDialog);
             // 
             // label6
             // 
@@ -609,7 +727,7 @@
             this.m_sEndFreq.TabIndex = 4;
             this.m_sEndFreq.Text = "437.000";
             this.m_sEndFreq.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_sEndFreq.Leave += new System.EventHandler(this.UpdateSettingsFromDialog);
+            this.m_sEndFreq.Leave += new System.EventHandler(this.m_sEndFreq_Leave);
             // 
             // label5
             // 
@@ -630,7 +748,7 @@
             this.m_sFreqSpan.TabIndex = 2;
             this.m_sFreqSpan.Text = "4.000";
             this.m_sFreqSpan.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_sFreqSpan.Leave += new System.EventHandler(this.UpdateSettingsFromDialog);
+            this.m_sFreqSpan.Leave += new System.EventHandler(this.m_sFreqSpan_Leave);
             // 
             // label4
             // 
@@ -651,7 +769,7 @@
             this.m_sStartFreq.TabIndex = 3;
             this.m_sStartFreq.Text = "433.000";
             this.m_sStartFreq.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_sStartFreq.Leave += new System.EventHandler(this.UpdateSettingsFromDialog);
+            this.m_sStartFreq.Leave += new System.EventHandler(this.m_sStartFreq_Leave);
             // 
             // label3
             // 
@@ -672,7 +790,109 @@
             this.m_sCenterFreq.TabIndex = 1;
             this.m_sCenterFreq.Text = "435.000";
             this.m_sCenterFreq.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_sCenterFreq.Leave += new System.EventHandler(this.UpdateSettingsFromDialog);
+            this.m_sCenterFreq.Leave += new System.EventHandler(this.m_sCenterFreq_Leave);
+            // 
+            // tabRemoteScreen
+            // 
+            this.tabRemoteScreen.Controls.Add(this.groupRemoteScreen);
+            this.tabRemoteScreen.Location = new System.Drawing.Point(4, 26);
+            this.tabRemoteScreen.Name = "tabRemoteScreen";
+            this.tabRemoteScreen.Size = new System.Drawing.Size(932, 647);
+            this.tabRemoteScreen.TabIndex = 2;
+            this.tabRemoteScreen.Text = "Remote Screen";
+            this.tabRemoteScreen.Paint += new System.Windows.Forms.PaintEventHandler(this.tabRemoteScreen_Paint);
+            this.tabRemoteScreen.Enter += new System.EventHandler(this.tabRemoteScreen_Enter);
+            // 
+            // groupRemoteScreen
+            // 
+            this.groupRemoteScreen.Controls.Add(this.numScreenIndex);
+            this.groupRemoteScreen.Controls.Add(this.label9);
+            this.groupRemoteScreen.Controls.Add(this.numericZoom);
+            this.groupRemoteScreen.Controls.Add(this.chkDumpScreen);
+            this.groupRemoteScreen.Controls.Add(this.label10);
+            this.groupRemoteScreen.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this.groupRemoteScreen.Location = new System.Drawing.Point(272, 6);
+            this.groupRemoteScreen.Name = "groupRemoteScreen";
+            this.groupRemoteScreen.Size = new System.Drawing.Size(451, 108);
+            this.groupRemoteScreen.TabIndex = 53;
+            this.groupRemoteScreen.TabStop = false;
+            this.groupRemoteScreen.Text = "Dump Remote Screen";
+            // 
+            // numScreenIndex
+            // 
+            this.numScreenIndex.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.numScreenIndex.Location = new System.Drawing.Point(80, 43);
+            this.numScreenIndex.Maximum = new decimal(new int[] {
+            7,
+            0,
+            0,
+            0});
+            this.numScreenIndex.Name = "numScreenIndex";
+            this.numScreenIndex.Size = new System.Drawing.Size(60, 23);
+            this.numScreenIndex.TabIndex = 51;
+            this.numScreenIndex.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.numScreenIndex.Value = new decimal(new int[] {
+            2,
+            0,
+            0,
+            0});
+            this.numScreenIndex.ValueChanged += new System.EventHandler(this.numScreenIndex_ValueChanged);
+            // 
+            // label9
+            // 
+            this.label9.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label9.Location = new System.Drawing.Point(22, 45);
+            this.label9.Name = "label9";
+            this.label9.Size = new System.Drawing.Size(52, 22);
+            this.label9.TabIndex = 52;
+            this.label9.Text = "Sample";
+            // 
+            // numericZoom
+            // 
+            this.numericZoom.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.numericZoom.Location = new System.Drawing.Point(80, 73);
+            this.numericZoom.Maximum = new decimal(new int[] {
+            7,
+            0,
+            0,
+            0});
+            this.numericZoom.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.numericZoom.Name = "numericZoom";
+            this.numericZoom.Size = new System.Drawing.Size(60, 23);
+            this.numericZoom.TabIndex = 17;
+            this.numericZoom.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.numericZoom.Value = new decimal(new int[] {
+            2,
+            0,
+            0,
+            0});
+            this.numericZoom.ValueChanged += new System.EventHandler(this.numericZoom_ValueChanged);
+            // 
+            // chkDumpScreen
+            // 
+            this.chkDumpScreen.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this.chkDumpScreen.Location = new System.Drawing.Point(14, 20);
+            this.chkDumpScreen.MinimumSize = new System.Drawing.Size(60, 0);
+            this.chkDumpScreen.Name = "chkDumpScreen";
+            this.chkDumpScreen.Size = new System.Drawing.Size(126, 17);
+            this.chkDumpScreen.TabIndex = 14;
+            this.chkDumpScreen.Text = "Remote Dump active";
+            this.chkDumpScreen.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.chkDumpScreen.UseVisualStyleBackColor = true;
+            this.chkDumpScreen.CheckedChanged += new System.EventHandler(this.chkDumpScreen_CheckedChanged);
+            // 
+            // label10
+            // 
+            this.label10.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label10.Location = new System.Drawing.Point(27, 75);
+            this.label10.Name = "label10";
+            this.label10.Size = new System.Drawing.Size(47, 21);
+            this.label10.TabIndex = 50;
+            this.label10.Text = "Zoom";
             // 
             // tabReport
             // 
@@ -700,19 +920,13 @@
             this.textBox_message.TabIndex = 49;
             this.textBox_message.WordWrap = false;
             // 
-            // toolStripMenuItem1
+            // mnuItem_ShowPeak
             // 
-            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
-            this.toolStripMenuItem1.Size = new System.Drawing.Size(188, 22);
-            this.toolStripMenuItem1.Text = "Reinitialize &Data...";
-            this.toolStripMenuItem1.Click += new System.EventHandler(this.toolStripMenuItem1_Click);
-            // 
-            // SaveCSVtoolStripMenuItem
-            // 
-            this.SaveCSVtoolStripMenuItem.Name = "SaveCSVtoolStripMenuItem";
-            this.SaveCSVtoolStripMenuItem.Size = new System.Drawing.Size(188, 22);
-            this.SaveCSVtoolStripMenuItem.Text = "Save CS&V As...";
-            this.SaveCSVtoolStripMenuItem.Click += new System.EventHandler(this.SaveCSVtoolStripMenuItem_Click);
+            this.mnuItem_ShowPeak.CheckOnClick = true;
+            this.mnuItem_ShowPeak.Name = "mnuItem_ShowPeak";
+            this.mnuItem_ShowPeak.Size = new System.Drawing.Size(171, 22);
+            this.mnuItem_ShowPeak.Text = "Show Peak values";
+            this.mnuItem_ShowPeak.CheckedChanged += new System.EventHandler(this.mnuItem_ShowPeak_CheckedChanged);
             // 
             // MainForm
             // 
@@ -745,6 +959,10 @@
             this.groupCOM.PerformLayout();
             this.groupSettings.ResumeLayout(false);
             this.groupSettings.PerformLayout();
+            this.tabRemoteScreen.ResumeLayout(false);
+            this.groupRemoteScreen.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.numScreenIndex)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericZoom)).EndInit();
             this.tabReport.ResumeLayout(false);
             this.tabReport.PerformLayout();
             this.ResumeLayout(false);
@@ -814,6 +1032,22 @@
         private System.Windows.Forms.CheckBox chkCalcRealtime;
         private System.Windows.Forms.ToolStripMenuItem toolStripMenuItem1;
         private System.Windows.Forms.ToolStripMenuItem SaveCSVtoolStripMenuItem;
+        private System.Windows.Forms.TabPage tabRemoteScreen;
+        private System.Windows.Forms.GroupBox groupRemoteScreen;
+        private System.Windows.Forms.NumericUpDown numericZoom;
+        private System.Windows.Forms.CheckBox chkDumpScreen;
+        private System.Windows.Forms.Label label10;
+        private System.Windows.Forms.NumericUpDown numScreenIndex;
+        private System.Windows.Forms.Label label9;
+        private System.Windows.Forms.ToolStripMenuItem SaveImagetoolStrip;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator4;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator5;
+        private System.Windows.Forms.ToolStripMenuItem menu_SaveRFS;
+        private System.Windows.Forms.ToolStripMenuItem menu_LoadRFS;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator6;
+        private System.Windows.Forms.Button btnSend;
+        private System.Windows.Forms.Button btnReset;
+        private System.Windows.Forms.ToolStripMenuItem mnuItem_ShowPeak;
     }
 }
 
