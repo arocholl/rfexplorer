@@ -1,14 +1,36 @@
 RF Explorer Windows Client - Readme
 ===================================
 
-Version v1.06.04 - Released CET Aug/11, 2011
+Version v1.06.08 - Released CET Sep/09, 2011
 
 Thanks for using RF Explorer, we want it to be a community driven development
 to cover all workflows you may need to successfully design, finetune and diagnose
 your RF link projects.
 
-Major changes
-=============
+This application is open source under GPL v3 license. 
+Please check our website for more info and source code download.
+If you want to contribute with features and ideas, contact me anytime, check www.rf-explorer.com for
+more details.
+
+Major changes v1.06.08
+======================
+
+* Updated Remote Screen with a separated control which now uses double buffer to avoid flickering.
+* Minor GUI changes
+* Note versions v1.06.06-7 were not available as public releases
+
+Major changes v1.06.05
+======================
+
+* Updated to support RF Explorer firmware v1.07
+* RF Explorer firmware version is now checked and reported to the user if an old version is found.
+* Communication from PC -> RF Explorer improved. In some USB connections sometimes the PC was not able
+  to change configuration settings in RF Explorer connected unit.
+* RFE data files are now associated with RF Explorer Windows PC Client application and they will load
+  automatically from Windows File Explorer.
+
+Major changes v1.06.04
+======================
 
 * Updated to support RF Explorer firmware v1.06
 * Added support for comma delimited file CSV

@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("RF Explorer Windows Client")]
+[assembly: AssemblyTitle("RFEClientControls")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Ariel Rocholl - micro.arocholl.com")]
-[assembly: AssemblyProduct("RF Explorer Client")]
+[assembly: AssemblyProduct("RFEClientControls")]
 [assembly: AssemblyCopyright("License under GNU GPL v3")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // The following GUID is for the ID of the typelib if this project is exposed to COM
-[assembly: Guid("e26301bc-3b4b-4fd7-83c5-9226c575e3f8")]
+[assembly: Guid("5c5e7525-4e36-4251-be34-f5ed60f3f3d2")]
 
 // Version information for an assembly consists of the following four values:
 //
@@ -32,5 +32,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.0.6.8")]
-[assembly: AssemblyFileVersion("1.0.6.8")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.0.0")]

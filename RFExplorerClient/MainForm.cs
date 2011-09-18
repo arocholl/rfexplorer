@@ -46,6 +46,8 @@ namespace RFExplorerClient
         const double MAX_AMPLITUDE_DBM = -1.0;
         const double MIN_AMPLITUDE_RANGE_DBM = 10;
 
+        const string m_sRFExplorerFirmwareCertified = "01.07"; //Firmware version of RF Explorer which was tested and certified with this PC Client
+
         UInt16 m_nFreqSpectrumSteps = 112;  //$S byte buffer by default
         int m_nDrawingIteration = 0;        //Iteration counter to do regular updates on GUI
 
@@ -65,12 +67,13 @@ namespace RFExplorerClient
         UInt16 m_eMode;                     //The current operational mode
         bool m_bExpansionBoardActive;       //True when the expansion board is active, false otherwise
 
+        //Initializer for 433MHz model, will change later based on settings
         double m_fMinSpanMHZ = 0.112;       //Min valid span in MHZ for connected model
         double m_fMaxSpanMHZ = 100.0;       //Max valid span in MHZ for connected model
         double m_fMinFreqMHZ = 430.0;       //Min valid frequency in MHZ for connected model
         double m_fMaxFreqMHZ = 440.0;       //Max valid frequency in MHZ for connected model
 
-        string m_sFilename="";              //Value
+        string m_sFilename="";              //RFE data file
         string m_sReportFilePath="";        //Path and name of the report log file
 
         Boolean m_bPortConnected = false;   //Will be true while COM port is connected, as IsOpen() is not reliable
@@ -108,18 +111,22 @@ namespace RFExplorerClient
         Pen m_PenDarkBlue;                  //Graphis objects cached to reduce drawing overhead
         Pen m_PenRed;
         Brush m_BrushDarkBlue;
-        TextObj m_RealtimePeak, m_AveragePeak, m_MaxPeak;
+
+        TextObj m_RealtimePeak, m_AveragePeak, m_MaxPeak; //Max dynamic text
+        TextObj m_RFEConfig;                //Configuration data received from RF Explorer
+        string m_sRFExplorerFirmware;       //Firmware version of the connected RF Explorer
 
         bool m_bIsWinXP = false;            //True if it is a Windows XP platform, which has some GUI differences with Win7/Vista
         #endregion
 
         #region Main Window
-        public MainForm()
+        public MainForm(string sFile)
         {
+            m_sFilename = sFile;
+
             SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
             SetStyle(ControlStyles.AllPaintingInWmPaint, true);
             SetStyle(ControlStyles.UserPaint, true);
-
             InitializeComponent();
         }
 
@@ -179,6 +186,20 @@ namespace RFExplorerClient
             myPane.YAxis.Scale.FontSpec.Size = 10;
             myPane.XAxis.Scale.FontSpec.Size = 10;
 
+            m_RFEConfig = new TextObj("RF Explorer\nDISCONNECTED", 1.0, 0.1, CoordType.PaneFraction);
+            m_RFEConfig.Location.AlignH = AlignH.Left;
+            m_RFEConfig.Location.AlignV = AlignV.Top;
+            m_RFEConfig.Location.X = 0.7;
+            m_RFEConfig.Location.Y = 0.02;
+            m_RFEConfig.FontSpec.IsBold = true;
+            m_RFEConfig.FontSpec.Size = 8;
+            m_RFEConfig.FontSpec.Border.IsVisible = true;
+            m_RFEConfig.FontSpec.Border.Color = Color.DarkRed;
+            m_RFEConfig.FontSpec.Fill.Color = Color.WhiteSmoke;
+            m_RFEConfig.FontSpec.FontColor = Color.DarkBlue;
+            m_RFEConfig.FontSpec.StringAlignment = StringAlignment.Near;
+            myPane.GraphObjList.Add(m_RFEConfig);
+
             m_RealtimePeak = new TextObj("", 0, 0, CoordType.AxisXYScale);
             m_RealtimePeak.Location.AlignH = AlignH.Center;
             m_RealtimePeak.Location.AlignV = AlignV.Bottom;
@@ -204,9 +225,7 @@ namespace RFExplorerClient
             m_AveragePeak.FontSpec.Border.IsVisible = false;
             m_AveragePeak.FontSpec.FontColor = Color.Brown;
             m_AveragePeak.FontSpec.StringAlignment = StringAlignment.Center;
-            myPane.GraphObjList.Add(m_AveragePeak);
-
-        
+            myPane.GraphObjList.Add(m_AveragePeak);        
         }
 
         private void GetNewFilename()
@@ -263,9 +282,16 @@ namespace RFExplorerClient
 
                 chkHoldMode.Checked = ! chkRunMode.Checked;
 
-                if (m_arrValidCP2101Ports != null && m_arrValidCP2101Ports.Length == 1)
+                if (m_sFilename != "")
                 {
-                    ManualConnect();
+                    LoadFileRFE(m_sFilename);
+                }
+                else
+                {
+                    if (m_arrValidCP2101Ports != null && m_arrValidCP2101Ports.Length == 1)
+                    {
+                        ManualConnect();
+                    }
                 }
                 m_timer_receive.Enabled = true;
             }
@@ -414,6 +440,7 @@ namespace RFExplorerClient
 
                 if (m_serialPortObj.IsOpen)
                 {
+                    //Close the port
                     ReportLog("Disconnected.");
                     m_serialPortObj.Close();
                 }
@@ -519,6 +546,34 @@ namespace RFExplorerClient
             }
         }
 
+        private void DisplayRequiredFirmware()
+        {
+            if (m_sRFExplorerFirmware != m_sRFExplorerFirmwareCertified)
+            {
+                UInt16 nMayorVerFound = Convert.ToUInt16(m_sRFExplorerFirmware.Substring(0, 2));
+                UInt16 nMinorVerFound = Convert.ToUInt16(m_sRFExplorerFirmware.Substring(3, 2));
+                UInt32 nVersionFound = (UInt32)(nMayorVerFound * 100 + nMinorVerFound);
+                UInt16 nMayorVerTested = Convert.ToUInt16(m_sRFExplorerFirmwareCertified.Substring(0, 2));
+                UInt16 nMinorVerTested = Convert.ToUInt16(m_sRFExplorerFirmwareCertified.Substring(3, 2));
+                UInt32 nVersionTested = (UInt32)(nMayorVerTested * 100 + nMinorVerTested);
+
+                if (nVersionFound > nVersionTested)
+                {
+                    ReportLog("\r\nWARNING: Firmware version connected v" + m_sRFExplorerFirmware + " is newer than the one certified v" + m_sRFExplorerFirmwareCertified + " for this version of PC Client.\r\n" +
+                                  "         However, it may be compatible but you should check www.rf-explorer.com website\r\n"+
+                                  "         to double check there is not a newer version available.\r\n");
+                }
+                else
+                {
+                    string sText = "RF Explorer device has an older firmware version " + m_sRFExplorerFirmware +
+                        "\r\nPlease upgrade it to required version " + m_sRFExplorerFirmwareCertified +
+                        "\r\nVisit www.rf-explorer/download to get required firmware.";
+                    MessageBox.Show(sText,"Firmware Warning");
+                    ReportLog(sText);
+                }
+            }
+        }
+
         private void timer_receive_Tick(object sender, EventArgs e)
         {
             try
@@ -556,24 +611,32 @@ namespace RFExplorerClient
                     }
                     else if ( sLine.Substring(0,2)=="$D" )
                     {
-                        if (m_nScreenIndex <= m_nMaxScreenIndex)
+                        if (chkDumpScreen.Checked)
                         {
-                            //force to draw in a new position
-                            m_nScreenIndex = m_nMaxScreenIndex;
-                            m_nScreenIndex++;
-                        }
-
-                        if (m_nScreenIndex < m_nTotalBufferSize)
-                        {
-                            //Capture only if we are inside bounds
-                            for (int nInd = 0; nInd < 128 * 8; nInd++)
+                            if (m_nScreenIndex <= m_nMaxScreenIndex)
                             {
-                                m_arrRemoteScreenData[m_nScreenIndex, nInd] = Convert.ToByte(sLine[nInd + 2]);
+                                //force to draw in a new position
+                                m_nScreenIndex = m_nMaxScreenIndex;
+                                m_nScreenIndex++;
                             }
-                            tabRemoteScreen.Invalidate();
-                            m_nMaxScreenIndex = m_nScreenIndex;
-                            m_nScreenIndex++;
-                            numScreenIndex.Value = m_nScreenIndex;
+
+                            if (m_nScreenIndex < m_nTotalBufferSize)
+                            {
+                                //Capture only if we are inside bounds
+                                for (int nInd = 0; nInd < 128 * 8; nInd++)
+                                {
+                                    m_arrRemoteScreenData[m_nScreenIndex, nInd] = Convert.ToByte(sLine[nInd + 2]);
+                                }
+                                tabRemoteScreen.Invalidate();
+                                m_nMaxScreenIndex = m_nScreenIndex;
+                                m_nScreenIndex++;
+                                numScreenIndex.Value = m_nScreenIndex;
+                            }
+                        }
+                        else
+                        {
+                            //receiving Dump screen strings but it was disabled, resend now
+                            SendCommand("D0");
                         }
                     }
                     else if (sLine.Substring(0, 6) == "#C2-M:")
@@ -581,6 +644,8 @@ namespace RFExplorerClient
                         ReportLog("Received RFExplorer device model info:" + sLine);
                         m_eMainBoardModel = (eModel)Convert.ToUInt16(sLine.Substring(6, 3));
                         m_eExpansionBoardModel = (eModel)Convert.ToUInt16(sLine.Substring(10, 3));
+                        m_sRFExplorerFirmware = (sLine.Substring(14, 5));
+                        DisplayRequiredFirmware();
                     }
                     else if (sLine.Substring(0, 6) == "#C2-F:")
                     {
@@ -618,6 +683,12 @@ namespace RFExplorerClient
                             {
                                 m_fMinSpanMHZ = 0.112;
                             }
+
+                            m_RFEConfig.Text = "RF EXPLORER Firmware v" + m_sRFExplorerFirmware +
+                                "\nModel: " + m_eMainBoardModel.ToString() +
+                                "\nExpansion: " + m_eExpansionBoardModel.ToString() + 
+                                "\nExpansion active: " + (m_eActiveModel == m_eExpansionBoardModel).ToString() +
+                                "\nRange: " + m_fMinFreqMHZ.ToString() + "-" + m_fMaxFreqMHZ.ToString()+"MHz";
 
                             SetupAxis();
                             SaveProperties();
@@ -851,7 +922,8 @@ namespace RFExplorerClient
             {
                 if (m_bPortConnected)
                 {
-                    m_serialPortObj.Write(sData);
+                    m_serialPortObj.Write("#" + Convert.ToChar(sData.Length + 2) + sData);
+                    //ReportLog("-> Sent to RFE: " + "#["+(sData.Length + 2).ToString()+"]"+sData);
                 }
             }
             catch (Exception obEx)
@@ -864,7 +936,7 @@ namespace RFExplorerClient
         {
             if (m_bPortConnected)
             {
-                SendCommand("#\x0004C0");
+                SendCommand("C0");
             }
         }
 
@@ -881,7 +953,7 @@ namespace RFExplorerClient
                 Int16 nTopDBM = (Int16)(Convert.ToDouble(m_sTopDBM.Text));
                 Int16 nBottomDBM = (Int16)(Convert.ToDouble(m_sBottomDBM.Text));
 
-                string sData = "#\x001EC2-F:" +
+                string sData = "C2-F:" +
                     nStartKhz.ToString("D7") + "," + nEndKhz.ToString("D7") + "," +
                     nTopDBM.ToString("D3") + "," + nBottomDBM.ToString("D3");
                 SendCommand(sData);
@@ -916,12 +988,13 @@ namespace RFExplorerClient
             if (m_bHoldMode)
             {
                 //Send hold mode to RF Explorer to stop RS232 traffic
-                SendCommand("#\0004CH");
+                SendCommand("CH");
             }
             else
             {
                 //Not on hold anymore, restore RS232 traffic
                 AskConfigData();
+                Thread.Sleep(50);
             }
             UpdateFeedMode();
         }
@@ -1129,10 +1202,58 @@ namespace RFExplorerClient
             catch (Exception obEx) { MessageBox.Show(obEx.Message); }
         }
 
-        private void toolStripMenuItemLoad_Click(object sender, EventArgs e)
+        private void LoadFileRFE(string sFile)
         {
             bool bFileOk = true;
+            try
+            {
+                using (FileStream myFile = new FileStream(sFile, FileMode.Open))
+                {
+                    using (BinaryReader binStream = new BinaryReader(myFile))
+                    {
+                        string sHeader = binStream.ReadString();
+                        m_fStartFrequencyMHZ = binStream.ReadDouble();
+                        m_fStepFrequencyMHZ = binStream.ReadDouble();
+                        m_nMaxDataIndex = binStream.ReadUInt16();
+                        if ((m_nFreqSpectrumSteps != binStream.ReadUInt16()) ||
+                             (sHeader != FileHeaderVersioned())
+                            )
+                        {
+                            bFileOk = false;
+                            MessageBox.Show("Wrong file format: \r\n" + sHeader);
+                        }
 
+                        for (int nPageInd = 0; bFileOk && (nPageInd < m_nMaxDataIndex); nPageInd++)
+                        {
+                            for (int nByte = 0; nByte < m_nFreqSpectrumSteps; nByte++)
+                            {
+                                m_arrData[nPageInd, nByte] = (float)binStream.ReadDouble();
+                            }
+                        }
+                        binStream.Close();
+
+                        if (bFileOk)
+                        {
+                            m_nDataIndex = m_nMaxDataIndex;
+                            numericUpDown.Value = m_nMaxDataIndex;
+
+                            toolFile.Text = "File: " + sFile;
+                            m_sFilename = sFile;
+
+                            m_bHoldMode = true;
+                            UpdateFeedMode();
+
+                            SetupAxis();
+                            DisplayData();
+                        }
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void toolStripMenuItemLoad_Click(object sender, EventArgs e)
+        {
             try
             {
                 using (OpenFileDialog MyOpenFileDialog = new OpenFileDialog())
@@ -1143,47 +1264,7 @@ namespace RFExplorerClient
 
                     if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
                     {
-                        using (FileStream myFile = new FileStream(MyOpenFileDialog.FileName, FileMode.Open))
-                        {
-                            using (BinaryReader binStream = new BinaryReader(myFile))
-                            {
-                                string sHeader = binStream.ReadString();
-                                m_fStartFrequencyMHZ = binStream.ReadDouble();
-                                m_fStepFrequencyMHZ = binStream.ReadDouble();
-                                m_nMaxDataIndex = binStream.ReadUInt16();
-                                if ((m_nFreqSpectrumSteps != binStream.ReadUInt16()) ||
-                                     (sHeader != FileHeaderVersioned())
-                                    )
-                                {
-                                    bFileOk = false;
-                                    MessageBox.Show("Wrong file format: \r\n" + sHeader);
-                                }
-
-                                for (int nPageInd = 0; bFileOk && (nPageInd < m_nMaxDataIndex); nPageInd++)
-                                {
-                                    for (int nByte = 0; nByte < m_nFreqSpectrumSteps; nByte++)
-                                    {
-                                        m_arrData[nPageInd, nByte] = (float)binStream.ReadDouble();
-                                    }
-                                }
-                                binStream.Close();
-
-                                if (bFileOk)
-                                {
-                                    m_nDataIndex = m_nMaxDataIndex;
-                                    numericUpDown.Value = m_nMaxDataIndex;
-
-                                    toolFile.Text = "File: " + MyOpenFileDialog.FileName;
-                                    m_sFilename = MyOpenFileDialog.FileName;
-
-                                    m_bHoldMode = true;
-                                    UpdateFeedMode();
-
-                                    SetupAxis();
-                                    DisplayData();
-                                }
-                            }
-                        }
+                        LoadFileRFE(MyOpenFileDialog.FileName);
                     }
                 }
             }
@@ -1562,32 +1643,24 @@ namespace RFExplorerClient
         int m_nRSOrigin_X = 10;
         int m_nRSOrigin_Y = 125;
 
-        LinearGradientBrush m_BrushlinGrBrush;
-
-        private void tabRemoteScreen_UpdateZoomValues()
-        {
-            int nSize = (int)(numericZoom.Value);
-
-            m_nRSOrigin_X = ((Width - 128 * nSize + 9) / 2) - 20;
-            m_nRSOrigin_Y = 125 + ((519 - 64 * nSize + 9) / 2);
-
-            m_BrushlinGrBrush = new LinearGradientBrush(
-               new Point(0, m_nRSOrigin_Y - 5),
-               new Point(0, m_nRSOrigin_Y - 5 + 64 * nSize + 9),
-               Color.White,
-               Color.LightBlue);
-        }
+        float m_fSizeX;
+        float m_fSizeY;
 
         private void tabRemoteScreen_Enter(object sender, EventArgs e)
         {
+            Rectangle rectArea = panelRemoteScreen.ClientRectangle;
+            m_fSizeX = (float)(rectArea.Width / 7.0);
+            m_fSizeY = (float)(rectArea.Height / 7.0);
+
             groupCOM.Parent = tabRemoteScreen;
-
-            //TODO Note: automatic double buffer doesn't work for a tab, we need to create a custom control
-            SetStyle(ControlStyles.AllPaintingInWmPaint, true);
-            SetStyle(ControlStyles.UserPaint, true);
-            SetStyle(ControlStyles.OptimizedDoubleBuffer, true);
-
             tabRemoteScreen_UpdateZoomValues();
+        }
+
+        private void CopyScreenDataArray()
+        {
+            UInt16 nPage = (UInt16)numScreenIndex.Value;
+            for (int nInd = controlRemoteScreen.m_arrRemoteScreenData.GetLowerBound(0); nInd <= controlRemoteScreen.m_arrRemoteScreenData.GetUpperBound(0); nInd++)
+                controlRemoteScreen.m_arrRemoteScreenData[nInd] = m_arrRemoteScreenData[nPage, nInd];
         }
 
         private void numScreenIndex_ValueChanged(object sender, EventArgs e)
@@ -1598,46 +1671,23 @@ namespace RFExplorerClient
                 m_nScreenIndex = m_nMaxScreenIndex;
                 numScreenIndex.Value = m_nScreenIndex;
             }
-            tabRemoteScreen.Invalidate();
-        }
-
-        //Remote screen functions - TODO: refactor it to a separate class
-        void DrawData(Graphics objGraphics)
-        {
-            int nSize = (int)(numericZoom.Value);
-            int nGap = 1;
-            if (nSize <= 3)
-                nGap = 0;
-                /*
-                 * only for video, too blur for static image
-            else
-                objGraphics.SmoothingMode = SmoothingMode.AntiAlias;
-                 */
-
-            objGraphics.FillRectangle(m_BrushlinGrBrush, m_nRSOrigin_X - 4, m_nRSOrigin_Y - 5, 128 * nSize + 9, 64 * nSize + 9);
-            objGraphics.DrawRectangle(m_PenDarkBlue, m_nRSOrigin_X - 4, m_nRSOrigin_Y - 5, 128 * nSize + 9, 64 * nSize + 9);
-
-            for (int nIndY = 0; nIndY < 8; nIndY++)
+            if (m_nMaxScreenIndex > 0)
             {
-                for (int nIndX = 0; nIndX < 128; nIndX++)
-                {
-                    for (byte nBit = 0; nBit < 8; nBit++)
-                    {
-                        byte nVal = 0x01;
-                        nVal = (byte)(nVal << nBit);
-                        byte nData = m_arrRemoteScreenData[(UInt16)numScreenIndex.Value, nIndX + 128 * nIndY];
-                        nVal = (byte)(nVal & nData);
-                        if (nVal != 0)
-                            objGraphics.FillRectangle(m_BrushDarkBlue, m_nRSOrigin_X + nIndX * nSize, m_nRSOrigin_Y + (nIndY * 8 + nBit) * nSize, nSize - nGap, nSize - nGap);
-                    }
-                }
+                CopyScreenDataArray();
+                controlRemoteScreen.Invalidate();
             }
         }
 
         private void tabRemoteScreen_Paint(object sender, PaintEventArgs e)
         {
-            Graphics objGraphics = e.Graphics;
-            DrawData(objGraphics);
+            CopyScreenDataArray();
+        }
+
+        private void tabRemoteScreen_UpdateZoomValues()
+        {
+            controlRemoteScreen.Size = new Size((int)(1.0 + m_fSizeX * (float)(numericZoom.Value)), (int)(1.0 + m_fSizeY * (float)(numericZoom.Value)));
+            controlRemoteScreen.UpdateZoom((int)(numericZoom.Value));
+            controlRemoteScreen.Invalidate();
         }
 
         private void numericZoom_ValueChanged(object sender, EventArgs e)
@@ -1650,32 +1700,25 @@ namespace RFExplorerClient
         {
             if (chkDumpScreen.Checked)
             {
-                SendCommand("#\x0004D1");
+                SendCommand("D1");
             }
             else
             {
-                //sent twice to guarantee process in high load condition
-                SendCommand("#\x0004D0");
-                SendCommand("#\x0004D0");
+                SendCommand("D0");
             }
         }
 
         private void SavePNG(string sFilename)
         {
-            Rectangle rectBounds = new Rectangle(0, 0, Width, Height);
-            using (Bitmap objAppBmp = new Bitmap(Width, Height))
+            Rectangle rectArea = controlRemoteScreen.ClientRectangle;
+            using (Bitmap objAppBmp = new Bitmap(rectArea.Width, rectArea.Height))
             {
-                DrawToBitmap(objAppBmp, rectBounds);
+                controlRemoteScreen.DrawToBitmap(objAppBmp, rectArea);
 
                 int nSize = (int)(numericZoom.Value);
-                using (Bitmap objImage = new Bitmap(128 * nSize + 15, 64 * nSize + 15))
+                using (Bitmap objImage = new Bitmap(rectArea.Width, rectArea.Height))
                 {
-                    int nOriginX = -m_nRSOrigin_X-2;
-                    int nOriginY = -m_nRSOrigin_Y - 76;
-                    if (!m_bIsWinXP)
-                        nOriginY += 4; //Difference in Win7 by trial/error. TODO: We need a better method to adjust this
-                    Rectangle rectBounds2 = new Rectangle(nOriginX, nOriginY, Width, Height);
-                    Graphics.FromImage(objImage).DrawImage(objAppBmp, rectBounds2);
+                    Graphics.FromImage(objImage).DrawImage(objAppBmp, rectArea);
                     objImage.Save(sFilename, ImageFormat.Png);
                 }
             }
