@@ -24,8 +24,8 @@
 //It may work in other versions as well, but you may need to modify certain
 //compiler include settings or define files.
 //
-//This code will connect with RF Explorer, will reset it (restart) and display version information 
-//received after reset. Note: you have to be in Spectrum Analyzer screen mode in RF Explorer for 
+//This code will connect with RF Explorer, will reset it (restart) and display version information
+//received after reset. Note: you have to be in Spectrum Analyzer screen mode in RF Explorer for
 //this to work.
 //
 //If you have problems setting up a compatible development environment, you can
@@ -97,27 +97,27 @@ int main ( int argc, char **argv )
 
     /* open the device to be non-blocking (read will return immediatly) */
     fd = open(sPortName, O_RDWR | O_NOCTTY | O_NONBLOCK);
-    if (fd <0) 
+    if (fd <0)
     {
-        perror(sPortName); 
-        exit(-1); 
+        perror(sPortName);
+        exit(-1);
     }
 
     /* install the signal handler before making the device asynchronous */
     memset(&saio,0x0,sizeof(saio));
     saio.sa_handler = signal_handler_IO;
     sigaction(SIGIO,&saio,NULL);
-      
+
     /* allow the process to receive SIGIO */
     fcntl(fd, F_SETOWN, getpid());
-    /* Make the file descriptor asynchronous (the manual page says only 
-       O_APPEND and O_NONBLOCK, will work with F_SETFL...) */
+    /* Make the file descriptor asynchronous (the manual page says only
+    O_APPEND and O_NONBLOCK, will work with F_SETFL...) */
     fcntl(fd, F_SETFL, FASYNC);
 
     tcgetattr(fd,&oldtio); //save current port settings for later restoring them
-	
+
     //Set new port settings for canonical input processing
-	//We need 5000000,8N1 or 2400,8N1 depending on how RF Explorer was configured
+    //We need 5000000,8N1 or 2400,8N1 depending on how RF Explorer was configured
     newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
     newtio.c_iflag = IGNPAR | ICRNL;
     newtio.c_oflag = 0;
@@ -126,17 +126,17 @@ int main ( int argc, char **argv )
     newtio.c_cc[VTIME]=0;
     tcflush(fd, TCIFLUSH);
     tcsetattr(fd,TCSANOW,&newtio);
-    
-	SendCommandToRFExplorer(fd,"r"); //Reset RF Explorer
-	
-	while(wait_flag);	//wait till RF Explorer respond with some data
 
-	memset(buf,0x0,sizeof(buf));
+    SendCommandToRFExplorer(fd,"r"); //Reset RF Explorer
+
+    while(wait_flag);	//wait till RF Explorer respond with some data
+
+    memset(buf,0x0,sizeof(buf));
     res = read(fd,buf,1024); //read data received
-	printf(buf);
+    printf(buf);
     /* restore old port settings */
     tcsetattr(fd,TCSANOW,&oldtio);
-	close(fd);
+    close(fd);
 }
 
 /***************************************************************************
@@ -156,15 +156,15 @@ void signal_handler_IO (int status)
 
 int getch(void)
 {
-	struct termios oldt, newt;
-	int ch;
-	tcgetattr( 0, &oldt );
-	newt = oldt;
-	newt.c_lflag &= ~( ICANON | ECHO );
-	tcsetattr( 0, TCSANOW, &newt );
-	ch = getchar();
-	tcsetattr( 0, TCSANOW, &oldt );
-	return ch;
+    struct termios oldt, newt;
+    int ch;
+    tcgetattr( 0, &oldt );
+    newt = oldt;
+    newt.c_lflag &= ~( ICANON | ECHO );
+    tcsetattr( 0, TCSANOW, &newt );
+    ch = getchar();
+    tcsetattr( 0, TCSANOW, &oldt );
+    return ch;
 }
 
 /***************************************************************************
@@ -173,7 +173,7 @@ int getch(void)
 
 void SendCommandToRFExplorer(int fd, char* pCommand)
 {
-	char pHeader[2]={'#',strlen(pCommand)+2};
-	write(fd,pHeader,2);
-	write(fd,pCommand,strlen(pCommand));
+    char pHeader[2]={'#',strlen(pCommand)+2};
+    write(fd,pHeader,2);
+    write(fd,pCommand,strlen(pCommand));
 }
