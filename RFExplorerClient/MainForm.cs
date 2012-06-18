@@ -1664,7 +1664,8 @@ namespace RFExplorerClient
             int sensitivity = (UInt16)numericSensitivity.Value;
             trackBarSensitivity.Value = sensitivity;
             controlWaterfall.UpdateSensitivity(sensitivity);
-            controlWaterfall.Invalidate();
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
         }
 
         private void numericContrast_ValueChanged(object sender, EventArgs e)
@@ -1672,7 +1673,8 @@ namespace RFExplorerClient
             int contrast = (UInt16)numericContrast.Value;
             trackBarContrast.Value = contrast;
             controlWaterfall.UpdateContrast(contrast);
-            controlWaterfall.Invalidate();
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
         }
 
         private void trackBarSensitivity_ValueChanged(object sender, EventArgs e)
@@ -1680,7 +1682,8 @@ namespace RFExplorerClient
             int sensitivity = (UInt16)trackBarSensitivity.Value;
             numericSensitivity.Value = sensitivity;
             controlWaterfall.UpdateSensitivity(sensitivity);
-            controlWaterfall.Invalidate();
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
         }
 
         private void trackBarContrast_ValueChanged(object sender, EventArgs e)
@@ -1688,7 +1691,8 @@ namespace RFExplorerClient
             int contrast = (UInt16)trackBarContrast.Value;
             numericContrast.Value = contrast;
             controlWaterfall.UpdateContrast(contrast);
-            controlWaterfall.Invalidate();
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
         }
 
         private void checkBoxEnableLCD_CheckedChanged(object sender, EventArgs e)
