@@ -118,11 +118,13 @@ namespace RFExplorerClient
             this.m_sCenterFreq = new System.Windows.Forms.TextBox();
             this.tabWaterfall = new System.Windows.Forms.TabPage();
             this.waterfallGroupBox = new System.Windows.Forms.GroupBox();
+            this.checkBoxEnableLCD = new System.Windows.Forms.CheckBox();
             this.numericContrast = new System.Windows.Forms.NumericUpDown();
             this.numericSensitivity = new System.Windows.Forms.NumericUpDown();
             this.labelSensitivity = new System.Windows.Forms.Label();
             this.labelContrast = new System.Windows.Forms.Label();
             this.panelWaterfall = new System.Windows.Forms.Panel();
+            this.controlWaterfall = new RFEClientControls.WaterfallControl();
             this.tabRemoteScreen = new System.Windows.Forms.TabPage();
             this.groupRemoteScreen = new System.Windows.Forms.GroupBox();
             this.numScreenIndex = new System.Windows.Forms.NumericUpDown();
@@ -131,10 +133,11 @@ namespace RFExplorerClient
             this.chkDumpScreen = new System.Windows.Forms.CheckBox();
             this.label10 = new System.Windows.Forms.Label();
             this.panelRemoteScreen = new System.Windows.Forms.Panel();
+            this.controlRemoteScreen = new RFEClientControls.RemoteScreenControl();
             this.tabReport = new System.Windows.Forms.TabPage();
             this.textBox_message = new System.Windows.Forms.TextBox();
-            this.controlWaterfall = new RFEClientControls.WaterfallControl();
-            this.controlRemoteScreen = new RFEClientControls.RemoteScreenControl();
+            this.trackBarSensitivity = new System.Windows.Forms.TrackBar();
+            this.trackBarContrast = new System.Windows.Forms.TrackBar();
             this.MainMenu.SuspendLayout();
             this.MainTab.SuspendLayout();
             this.tabSpectrumAnalyzer.SuspendLayout();
@@ -155,6 +158,8 @@ namespace RFExplorerClient
             ((System.ComponentModel.ISupportInitialize)(this.numericZoom)).BeginInit();
             this.panelRemoteScreen.SuspendLayout();
             this.tabReport.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).BeginInit();
             this.SuspendLayout();
             // 
             // MainMenu
@@ -421,7 +426,7 @@ namespace RFExplorerClient
             this.chkCalcMin.AutoSize = true;
             this.chkCalcMin.Location = new System.Drawing.Point(160, 79);
             this.chkCalcMin.Name = "chkCalcMin";
-            this.chkCalcMin.Size = new System.Drawing.Size(66, 17);
+            this.chkCalcMin.Size = new System.Drawing.Size(67, 17);
             this.chkCalcMin.TabIndex = 51;
             this.chkCalcMin.Text = "Minimum";
             this.chkCalcMin.UseVisualStyleBackColor = true;
@@ -432,7 +437,7 @@ namespace RFExplorerClient
             this.chkCalcMax.AutoSize = true;
             this.chkCalcMax.Location = new System.Drawing.Point(160, 59);
             this.chkCalcMax.Name = "chkCalcMax";
-            this.chkCalcMax.Size = new System.Drawing.Size(72, 17);
+            this.chkCalcMax.Size = new System.Drawing.Size(74, 17);
             this.chkCalcMax.TabIndex = 51;
             this.chkCalcMax.Text = "Max Peak";
             this.chkCalcMax.UseVisualStyleBackColor = true;
@@ -443,7 +448,7 @@ namespace RFExplorerClient
             this.chkCalcAverage.AutoSize = true;
             this.chkCalcAverage.Location = new System.Drawing.Point(160, 39);
             this.chkCalcAverage.Name = "chkCalcAverage";
-            this.chkCalcAverage.Size = new System.Drawing.Size(67, 17);
+            this.chkCalcAverage.Size = new System.Drawing.Size(66, 17);
             this.chkCalcAverage.TabIndex = 51;
             this.chkCalcAverage.Text = "Average";
             this.chkCalcAverage.UseVisualStyleBackColor = true;
@@ -855,22 +860,41 @@ namespace RFExplorerClient
             // 
             // waterfallGroupBox
             // 
+            this.waterfallGroupBox.Controls.Add(this.trackBarContrast);
+            this.waterfallGroupBox.Controls.Add(this.trackBarSensitivity);
+            this.waterfallGroupBox.Controls.Add(this.checkBoxEnableLCD);
             this.waterfallGroupBox.Controls.Add(this.numericContrast);
             this.waterfallGroupBox.Controls.Add(this.numericSensitivity);
             this.waterfallGroupBox.Controls.Add(this.labelSensitivity);
             this.waterfallGroupBox.Controls.Add(this.labelContrast);
             this.waterfallGroupBox.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.waterfallGroupBox.Location = new System.Drawing.Point(728, 6);
+            this.waterfallGroupBox.Location = new System.Drawing.Point(512, 6);
             this.waterfallGroupBox.Name = "waterfallGroupBox";
-            this.waterfallGroupBox.Size = new System.Drawing.Size(194, 108);
+            this.waterfallGroupBox.Size = new System.Drawing.Size(410, 128);
             this.waterfallGroupBox.TabIndex = 56;
             this.waterfallGroupBox.TabStop = false;
             this.waterfallGroupBox.Text = "Waterfall Controls";
             // 
+            // checkBoxEnableLCD
+            // 
+            this.checkBoxEnableLCD.Checked = true;
+            this.checkBoxEnableLCD.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.checkBoxEnableLCD.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this.checkBoxEnableLCD.Font = new System.Drawing.Font("Tahoma", 12F, System.Drawing.FontStyle.Bold);
+            this.checkBoxEnableLCD.Location = new System.Drawing.Point(10, 91);
+            this.checkBoxEnableLCD.MinimumSize = new System.Drawing.Size(60, 0);
+            this.checkBoxEnableLCD.Name = "checkBoxEnableLCD";
+            this.checkBoxEnableLCD.Size = new System.Drawing.Size(138, 21);
+            this.checkBoxEnableLCD.TabIndex = 55;
+            this.checkBoxEnableLCD.Text = "Enable LCD";
+            this.checkBoxEnableLCD.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.checkBoxEnableLCD.UseVisualStyleBackColor = true;
+            this.checkBoxEnableLCD.CheckedChanged += new System.EventHandler(this.checkBoxEnableLCD_CheckedChanged);
+            // 
             // numericContrast
             // 
             this.numericContrast.Font = new System.Drawing.Font("Digital-7", 18F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.numericContrast.Location = new System.Drawing.Point(108, 62);
+            this.numericContrast.Location = new System.Drawing.Point(108, 54);
             this.numericContrast.Maximum = new decimal(new int[] {
             255,
             0,
@@ -929,7 +953,7 @@ namespace RFExplorerClient
             // labelContrast
             // 
             this.labelContrast.Font = new System.Drawing.Font("Tahoma", 12F, System.Drawing.FontStyle.Bold);
-            this.labelContrast.Location = new System.Drawing.Point(6, 68);
+            this.labelContrast.Location = new System.Drawing.Point(6, 60);
             this.labelContrast.Name = "labelContrast";
             this.labelContrast.Size = new System.Drawing.Size(96, 21);
             this.labelContrast.TabIndex = 50;
@@ -942,6 +966,14 @@ namespace RFExplorerClient
             this.panelWaterfall.Name = "panelWaterfall";
             this.panelWaterfall.Size = new System.Drawing.Size(910, 462);
             this.panelWaterfall.TabIndex = 55;
+            // 
+            // controlWaterfall
+            // 
+            this.controlWaterfall.Location = new System.Drawing.Point(0, 0);
+            this.controlWaterfall.Name = "controlWaterfall";
+            this.controlWaterfall.Size = new System.Drawing.Size(292, 174);
+            this.controlWaterfall.TabIndex = 54;
+            this.controlWaterfall.Load += new System.EventHandler(this.controlWaterfall_Load);
             // 
             // tabRemoteScreen
             // 
@@ -1056,6 +1088,14 @@ namespace RFExplorerClient
             this.panelRemoteScreen.Size = new System.Drawing.Size(910, 462);
             this.panelRemoteScreen.TabIndex = 55;
             // 
+            // controlRemoteScreen
+            // 
+            this.controlRemoteScreen.Location = new System.Drawing.Point(0, 0);
+            this.controlRemoteScreen.Name = "controlRemoteScreen";
+            this.controlRemoteScreen.Size = new System.Drawing.Size(292, 174);
+            this.controlRemoteScreen.TabIndex = 54;
+            this.controlRemoteScreen.Load += new System.EventHandler(this.controlRemoteScreen_Load);
+            // 
             // tabReport
             // 
             this.tabReport.Controls.Add(this.textBox_message);
@@ -1082,21 +1122,27 @@ namespace RFExplorerClient
             this.textBox_message.TabIndex = 49;
             this.textBox_message.WordWrap = false;
             // 
-            // controlWaterfall
+            // trackBarSensitivity
             // 
-            this.controlWaterfall.Location = new System.Drawing.Point(0, 0);
-            this.controlWaterfall.Name = "controlWaterfall";
-            this.controlWaterfall.Size = new System.Drawing.Size(292, 174);
-            this.controlWaterfall.TabIndex = 54;
-            this.controlWaterfall.Load += new System.EventHandler(this.controlWaterfall_Load);
+            this.trackBarSensitivity.Location = new System.Drawing.Point(184, 17);
+            this.trackBarSensitivity.Maximum = 255;
+            this.trackBarSensitivity.Minimum = 1;
+            this.trackBarSensitivity.Name = "trackBarSensitivity";
+            this.trackBarSensitivity.Size = new System.Drawing.Size(220, 45);
+            this.trackBarSensitivity.TabIndex = 56;
+            this.trackBarSensitivity.Value = 100;
+            this.trackBarSensitivity.ValueChanged += new System.EventHandler(this.trackBarSensitivity_ValueChanged);
             // 
-            // controlRemoteScreen
+            // trackBarContrast
             // 
-            this.controlRemoteScreen.Location = new System.Drawing.Point(0, 0);
-            this.controlRemoteScreen.Name = "controlRemoteScreen";
-            this.controlRemoteScreen.Size = new System.Drawing.Size(292, 174);
-            this.controlRemoteScreen.TabIndex = 54;
-            this.controlRemoteScreen.Load += new System.EventHandler(this.controlRemoteScreen_Load);
+            this.trackBarContrast.Location = new System.Drawing.Point(184, 54);
+            this.trackBarContrast.Maximum = 255;
+            this.trackBarContrast.Minimum = 1;
+            this.trackBarContrast.Name = "trackBarContrast";
+            this.trackBarContrast.Size = new System.Drawing.Size(220, 45);
+            this.trackBarContrast.TabIndex = 57;
+            this.trackBarContrast.Value = 215;
+            this.trackBarContrast.ValueChanged += new System.EventHandler(this.trackBarContrast_ValueChanged);
             // 
             // MainForm
             // 
@@ -1130,6 +1176,7 @@ namespace RFExplorerClient
             this.groupSettings.PerformLayout();
             this.tabWaterfall.ResumeLayout(false);
             this.waterfallGroupBox.ResumeLayout(false);
+            this.waterfallGroupBox.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericContrast)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericSensitivity)).EndInit();
             this.panelWaterfall.ResumeLayout(false);
@@ -1140,6 +1187,8 @@ namespace RFExplorerClient
             this.panelRemoteScreen.ResumeLayout(false);
             this.tabReport.ResumeLayout(false);
             this.tabReport.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -1233,6 +1282,9 @@ namespace RFExplorerClient
         private System.Windows.Forms.Label labelContrast;
         private System.Windows.Forms.NumericUpDown numericContrast;
         private System.Windows.Forms.NumericUpDown numericSensitivity;
+        private System.Windows.Forms.CheckBox checkBoxEnableLCD;
+        private System.Windows.Forms.TrackBar trackBarContrast;
+        private System.Windows.Forms.TrackBar trackBarSensitivity;
     }
 }
 
