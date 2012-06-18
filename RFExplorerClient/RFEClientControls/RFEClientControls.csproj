@@ -46,6 +46,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="WaterfallControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="WaterfallControl.Designer.cs">
+      <DependentUpon>WaterfallControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="RemoteScreenControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -56,6 +62,9 @@
     <Service Include="{94E38DFF-614B-4cbd-B67C-F211BB35CE8B}" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="WaterfallControl.resx">
+      <DependentUpon>WaterfallControl.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="RemoteScreenControl.resx">
       <DependentUpon>RemoteScreenControl.cs</DependentUpon>
     </EmbeddedResource>

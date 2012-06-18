@@ -136,6 +136,7 @@ namespace RFExplorerClient
             tabSpectrumAnalyzer.BackColor = Color.LightYellow;
             tabReport.BackColor = Color.LightYellow;
             tabRemoteScreen.BackColor = Color.LightYellow;
+            tabWaterfall.BackColor = Color.LightYellow;
 
             // Get a reference to the GraphPane instance in the ZedGraphControl
             GraphPane myPane = objGraph.GraphPane;
@@ -711,7 +712,10 @@ namespace RFExplorerClient
                     }
                 }
                 if (bDraw)
+                {
                     DisplayData();
+                    UpdateWaterfall();
+                }
             }
             catch (Exception obEx)
             {
@@ -1636,6 +1640,126 @@ namespace RFExplorerClient
         }
         #endregion
 
+
+        #region Waterfall
+        float m_wSizeX;
+        float m_wSizeY;
+
+        private void controlWaterfall_Load(object sender, EventArgs e)
+        {
+
+        }
+        private void tabWaterfall_Enter(object sender, EventArgs e)
+        {
+            Rectangle rectArea = panelWaterfall.ClientRectangle;
+            m_wSizeX = (float)(rectArea.Width / 7.0);
+            m_wSizeY = (float)(rectArea.Height / 7.0);
+
+            groupCOM.Parent = tabWaterfall;
+            tabWaterfall_UpdateZoomValues();
+        }
+
+        private void tabWaterfall_Paint(object sender, PaintEventArgs e)
+        {
+        }
+
+        private void UpdateWaterfall() 
+        {
+            Dictionary<double, double> RTList = new Dictionary<double, double>();
+            Dictionary<double, double> MaxList = new Dictionary<double, double>();
+            Dictionary<double, double> MinList = new Dictionary<double, double>();
+            Dictionary<double, double> AvgList = new Dictionary<double, double>();
+
+            //TODO: This code is duplicated from DisplayData, needs to be abstracted
+
+            int nIndex = m_nDataIndex - 1;
+            if (nIndex < 0)
+                nIndex = 0;
+            m_nDrawingIteration++;
+
+            int nCalculatorMax = (int)numericIterations.Value;
+            if (nCalculatorMax > nIndex)
+                nCalculatorMax = nIndex;
+
+            double fRealtimeMax_Amp = -200.0;
+            int fRealtimeMax_Iter = 0;
+            double fAverageMax_Amp = -200.0;
+            int fAverageMax_Iter = 0;
+            double fMaxMax_Amp = -200.0;
+            int fMaxMax_Iter = 0;
+
+            m_AveragePeak.Text = "";
+            m_RealtimePeak.Text = "";
+            m_MaxPeak.Text = "";
+
+            for (int nInd = 0; nInd < m_nFreqSpectrumSteps; nInd++)
+            {
+                double fVal = m_arrData[nIndex, nInd];
+                if (fVal > fRealtimeMax_Amp)
+                {
+                    fRealtimeMax_Amp = fVal;
+                    fRealtimeMax_Iter = nInd;
+                }
+
+                double fFreq = m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * nInd;
+
+                double fMax = fVal;
+                double fMin = fVal;
+                double fValAvg = fVal;
+
+                for (int nIterator = nIndex - nCalculatorMax; nIterator < nIndex; nIterator++)
+                {
+                    //Calculate average, max and min over Calculator range
+                    double fVal2 = m_arrData[nIterator, nInd];
+
+                    fMax = Math.Max(fMax, fVal2);
+                    fMin = Math.Min(fMin, fVal2);
+
+                    fValAvg += fVal2;
+                }
+
+                if (m_bDrawRealtime)
+                    RTList.Add(fFreq, fVal);
+                if (m_bDrawMin)
+                    MinList.Add(fFreq, fMin);
+
+                if (m_bDrawMax)
+                {
+                    MaxList.Add(fFreq, fMax);
+                    if (fMax > fMaxMax_Amp)
+                    {
+                        fMaxMax_Amp = fMax;
+                        fMaxMax_Iter = nInd;
+                    }
+                }
+
+                if (m_bDrawAverage)
+                {
+                    fValAvg = fValAvg / (nCalculatorMax + 1);
+                    AvgList.Add(fFreq, fValAvg);
+                    if (fValAvg > fAverageMax_Amp)
+                    {
+                        fAverageMax_Amp = fValAvg;
+                        fAverageMax_Iter = nInd;
+                    }
+                }
+            }
+            if ((int)numericIterations.Value > 1) 
+                controlWaterfall.DrawWaterfall(MaxList);
+            else
+                controlWaterfall.DrawWaterfall(RTList);
+
+            controlWaterfall.Invalidate();
+        }
+        private void tabWaterfall_UpdateZoomValues()
+        {
+            controlWaterfall.Size = new Size((int)(1.0 + m_wSizeX * (float)(numericZoom.Value)), (int)(1.0 + m_wSizeY * (float)(numericZoom.Value)));
+            controlWaterfall.UpdateZoom((int)(numericZoom.Value));
+            controlWaterfall.Invalidate();
+        }
+
+        #endregion
+
         #region Remote screen
 
         byte[,] m_arrRemoteScreenData;
@@ -1685,8 +1809,8 @@ namespace RFExplorerClient
 
         private void tabRemoteScreen_UpdateZoomValues()
         {
-            controlRemoteScreen.Size = new Size((int)(1.0 + m_fSizeX * (float)(numericZoom.Value)), (int)(1.0 + m_fSizeY * (float)(numericZoom.Value)));
-            controlRemoteScreen.UpdateZoom((int)(numericZoom.Value));
+            controlRemoteScreen.Size = new Size((int)(1.0 + m_fSizeX * (float)(7)), (int)(1.0 + m_fSizeY * (float)(7)));
+            controlRemoteScreen.UpdateZoom((int)(7));
             controlRemoteScreen.Invalidate();
         }
 
@@ -1846,6 +1970,10 @@ namespace RFExplorerClient
                 }
             }            
         }
+        private void controlRemoteScreen_Load(object sender, EventArgs e)
+        {
+
+        }
 
         #endregion
 
@@ -1885,6 +2013,7 @@ namespace RFExplorerClient
             m_bFirstText = false;
         }
         #endregion
+
 
     }
 
