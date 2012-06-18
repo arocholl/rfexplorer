@@ -35,18 +35,22 @@ namespace RFEClientControls
         private int m_nZoom;                    //Zoom value 1-7
 
         //Graphis objects cached to reduce drawing overhead
-        LinearGradientBrush m_BrushlinGrBrush;
+        Brush m_BrushBackground;
         Pen m_PenDarkBlue;
         Pen m_PenRed;
         Brush m_BrushDarkBlue;
         Rectangle m_AdjustedClientRect;
         QueueSet<Dictionary<double, double>> lastValues;
+        int m_contrast;
+        int m_sensitivity;
 
         public WaterfallControl()
         {
             InitializeComponent();
             lastValues = new QueueSet<Dictionary<double, double>>(450);
             m_nZoom = 7;
+            m_contrast = 215;
+            m_sensitivity = 100;
         }
 
         public void UpdateZoom(int nNewZoom)
@@ -58,6 +62,16 @@ namespace RFEClientControls
             m_AdjustedClientRect.Width = m_AdjustedClientRect.Width - 2;
         }
 
+        public void UpdateContrast(int newContrast)
+        {
+            m_contrast = newContrast;
+        }
+
+        public void UpdateSensitivity(int newSensitivity)
+        {
+            m_sensitivity = newSensitivity;
+        }
+        
         public void DrawWaterfall(Dictionary<double, double> values)
         {
             //Add incoming data to our waterfall history
@@ -69,12 +83,7 @@ namespace RFEClientControls
             m_PenDarkBlue = new Pen(Color.DarkBlue, 1);
             m_PenRed = new Pen(Color.Red, 1);
             m_BrushDarkBlue = new SolidBrush(Color.DarkBlue);
-            m_BrushlinGrBrush = new LinearGradientBrush(
-                new Point(0, -10),
-                new Point(0, ClientRectangle.Height + m_nZoom * 20),
-                Color.FromArgb(255, 50, 50, 50),
-                Color.Black
-            );
+            m_BrushBackground = new SolidBrush(Color.Black);
         }
 
         private void WaterfallControl_Paint(object sender, PaintEventArgs e)
@@ -82,7 +91,7 @@ namespace RFEClientControls
             if (e == null)
                 return;
 
-            e.Graphics.FillRectangle(m_BrushlinGrBrush, m_AdjustedClientRect);
+            e.Graphics.FillRectangle(m_BrushBackground, m_AdjustedClientRect);
             e.Graphics.DrawRectangle(m_PenDarkBlue, m_AdjustedClientRect);
             int y = 0;
             int widthFactor = 8; //Defines how wide each pixel of the waterfall display is
@@ -98,8 +107,7 @@ namespace RFEClientControls
                     int r = 0;
                     int g = 0;
                     int b = 0;
-                    //TODO: Allow changing of these constants via UI so the user can influence waterfall contrast and sensitivity
-                    int alpha = (int)((100.0 + (float)kvp.Value) / 40.0 * 255);
+                    int alpha = (int)(((float)m_sensitivity + (float)kvp.Value) / (255.0 - (float)m_contrast) * 255);
 
                     alpha = Math.Min(Math.Max(alpha, 0), 255);
 

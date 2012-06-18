@@ -117,8 +117,12 @@ namespace RFExplorerClient
             this.label3 = new System.Windows.Forms.Label();
             this.m_sCenterFreq = new System.Windows.Forms.TextBox();
             this.tabWaterfall = new System.Windows.Forms.TabPage();
+            this.waterfallGroupBox = new System.Windows.Forms.GroupBox();
+            this.numericContrast = new System.Windows.Forms.NumericUpDown();
+            this.numericSensitivity = new System.Windows.Forms.NumericUpDown();
+            this.labelSensitivity = new System.Windows.Forms.Label();
+            this.labelContrast = new System.Windows.Forms.Label();
             this.panelWaterfall = new System.Windows.Forms.Panel();
-            this.controlWaterfall = new RFEClientControls.WaterfallControl();
             this.tabRemoteScreen = new System.Windows.Forms.TabPage();
             this.groupRemoteScreen = new System.Windows.Forms.GroupBox();
             this.numScreenIndex = new System.Windows.Forms.NumericUpDown();
@@ -127,9 +131,10 @@ namespace RFExplorerClient
             this.chkDumpScreen = new System.Windows.Forms.CheckBox();
             this.label10 = new System.Windows.Forms.Label();
             this.panelRemoteScreen = new System.Windows.Forms.Panel();
-            this.controlRemoteScreen = new RFEClientControls.RemoteScreenControl();
             this.tabReport = new System.Windows.Forms.TabPage();
             this.textBox_message = new System.Windows.Forms.TextBox();
+            this.controlWaterfall = new RFEClientControls.WaterfallControl();
+            this.controlRemoteScreen = new RFEClientControls.RemoteScreenControl();
             this.MainMenu.SuspendLayout();
             this.MainTab.SuspendLayout();
             this.tabSpectrumAnalyzer.SuspendLayout();
@@ -140,6 +145,9 @@ namespace RFExplorerClient
             this.groupCOM.SuspendLayout();
             this.groupSettings.SuspendLayout();
             this.tabWaterfall.SuspendLayout();
+            this.waterfallGroupBox.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.numericContrast)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericSensitivity)).BeginInit();
             this.panelWaterfall.SuspendLayout();
             this.tabRemoteScreen.SuspendLayout();
             this.groupRemoteScreen.SuspendLayout();
@@ -413,7 +421,7 @@ namespace RFExplorerClient
             this.chkCalcMin.AutoSize = true;
             this.chkCalcMin.Location = new System.Drawing.Point(160, 79);
             this.chkCalcMin.Name = "chkCalcMin";
-            this.chkCalcMin.Size = new System.Drawing.Size(67, 17);
+            this.chkCalcMin.Size = new System.Drawing.Size(66, 17);
             this.chkCalcMin.TabIndex = 51;
             this.chkCalcMin.Text = "Minimum";
             this.chkCalcMin.UseVisualStyleBackColor = true;
@@ -424,7 +432,7 @@ namespace RFExplorerClient
             this.chkCalcMax.AutoSize = true;
             this.chkCalcMax.Location = new System.Drawing.Point(160, 59);
             this.chkCalcMax.Name = "chkCalcMax";
-            this.chkCalcMax.Size = new System.Drawing.Size(74, 17);
+            this.chkCalcMax.Size = new System.Drawing.Size(72, 17);
             this.chkCalcMax.TabIndex = 51;
             this.chkCalcMax.Text = "Max Peak";
             this.chkCalcMax.UseVisualStyleBackColor = true;
@@ -435,7 +443,7 @@ namespace RFExplorerClient
             this.chkCalcAverage.AutoSize = true;
             this.chkCalcAverage.Location = new System.Drawing.Point(160, 39);
             this.chkCalcAverage.Name = "chkCalcAverage";
-            this.chkCalcAverage.Size = new System.Drawing.Size(66, 17);
+            this.chkCalcAverage.Size = new System.Drawing.Size(67, 17);
             this.chkCalcAverage.TabIndex = 51;
             this.chkCalcAverage.Text = "Average";
             this.chkCalcAverage.UseVisualStyleBackColor = true;
@@ -834,6 +842,7 @@ namespace RFExplorerClient
             // tabWaterfall
             // 
             this.tabWaterfall.BackColor = System.Drawing.SystemColors.Control;
+            this.tabWaterfall.Controls.Add(this.waterfallGroupBox);
             this.tabWaterfall.Controls.Add(this.panelWaterfall);
             this.tabWaterfall.Location = new System.Drawing.Point(4, 26);
             this.tabWaterfall.Name = "tabWaterfall";
@@ -844,6 +853,88 @@ namespace RFExplorerClient
             this.tabWaterfall.Paint += new System.Windows.Forms.PaintEventHandler(this.tabWaterfall_Paint);
             this.tabWaterfall.Enter += new System.EventHandler(this.tabWaterfall_Enter);
             // 
+            // waterfallGroupBox
+            // 
+            this.waterfallGroupBox.Controls.Add(this.numericContrast);
+            this.waterfallGroupBox.Controls.Add(this.numericSensitivity);
+            this.waterfallGroupBox.Controls.Add(this.labelSensitivity);
+            this.waterfallGroupBox.Controls.Add(this.labelContrast);
+            this.waterfallGroupBox.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this.waterfallGroupBox.Location = new System.Drawing.Point(728, 6);
+            this.waterfallGroupBox.Name = "waterfallGroupBox";
+            this.waterfallGroupBox.Size = new System.Drawing.Size(194, 108);
+            this.waterfallGroupBox.TabIndex = 56;
+            this.waterfallGroupBox.TabStop = false;
+            this.waterfallGroupBox.Text = "Waterfall Controls";
+            // 
+            // numericContrast
+            // 
+            this.numericContrast.Font = new System.Drawing.Font("Digital-7", 18F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.numericContrast.Location = new System.Drawing.Point(108, 62);
+            this.numericContrast.Maximum = new decimal(new int[] {
+            255,
+            0,
+            0,
+            0});
+            this.numericContrast.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.numericContrast.Name = "numericContrast";
+            this.numericContrast.Size = new System.Drawing.Size(70, 31);
+            this.numericContrast.TabIndex = 54;
+            this.numericContrast.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.numericContrast.Value = new decimal(new int[] {
+            215,
+            0,
+            0,
+            0});
+            this.numericContrast.ValueChanged += new System.EventHandler(this.numericContrast_ValueChanged);
+            // 
+            // numericSensitivity
+            // 
+            this.numericSensitivity.Font = new System.Drawing.Font("Digital-7", 18F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.numericSensitivity.Location = new System.Drawing.Point(108, 17);
+            this.numericSensitivity.Maximum = new decimal(new int[] {
+            255,
+            0,
+            0,
+            0});
+            this.numericSensitivity.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.numericSensitivity.Name = "numericSensitivity";
+            this.numericSensitivity.Size = new System.Drawing.Size(70, 31);
+            this.numericSensitivity.TabIndex = 53;
+            this.numericSensitivity.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.numericSensitivity.Value = new decimal(new int[] {
+            100,
+            0,
+            0,
+            0});
+            this.numericSensitivity.ValueChanged += new System.EventHandler(this.numericSensitivity_ValueChanged);
+            // 
+            // labelSensitivity
+            // 
+            this.labelSensitivity.Font = new System.Drawing.Font("Tahoma", 12F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.labelSensitivity.Location = new System.Drawing.Point(6, 23);
+            this.labelSensitivity.Name = "labelSensitivity";
+            this.labelSensitivity.Size = new System.Drawing.Size(96, 22);
+            this.labelSensitivity.TabIndex = 52;
+            this.labelSensitivity.Text = "Sensitivity";
+            // 
+            // labelContrast
+            // 
+            this.labelContrast.Font = new System.Drawing.Font("Tahoma", 12F, System.Drawing.FontStyle.Bold);
+            this.labelContrast.Location = new System.Drawing.Point(6, 68);
+            this.labelContrast.Name = "labelContrast";
+            this.labelContrast.Size = new System.Drawing.Size(96, 21);
+            this.labelContrast.TabIndex = 50;
+            this.labelContrast.Text = "Contrast";
+            // 
             // panelWaterfall
             // 
             this.panelWaterfall.Controls.Add(this.controlWaterfall);
@@ -851,14 +942,6 @@ namespace RFExplorerClient
             this.panelWaterfall.Name = "panelWaterfall";
             this.panelWaterfall.Size = new System.Drawing.Size(910, 462);
             this.panelWaterfall.TabIndex = 55;
-            // 
-            // controlWaterfall
-            // 
-            this.controlWaterfall.Location = new System.Drawing.Point(0, 0);
-            this.controlWaterfall.Name = "controlWaterfall";
-            this.controlWaterfall.Size = new System.Drawing.Size(292, 174);
-            this.controlWaterfall.TabIndex = 54;
-            this.controlWaterfall.Load += new System.EventHandler(this.controlWaterfall_Load);
             // 
             // tabRemoteScreen
             // 
@@ -890,6 +973,7 @@ namespace RFExplorerClient
             // numScreenIndex
             // 
             this.numScreenIndex.Font = new System.Drawing.Font("Digital-7", 18F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.numScreenIndex.ImeMode = System.Windows.Forms.ImeMode.Katakana;
             this.numScreenIndex.Location = new System.Drawing.Point(93, 55);
             this.numScreenIndex.Maximum = new decimal(new int[] {
             7,
@@ -972,14 +1056,6 @@ namespace RFExplorerClient
             this.panelRemoteScreen.Size = new System.Drawing.Size(910, 462);
             this.panelRemoteScreen.TabIndex = 55;
             // 
-            // controlRemoteScreen
-            // 
-            this.controlRemoteScreen.Location = new System.Drawing.Point(0, 0);
-            this.controlRemoteScreen.Name = "controlRemoteScreen";
-            this.controlRemoteScreen.Size = new System.Drawing.Size(292, 174);
-            this.controlRemoteScreen.TabIndex = 54;
-            this.controlRemoteScreen.Load += new System.EventHandler(this.controlRemoteScreen_Load);
-            // 
             // tabReport
             // 
             this.tabReport.Controls.Add(this.textBox_message);
@@ -1005,6 +1081,22 @@ namespace RFExplorerClient
             this.textBox_message.Size = new System.Drawing.Size(920, 519);
             this.textBox_message.TabIndex = 49;
             this.textBox_message.WordWrap = false;
+            // 
+            // controlWaterfall
+            // 
+            this.controlWaterfall.Location = new System.Drawing.Point(0, 0);
+            this.controlWaterfall.Name = "controlWaterfall";
+            this.controlWaterfall.Size = new System.Drawing.Size(292, 174);
+            this.controlWaterfall.TabIndex = 54;
+            this.controlWaterfall.Load += new System.EventHandler(this.controlWaterfall_Load);
+            // 
+            // controlRemoteScreen
+            // 
+            this.controlRemoteScreen.Location = new System.Drawing.Point(0, 0);
+            this.controlRemoteScreen.Name = "controlRemoteScreen";
+            this.controlRemoteScreen.Size = new System.Drawing.Size(292, 174);
+            this.controlRemoteScreen.TabIndex = 54;
+            this.controlRemoteScreen.Load += new System.EventHandler(this.controlRemoteScreen_Load);
             // 
             // MainForm
             // 
@@ -1037,6 +1129,9 @@ namespace RFExplorerClient
             this.groupSettings.ResumeLayout(false);
             this.groupSettings.PerformLayout();
             this.tabWaterfall.ResumeLayout(false);
+            this.waterfallGroupBox.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.numericContrast)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericSensitivity)).EndInit();
             this.panelWaterfall.ResumeLayout(false);
             this.tabRemoteScreen.ResumeLayout(false);
             this.groupRemoteScreen.ResumeLayout(false);
@@ -1133,6 +1228,11 @@ namespace RFExplorerClient
         private System.Windows.Forms.Panel panelRemoteScreen;
         private System.Windows.Forms.Panel panelWaterfall;
         private System.Windows.Forms.TabPage tabWaterfall;
+        private System.Windows.Forms.GroupBox waterfallGroupBox;
+        private System.Windows.Forms.Label labelSensitivity;
+        private System.Windows.Forms.Label labelContrast;
+        private System.Windows.Forms.NumericUpDown numericContrast;
+        private System.Windows.Forms.NumericUpDown numericSensitivity;
     }
 }
 

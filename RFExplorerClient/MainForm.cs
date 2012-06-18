@@ -1659,6 +1659,20 @@ namespace RFExplorerClient
             tabWaterfall_UpdateZoomValues();
         }
 
+        private void numericSensitivity_ValueChanged(object sender, EventArgs e)
+        {
+            int sensitivity = (UInt16)numericSensitivity.Value;
+            controlWaterfall.UpdateSensitivity(sensitivity);
+            controlWaterfall.Invalidate();
+        }
+
+        private void numericContrast_ValueChanged(object sender, EventArgs e)
+        {
+            int contrast = (UInt16)numericContrast.Value;
+            controlWaterfall.UpdateContrast(contrast);
+            controlWaterfall.Invalidate();
+        }
+
         private void tabWaterfall_Paint(object sender, PaintEventArgs e)
         {
         }
@@ -2013,7 +2027,6 @@ namespace RFExplorerClient
             m_bFirstText = false;
         }
         #endregion
-
 
     }
 
