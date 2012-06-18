@@ -1215,6 +1215,8 @@ namespace RFExplorerClient
                 {
                     using (BinaryReader binStream = new BinaryReader(myFile))
                     {
+                        ClearWaterfall();
+                        m_nDataIndex = 0;
                         string sHeader = binStream.ReadString();
                         m_fStartFrequencyMHZ = binStream.ReadDouble();
                         m_fStepFrequencyMHZ = binStream.ReadDouble();
@@ -1233,6 +1235,8 @@ namespace RFExplorerClient
                             {
                                 m_arrData[nPageInd, nByte] = (float)binStream.ReadDouble();
                             }
+                            UpdateWaterfall();
+                            m_nDataIndex++;
                         }
                         binStream.Close();
 
@@ -1709,6 +1713,11 @@ namespace RFExplorerClient
 
         private void tabWaterfall_Paint(object sender, PaintEventArgs e)
         {
+        }
+
+        private void ClearWaterfall()
+        {
+            controlWaterfall.ClearWaterfall();
         }
 
         private void UpdateWaterfall() 

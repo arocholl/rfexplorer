@@ -78,6 +78,11 @@ namespace RFEClientControls
             lastValues.Enqueue(values);
         }
 
+        public void ClearWaterfall()
+        {
+            lastValues.Clear();
+        }
+
         private void WaterfallControl_Load(object sender, EventArgs e)
         {
             m_PenDarkBlue = new Pen(Color.DarkBlue, 1);
