@@ -139,6 +139,12 @@
     <Compile Include="AboutBox_rfexplorer.Designer.cs">
       <DependentUpon>AboutBox_rfexplorer.cs</DependentUpon>
     </Compile>
+    <Compile Include="CalibrationProgress.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CalibrationProgress.Designer.cs">
+      <DependentUpon>CalibrationProgress.cs</DependentUpon>
+    </Compile>
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -150,6 +156,9 @@
     <Compile Include="Settings.cs" />
     <EmbeddedResource Include="AboutBox_rfexplorer.resx">
       <DependentUpon>AboutBox_rfexplorer.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CalibrationProgress.resx">
+      <DependentUpon>CalibrationProgress.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
