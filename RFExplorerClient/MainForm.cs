@@ -94,6 +94,8 @@ namespace RFExplorerClient
         //calibration values
         Byte m_nCalibrationCapSi4x;
         Byte m_nCalibrationCapMixer;
+        string m_sMainBoardCalibrated = ""; //Date when this was calibrated
+        string m_sExpansionBoardCalibrated = ""; //Date when this was calibrated
 
         //Initializer for 433MHz model, will change later based on settings
         double m_fMinSpanMHZ = 0.112;       //Min valid span in MHZ for connected model
@@ -736,12 +738,16 @@ namespace RFExplorerClient
                         {
                             if ((strReceived.Length > 4) && (strReceived[1] == 'C'))
                             {
-                                string sNewLine = strReceived.Substring(0, 5);
-                                string sLeftOver = strReceived.Substring(5);
-                                strReceived = sLeftOver;
-                                Monitor.Enter(m_arrReceivedStrings);
-                                m_arrReceivedStrings.Enqueue(sNewLine);
-                                Monitor.Exit(m_arrReceivedStrings);
+                                Byte nSize = Convert.ToByte(strReceived[3]);
+                                if (strReceived.Length >= (nSize + 4))
+                                {
+                                    string sNewLine = strReceived.Substring(0, nSize + 4);
+                                    string sLeftOver = strReceived.Substring(nSize + 4);
+                                    strReceived = sLeftOver;
+                                    Monitor.Enter(m_arrReceivedStrings);
+                                    m_arrReceivedStrings.Enqueue(sNewLine);
+                                    Monitor.Exit(m_arrReceivedStrings);
+                                }
                             }
                             if ((strReceived.Length > 1) && (strReceived[1] == 'D'))
                             {
@@ -909,19 +915,26 @@ namespace RFExplorerClient
             zedSpectrumAnalyzer.Refresh();
         }
 
-        private void timer_receive_Tick(object sender, EventArgs e)
+        //Returns true if an event was received requiring redraw
+        private bool ProcessReceivedString(bool bProcessAllEvents, out string sReceivedString)
         {
+            bool bDraw = false;
+            sReceivedString = "";
+
             try
             {
-
                 Monitor.Enter(m_arrReceivedStrings);
-                bool bDraw = false;
                 bool bWrongFormat = false;
-                while (m_arrReceivedStrings.Count > 0)
-                {
-                    string sLine = m_arrReceivedStrings.Dequeue().ToString();
 
-                    if ((sLine.Length > 2) && (sLine.Substring(0,2)=="$S") && (m_fStartFrequencyMHZ > 10.0))
+                do
+                {
+                    if (m_arrReceivedStrings.Count == 0)
+                        break;
+
+                    string sLine = m_arrReceivedStrings.Dequeue().ToString();
+                    sReceivedString = sLine;
+
+                    if ((sLine.Length > 2) && (sLine.Substring(0, 2) == "$S") && (m_fStartFrequencyMHZ > 10.0))
                     {
                         if (!m_bHoldMode && m_nDataIndex < m_nTotalBufferSize)
                         {
@@ -1006,9 +1019,28 @@ namespace RFExplorerClient
                     }
                     else if ((sLine.Length >= 5) && sLine.Substring(0, 3) == "$Cc")
                     {
-                        m_nCalibrationCapSi4x = Convert.ToByte(sLine[3]);
-                        m_nCalibrationCapMixer = Convert.ToByte(sLine[4]);
-                        ReportLog("Calibration data:" + m_nCalibrationCapSi4x.ToString("x")+","+m_nCalibrationCapMixer.ToString("x"));
+                        m_nCalibrationCapSi4x = Convert.ToByte(sLine[4]);
+                        Hex2MixerCapacitor(Convert.ToByte(sLine[5])); //m_nCalibrationCapMixer set internally by this function
+                        ReportLog("Calibration data: 0x" + m_nCalibrationCapSi4x.ToString("x") + ", 0x" + m_nCalibrationCapMixer.ToString("x") + ", " + Convert.ToByte(sLine[6])+"ºC");
+                    }
+                    else if ((sLine.Length >= 5) && sLine.Substring(0, 3) == "$Cr")
+                    {
+                        //ignore - internally used by callers to this function, not really used here
+                        int nSize=Convert.ToByte(sLine[3]);
+                        string sDebugOutput="";
+                        for (int nInd=0; nInd<nSize; nInd++)
+                        {
+                            if ((nInd % 16) == 0)
+                            {
+                                sDebugOutput += "DUMP: ["+nInd.ToString("X2")+"]:";
+                            }
+                            sDebugOutput+="["+Convert.ToByte(sLine[4+nInd]).ToString("X2")+"]";
+                            if (((nInd + 1) % 16) == 0)
+                            {
+                                sDebugOutput += Environment.NewLine;
+                            }
+                        }
+                        ReportLog(sDebugOutput);
                     }
                     else if ((sLine.Length > 6) && sLine.Substring(0, 6) == "#C2-M:")
                     {
@@ -1068,9 +1100,13 @@ namespace RFExplorerClient
                             m_nFreqSpectrumSteps = Convert.ToUInt16(sLine.Substring(32, 4));
                             m_bExpansionBoardActive = (sLine[37] == '1');
                             if (m_bExpansionBoardActive)
+                            {
                                 m_eActiveModel = m_eExpansionBoardModel;
+                            }
                             else
+                            {
                                 m_eActiveModel = m_eMainBoardModel;
+                            }
                             m_eMode = (eMode)Convert.ToUInt16(sLine.Substring(39, 3));
 
                             if (m_eMode == eMode.MODE_SPECTRUM_ANALYZER)
@@ -1101,7 +1137,7 @@ namespace RFExplorerClient
                             }
                             if (sLine.Length > 72)
                             {
-                                m_fOffset_dBm = Convert.ToInt32(sLine.Substring(73,4));
+                                m_fOffset_dBm = Convert.ToInt32(sLine.Substring(73, 4));
                             }
 
                             btnCalibrate.Enabled = true; //calibration available for everybody but 2.4G at the moment
@@ -1131,12 +1167,12 @@ namespace RFExplorerClient
                                 }
 
                                 m_RFEConfig.Text = "Client v" + Assembly.GetExecutingAssembly().GetName().Version.ToString() + " - Firmware v" + m_sRFExplorerFirmware +
-                                " - Model:"  + sModel + sExpansion +
+                                " - Model:" + sModel + sExpansion +
                                 " - Active range:" + m_fMinFreqMHZ.ToString() + "-" + m_fMaxFreqMHZ.ToString() + "MHz\n";
 
                                 m_RFEConfig.Text += "Start: " + m_fStartFrequencyMHZ.ToString("f3") + "MHz - Stop:" + CalculateEndFrequencyMHZ().ToString("f3") +
                                     "MHz - Center:" + CalculateCenterFrequencyMHZ().ToString("f3") + "MHz - Span:" + CalculateFrequencySpanMHZ().ToString("f3") +
-                                    "MHz - Sweep Step:" + (m_fStepFrequencyMHZ*1000.0).ToString("f0")+"KHz";
+                                    "MHz - Sweep Step:" + (m_fStepFrequencyMHZ * 1000.0).ToString("f0") + "KHz";
 
                                 if (m_fRBWKHZ > 0.0)
                                 {
@@ -1183,17 +1219,33 @@ namespace RFExplorerClient
                         ReportLog("make sure you are using the latest version of this software.");
                         ReportLog("Visit http://www.rf-explorer/download for latest updates.");
                     }
-                }
+                } while (bProcessAllEvents && (m_arrReceivedStrings.Count > 0));
+            }
+            catch (Exception obEx)
+            {
+                ReportLog("ProcessReceivedString: " + obEx.Message);
+            }
+            finally
+            {
+                Monitor.Exit(m_arrReceivedStrings);
+            }
+
+            return bDraw;
+        }
+
+        private void timer_receive_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                string sOut;
+                bool bDraw=ProcessReceivedString(true, out sOut);
+
                 if (bDraw)
                     DisplaySpectrumAnalyzerData();
             }
             catch (Exception obEx)
             {
                 ReportLog("timer_receive_Tick: " + obEx.Message);
-            }
-            finally
-            {
-                Monitor.Exit(m_arrReceivedStrings);
             }
 
             if (m_bFirstTick)
@@ -2522,6 +2574,48 @@ namespace RFExplorerClient
             }
         }
 
+        private void AddAVIFrame(AviManager aviManager, ref VideoStream aviStream)
+        {
+            Rectangle rectArea = controlRemoteScreen.ClientRectangle;
+            using (Bitmap objAppBmp = new Bitmap(rectArea.Width, rectArea.Height))
+            {
+                controlRemoteScreen.DrawToBitmap(objAppBmp, rectArea);
+
+                int nSize = (int)(numericZoom.Value);
+                using (Bitmap objImage = new Bitmap(rectArea.Width, rectArea.Height))
+                {
+                    Graphics.FromImage(objImage).DrawImage(objAppBmp, rectArea);
+                    if (aviStream == null)
+                    {
+                        aviStream = aviManager.AddVideoStream(true, (double)numVideoFPS.Value, objImage);
+                    }
+                    else
+                    {
+                        aviStream.AddFrame(objImage);
+                    }
+                }
+            }
+        }
+
+        private void btnSaveRemoteVideo_Click(object sender, EventArgs e)
+        {
+            Cursor.Current = Cursors.WaitCursor;
+
+            AviManager aviManager = new AviManager("c:\\temp\\RFExplorerVideo.avi", false);
+            VideoStream aviStream = null;
+
+            for (m_nScreenIndex = 0; m_nScreenIndex < m_nMaxScreenIndex; m_nScreenIndex++)
+            {
+                numScreenIndex.Value = m_nScreenIndex;
+                numScreenIndex_ValueChanged(null, null);
+                Cursor.Current = Cursors.WaitCursor;
+                AddAVIFrame(aviManager, ref aviStream);
+            }
+            aviManager.Close();
+
+            Cursor.Current = Cursors.Default;
+        }        
+
         private void SavePNG(string sFilename)
         {
             Rectangle rectArea = controlRemoteScreen.ClientRectangle;
@@ -3007,8 +3101,11 @@ namespace RFExplorerClient
             do
             {
                 Thread.Sleep(1000 * nSeconds);
-                timer_receive_Tick(null, null);
-                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 100000 - fCenterFreqKHZ*100);
+                string sDummy;
+                ProcessReceivedString(true, out sDummy);
+                DisplaySpectrumAnalyzerData();
+                
+                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 100000 - fCenterFreqKHZ * 100);
                 wndProgress.textLine2.Text = "Error delta: " + (nDelta/100.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapSi4x.ToString("X2");
                 Application.DoEvents();
                 Cursor.Current = Cursors.WaitCursor;
@@ -3066,6 +3163,43 @@ namespace RFExplorerClient
             } while (!bCalibrated && nSteps > 0);
         }
 
+        //A value from 0-31 is valid for m_nCalibrationCapMixer
+        //But the RF2052 will take it as a 0xPQ where P is a 4 bit value for XO_CT and Q is a 1 bit value for XO_CR_S
+        //Therefore a simple | and <<8 is required on the RF Explorer to use the HEX value
+        private byte MixerCapacitor2Hex()
+        {
+            byte nHex = 0;
+
+            if ((m_nCalibrationCapMixer & 0x01)==1)
+            {
+                nHex = 0x02;    //XO_CT
+            }
+            nHex |= (byte)((m_nCalibrationCapMixer & 0x1e) << 3); //XO_CR_S
+
+            return nHex;
+        }
+
+        private void Hex2MixerCapacitor(byte nHex)
+        {
+            m_nCalibrationCapMixer = (byte)((nHex & 0xf0) >> 3); //XO_CR_S
+            if ((nHex & 0x02) == 0x02)
+            {
+                m_nCalibrationCapMixer |= 0x01; //XO_CT
+            }
+        }
+
+        //Test code
+        //for (byte nInd = 0; nInd < 32; nInd++)
+        //{
+        //    m_nCalibrationCapMixer = nInd;
+        //    byte nHex=MixerCapacitor2Hex();
+        //    string sReport=nInd.ToString("X2")+":"+nHex.ToString("X2")+"|";
+        //    Hex2MixerCapacitor(nHex);
+        //    sReport+=m_nCalibrationCapMixer.ToString("X2");
+        //    ReportLog(sReport);
+        //}
+
+        
         private void CalibrateMixer(int nSpanKHZ, int nSeconds, CalibrationProgress wndProgress)
         {
             wndProgress.textLine1.Text = "Variation Range: " + nSpanKHZ.ToString() + "KHz";
@@ -3084,9 +3218,11 @@ namespace RFExplorerClient
             do
             {
                 Thread.Sleep(1000 * nSeconds);
-                timer_receive_Tick(null, null);
+                string sDummy;
+                ProcessReceivedString(true, out sDummy);
+                DisplaySpectrumAnalyzerData();
                 Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 100000 - fCenterFreqKHZ * 100);
-                wndProgress.textLine2.Text = "Error delta: " + (nDelta / 100.0).ToString() + "KHz, CAL:0x0" + m_nCalibrationCapMixer.ToString("X");
+                wndProgress.textLine2.Text = "Error delta: " + (nDelta / 100.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapMixer.ToString("X2");
                 Application.DoEvents();
                 Cursor.Current = Cursors.WaitCursor;
 
@@ -3113,7 +3249,7 @@ namespace RFExplorerClient
                         else
                         {
                             m_nCalibrationCapMixer -= 1;
-                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(m_nCalibrationCapMixer));
+                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(MixerCapacitor2Hex()));
                         }
                     }
                 }
@@ -3126,7 +3262,7 @@ namespace RFExplorerClient
                     else
                     {
                         nDirection = 1;
-                        if (m_nCalibrationCapMixer == 15)
+                        if (m_nCalibrationCapMixer == 31)
                         {
                             //finish here
                             nSteps = 1;
@@ -3134,7 +3270,7 @@ namespace RFExplorerClient
                         else
                         {
                             m_nCalibrationCapMixer += 1;
-                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(m_nCalibrationCapMixer));
+                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(MixerCapacitor2Hex()));
                         }
                     }
                 }
@@ -3142,6 +3278,8 @@ namespace RFExplorerClient
                 nSteps--;
             } while (!bCalibrated && nSteps > 0);
         }
+
+        const byte FLASH_FILE_CALIBRATION_DATE=50;
 
         private void btnCalibrate_Click(object sender, EventArgs e)
         {
@@ -3151,10 +3289,44 @@ namespace RFExplorerClient
                 return;
             }
 
+            {
+                //DateTime CalibrationTime = DateTime.Now;
+                //string sCalibrationTime = "CR" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) +
+                //    CalibrationTime.Year.ToString("D4") + CalibrationTime.Month.ToString("D2") + CalibrationTime.Day.ToString("D2") +
+                //    CalibrationTime.Hour.ToString("D2") + CalibrationTime.Minute.ToString("D2") + CalibrationTime.Second.ToString("D2");
+                //SendCommand(sCalibrationTime);
+                //Thread.Sleep(1000);
+                //SendCommand("CS");
+                //Thread.Sleep(1000);
+                //SendCommand("Cr" + Convert.ToChar(0) + Convert.ToChar(0) + Convert.ToChar(32));
+                //return;
+            }
+
+            //if (m_sExpansionBoardCalibrated.Length == 0)
+            //{
+            //    //ask for calibration date
+            //    m_sExpansionBoardCalibrated = "";
+            //    SendCommand("Cr" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) + Convert.ToChar(14));
+            //    Thread.Sleep(500);
+            //    for (int nInd = 0; nInd < 10; nInd++)
+            //    {
+            //        string sOut;
+            //        ProcessReceivedString(false, out sOut);
+            //        if ((sOut.Length > 14) && (sOut.Substring(0, 3) == "$Cr"))
+            //        {
+            //            m_sExpansionBoardCalibrated = "Expansion module Calibrated on: " + sOut.Substring(4);
+            //            break;
+            //        }
+            //    }
+            //}
+
+
             CalibrationProgress wndProgress = new CalibrationProgress();
 
             try
             {
+                m_timer_receive.Enabled = false;
+
                 int nTotalSteps = 3;
                 if (m_eActiveModel == eModel.MODEL_WSUB3G)
                 {
@@ -3162,11 +3334,11 @@ namespace RFExplorerClient
                 }
 
                 m_bCalibrating = true;
-                MessageBox.Show("Connect or power ON the RF Source\nClick to continue only when ready...","RF Signal Source");
+                MessageBox.Show("Connect or power ON the RF Source\nClick to continue only when ready...", "RF Signal Source");
 
                 wndProgress.Show(this);
 
-                wndProgress.textLine3.Text = string.Format("Calibrating - Step 1/{0}...",nTotalSteps);
+                wndProgress.textLine3.Text = string.Format("Calibrating - Step 1/{0}...", nTotalSteps);
                 wndProgress.ProgressBar.Maximum = nTotalSteps;
                 wndProgress.ProgressBar.Value = 0;
                 Application.DoEvents();
@@ -3187,7 +3359,7 @@ namespace RFExplorerClient
 
                 if (m_eActiveModel == eModel.MODEL_WSUB3G)
                 {
-                    MessageBox.Show("Disconnect or power off the RF Source\nClick to continue only when ready...","RF Signal Source");
+                    MessageBox.Show("Disconnect or power off the RF Source\nClick to continue only when ready...", "RF Signal Source");
                     wndProgress.textLine3.Text = string.Format("Calibrating - Step 4/{0}...", nTotalSteps);
                     wndProgress.ProgressBar.Value = 3;
                     Application.DoEvents();
@@ -3201,13 +3373,24 @@ namespace RFExplorerClient
                     CalibrateMixer(112, 10, wndProgress);
                 }
 
+                if (m_bExpansionBoardActive)
+                {
+                    //this is only available on expansion ROM at the moment
+                    DateTime CalibrationTime = DateTime.Now;
+                    string sCalibrationTime = "CR" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) + "CD:" +
+                        (CalibrationTime.Year-2000).ToString("D2") + CalibrationTime.Month.ToString("D2") + CalibrationTime.Day.ToString("D2") +
+                        CalibrationTime.Hour.ToString("D2") + CalibrationTime.Minute.ToString("D2") + CalibrationTime.Second.ToString("D2");
+                    SendCommand(sCalibrationTime);
+                }
+
+                Thread.Sleep(1000);
                 SendCommand("CS"); //save calibration settings and reinit config
                 Thread.Sleep(2000);
                 AskConfigData();
             }
             catch (Exception obEx)
-            { 
-                ReportLog(obEx.Message); 
+            {
+                ReportLog(obEx.Message);
             }
             finally
             {
@@ -3215,6 +3398,7 @@ namespace RFExplorerClient
                 Cursor.Current = Cursors.Default;
                 wndProgress.Close();
                 wndProgress = null;
+                m_timer_receive.Enabled = true;
             }
         }
 
