@@ -3239,6 +3239,7 @@ namespace RFExplorerClient
         }
         #endregion
 
+        #region Calibration
         bool m_bCalibrating = false;
 
         private bool CalibrateSi4x(int nSpanKHZ, byte nStepSize, int nSeconds, CalibrationProgress wndProgress, out double fDeltaKHZ)
@@ -3648,5 +3649,7 @@ namespace RFExplorerClient
             fCenterFreqMHZ = Math.Min(m_fMaxFreqMHZ + fExtraMargin, fCenterFreqMHZ);
             m_edCalibrationFreq.Text = fCenterFreqMHZ.ToString("f3");
         }
+    #endregion
+
     }
 }
