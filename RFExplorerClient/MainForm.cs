@@ -106,8 +106,9 @@ namespace RFExplorerClient
         double m_fRBWKHZ = 0.0;             //RBW in use
         float m_fOffset_dBm = 0.0f;         //Manual offset of the amplitude reading
 
-        string m_sFilenameRFE="";              //RFE data file
+        string m_sFilenameRFE="";           //RFE data file name
         string m_sReportFilePath="";        //Path and name of the report log file
+        string m_sDefaultFolder = "";       //RFE default folder for saving data files
 
         Boolean m_bPortConnected = false;   //Will be true while COM port is connected, as IsOpen() is not reliable
 
@@ -425,6 +426,18 @@ namespace RFExplorerClient
 
         private void MainForm_Load(object sender, EventArgs e)
         {
+            /*for (byte nInd = 0; nInd < 32; nInd++)
+            {
+                m_nCalibrationCapMixer = nInd;
+                byte nHex = MixerCapacitor2Hex();
+                string sReport = nInd.ToString("X2") + ":" + nHex.ToString("X2") + "|";
+                Hex2MixerCapacitor(nHex);
+                sReport += m_nCalibrationCapMixer.ToString("X2");
+                ReportLog(sReport);
+            }*/
+
+            m_sDefaultFolder = Environment.GetEnvironmentVariable("APPDATA") + "\\";
+
             //up to m_nTotalBufferSize pages of m_nFreqSpectrumSteps bytes each
             m_arrData               = new float[m_nTotalBufferSize, MAX_SPECTRUM_STEPS]; 
 
@@ -1261,7 +1274,7 @@ namespace RFExplorerClient
             if (menuSaveOnClose.Checked && (m_nMaxDataIndex > 0) && (m_sFilenameRFE.Length==0))
             {
                 GetNewFilename();
-                SaveFile(m_sFilenameRFE);
+                SaveFile(m_sDefaultFolder + m_sFilenameRFE);
             }
             ClosePort();
             SaveProperties();
@@ -1318,12 +1331,14 @@ namespace RFExplorerClient
         }
 
         double m_fPeakValueMHZ = 0.0f;
+        double m_fPeakValueAmp = -120.0f;
 
         private void DisplaySpectrumAnalyzerData()
         {
             double fNoiseFloor = -120.0;
 
             m_fPeakValueMHZ = 0.0;
+            m_fPeakValueAmp = fNoiseFloor;
 
             PointPairList RTList = new PointPairList();
             PointPairList MaxList = new PointPairList();
@@ -1431,6 +1446,7 @@ namespace RFExplorerClient
             if (m_bCalibrating)
             {
                 m_fPeakValueMHZ = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fAverageMax_Iter);
+                m_fPeakValueAmp = fAverageMax_Amp;
             }
             else
             {
@@ -3083,7 +3099,7 @@ namespace RFExplorerClient
 
         bool m_bCalibrating = false;
 
-        private void CalibrateSi4x(int nSpanKHZ, byte nStepSize, int nSeconds, CalibrationProgress wndProgress)
+        private bool CalibrateSi4x(int nSpanKHZ, byte nStepSize, int nSeconds, CalibrationProgress wndProgress, out double fDeltaKHZ)
         {
             wndProgress.textLine1.Text = "Variation Range: " + nSpanKHZ.ToString() + "KHz";
             Application.DoEvents();
@@ -3092,6 +3108,7 @@ namespace RFExplorerClient
             double fCenterFreqKHZ = Convert.ToDouble(m_edCalibrationFreq.Text) * 1000.0;
             double fStart = fCenterFreqKHZ - nSpanKHZ/2;//Find the start frequency for this value to be at the center of a 112KHz min span
             double fEnd = fCenterFreqKHZ + nSpanKHZ / 2;
+            ReportLog(wndProgress.textLine1.Text + " Center:" + fCenterFreqKHZ + "KHz");
             Thread.Sleep(1000);
             SendCommand("C2-F" + ((UInt32)fStart).ToString("D7") + "," + ((UInt32)fEnd).ToString("D7") + ",-010,-120");
 
@@ -3105,10 +3122,24 @@ namespace RFExplorerClient
                 ProcessReceivedString(true, out sDummy);
                 DisplaySpectrumAnalyzerData();
                 
-                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 100000 - fCenterFreqKHZ * 100);
-                wndProgress.textLine2.Text = "Error delta: " + (nDelta/100.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapSi4x.ToString("X2");
+                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 1000 * 1000 - fCenterFreqKHZ * 1000);
+                fDeltaKHZ = nDelta / 1000.0;
+                if (nDelta > 500000)
+                {
+                    string sText = "Error: reference signal is too far from expected value.\n" +
+                        "Check your RF Signal frequency and amplitude (must be between -20 to -50dBm)\n" +
+                        "If you think this is an error, please contact rfexplorer@arocholl.com";
+                    ReportLog(sText);
+                    MessageBox.Show(sText, "Calibration Error");
+                    return false;
+                }
+                wndProgress.textLine2.Text = "Error delta: " + (nDelta / 1000.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapSi4x.ToString("X2");
+                ReportLog(wndProgress.textLine2.Text + " nDirection:" + nDirection + " nSteps:" + nSteps + " nStepSize:" + nStepSize + " Peak: "+m_fPeakValueAmp);
                 Application.DoEvents();
                 Cursor.Current = Cursors.WaitCursor;
+                GetNewFilename();
+                SaveFile(m_sDefaultFolder + m_sFilenameRFE);
+                ReportLog("Saved filename: " + m_sDefaultFolder + m_sFilenameRFE);
 
                 if (nDelta == 0)
                 {
@@ -3132,7 +3163,10 @@ namespace RFExplorerClient
                         }
                         else
                         {
-                            m_nCalibrationCapSi4x += nStepSize;
+                            if ((int)m_nCalibrationCapSi4x + (int)nStepSize > 255)
+                                m_nCalibrationCapSi4x = 255;
+                            else
+                                m_nCalibrationCapSi4x += nStepSize;
                             SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(0));
                         }
                     }
@@ -3153,7 +3187,10 @@ namespace RFExplorerClient
                         }
                         else
                         {
-                            m_nCalibrationCapSi4x -= nStepSize;
+                            if ((int)m_nCalibrationCapSi4x - (int)nStepSize < 0)
+                                m_nCalibrationCapSi4x = 0;
+                            else
+                                m_nCalibrationCapSi4x -= nStepSize;
                             SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(0));
                         }
                     }
@@ -3161,6 +3198,9 @@ namespace RFExplorerClient
 
                 nSteps--;
             } while (!bCalibrated && nSteps > 0);
+
+            ReportLog("Calibration step finished with 0x" + m_nCalibrationCapSi4x.ToString("X2") + "," + MixerCapacitor2Hex().ToString("X2") + " Center: " + m_fPeakValueMHZ + "MHz");
+            return true;
         }
 
         //A value from 0-31 is valid for m_nCalibrationCapMixer
@@ -3200,7 +3240,7 @@ namespace RFExplorerClient
         //}
 
         
-        private void CalibrateMixer(int nSpanKHZ, int nSeconds, CalibrationProgress wndProgress)
+        private bool CalibrateMixer(int nSpanKHZ, int nSeconds, CalibrationProgress wndProgress)
         {
             wndProgress.textLine1.Text = "Variation Range: " + nSpanKHZ.ToString() + "KHz";
             Application.DoEvents();
@@ -3209,11 +3249,12 @@ namespace RFExplorerClient
             double fCenterFreqKHZ = 540000.0; //hardcoded for internal CALIBRATE_WSUB3G_LO1 mode
             double fStart = fCenterFreqKHZ - nSpanKHZ / 2;//Find the start frequency for this value to be at the center of a 112KHz min span
             double fEnd = fCenterFreqKHZ + nSpanKHZ / 2;
+            ReportLog(wndProgress.textLine1.Text + " Center:" + fCenterFreqKHZ + "KHz");
             Thread.Sleep(1000);
             SendCommand("C2-F" + ((UInt32)fStart).ToString("D7") + "," + ((UInt32)fEnd).ToString("D7") + ",-010,-120");
 
             bool bCalibrated = false;
-            int nSteps = 16;
+            int nSteps = 32;
             int nDirection = 0;
             do
             {
@@ -3221,10 +3262,22 @@ namespace RFExplorerClient
                 string sDummy;
                 ProcessReceivedString(true, out sDummy);
                 DisplaySpectrumAnalyzerData();
-                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 100000 - fCenterFreqKHZ * 100);
-                wndProgress.textLine2.Text = "Error delta: " + (nDelta / 100.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapMixer.ToString("X2");
+                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 1000 * 1000 - fCenterFreqKHZ * 1000);
+                if (nDelta > 100000)
+                {
+                    string sText = "Error: reference signal is too far from expected value.\n"+
+                        "If you think this is an error, please contact rfexplorer@arocholl.com";
+                    ReportLog(sText);
+                    MessageBox.Show(sText,"Calibration Error");
+                    return false;
+                }
+                wndProgress.textLine2.Text = "Error delta: " + (nDelta / 1000.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapMixer.ToString("X2");
+                ReportLog(wndProgress.textLine2.Text + " nDirection:" + nDirection + " nSteps:" + nSteps + " Peak: " + m_fPeakValueAmp);
                 Application.DoEvents();
                 Cursor.Current = Cursors.WaitCursor;
+                GetNewFilename();
+                SaveFile(m_sDefaultFolder + m_sFilenameRFE);
+                ReportLog("Saved filename: " + m_sDefaultFolder + m_sFilenameRFE);
 
                 if (nDelta == 0)
                 {
@@ -3277,6 +3330,9 @@ namespace RFExplorerClient
 
                 nSteps--;
             } while (!bCalibrated && nSteps > 0);
+
+            ReportLog("Calibration step finished with 0x" + m_nCalibrationCapSi4x.ToString("X2") + "," + MixerCapacitor2Hex().ToString("X2") + " Center: " + m_fPeakValueMHZ + "MHz");
+            return true;
         }
 
         const byte FLASH_FILE_CALIBRATION_DATE=50;
@@ -3288,6 +3344,11 @@ namespace RFExplorerClient
                 MessageBox.Show("This RF Explorer model is not yet supported");
                 return;
             }
+
+            double fOldStart = m_fStartFrequencyMHZ;
+            double fOldStep = m_fStepFrequencyMHZ;
+            double fOldTop = m_fAmplitudeTop;
+            double fOldBottom = m_fAmplitudeBottom;
 
             {
                 //DateTime CalibrationTime = DateTime.Now;
@@ -3334,59 +3395,84 @@ namespace RFExplorerClient
                 }
 
                 m_bCalibrating = true;
-                MessageBox.Show("Connect or power ON the RF Source\nClick to continue only when ready...", "RF Signal Source");
-
-                wndProgress.Show(this);
-
-                wndProgress.textLine3.Text = string.Format("Calibrating - Step 1/{0}...", nTotalSteps);
-                wndProgress.ProgressBar.Maximum = nTotalSteps;
-                wndProgress.ProgressBar.Value = 0;
-                Application.DoEvents();
-                Cursor.Current = Cursors.WaitCursor;
-                CalibrateSi4x(300, 10, 3, wndProgress);
-
-                wndProgress.textLine3.Text = string.Format("Calibrating - Step 2/{0}...", nTotalSteps);
-                wndProgress.ProgressBar.Value = 1;
-                Application.DoEvents();
-                Cursor.Current = Cursors.WaitCursor;
-                CalibrateSi4x(200, 5, 3, wndProgress);
-
-                wndProgress.textLine3.Text = string.Format("Calibrating - Step 3/{0}...", nTotalSteps);
-                wndProgress.ProgressBar.Value = 2;
-                Application.DoEvents();
-                Cursor.Current = Cursors.WaitCursor;
-                CalibrateSi4x(112, 1, 10, wndProgress);
-
-                if (m_eActiveModel == eModel.MODEL_WSUB3G)
+                if (DialogResult.OK == MessageBox.Show("Connect or power ON the RF Source of " + Convert.ToDouble(m_edCalibrationFreq.Text) + "MHz and (-20 to -50dBm)\n" +
+                    "Click to continue only when ready...", "RF Explorer Calibration",
+                    MessageBoxButtons.OKCancel, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1))
                 {
-                    MessageBox.Show("Disconnect or power off the RF Source\nClick to continue only when ready...", "RF Signal Source");
-                    wndProgress.textLine3.Text = string.Format("Calibrating - Step 4/{0}...", nTotalSteps);
-                    wndProgress.ProgressBar.Value = 3;
+                    wndProgress.Show(this);
+
+                    wndProgress.textLine3.Text = string.Format("Calibrating - Step 1/{0}...", nTotalSteps);
+                    wndProgress.ProgressBar.Maximum = nTotalSteps;
+                    wndProgress.ProgressBar.Value = 0;
                     Application.DoEvents();
                     Cursor.Current = Cursors.WaitCursor;
-                    CalibrateMixer(300, 3, wndProgress);
+                    double fDeltaKHZ;
+                    bool bOk = CalibrateSi4x(600, 10, 3, wndProgress, out fDeltaKHZ);
 
-                    wndProgress.textLine3.Text = string.Format("Calibrating - Step 5/{0}...", nTotalSteps);
-                    wndProgress.ProgressBar.Value = 4;
-                    Application.DoEvents();
-                    Cursor.Current = Cursors.WaitCursor;
-                    CalibrateMixer(112, 10, wndProgress);
+                    if (bOk)
+                    {
+                        wndProgress.textLine3.Text = string.Format("Calibrating - Step 2/{0}...", nTotalSteps);
+                        wndProgress.ProgressBar.Value = 1;
+                        Application.DoEvents();
+                        Cursor.Current = Cursors.WaitCursor;
+                        bOk = CalibrateSi4x(200, 3, 3, wndProgress, out fDeltaKHZ);
+                    }
+
+                    if (bOk)
+                    {
+                        wndProgress.textLine3.Text = string.Format("Calibrating - Step 3/{0}...", nTotalSteps);
+                        wndProgress.ProgressBar.Value = 2;
+                        Application.DoEvents();
+                        Cursor.Current = Cursors.WaitCursor;
+                        bOk = CalibrateSi4x(112, 1, 10, wndProgress, out fDeltaKHZ);
+                    }
+
+                    if (Math.Abs(fDeltaKHZ) > 2.0f)
+                    {
+                    }
+                    else
+                    {
+                        if (m_eActiveModel == eModel.MODEL_WSUB3G && bOk)
+                        {
+                            if (DialogResult.OK == MessageBox.Show("Disconnect or power off the RF Source\nClick to continue only when ready...", "RF Signal Source",
+                                MessageBoxButtons.OKCancel, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1))
+                            {
+                                wndProgress.textLine3.Text = string.Format("Calibrating - Step 4/{0}...", nTotalSteps);
+                                wndProgress.ProgressBar.Value = 3;
+                                Application.DoEvents();
+                                Cursor.Current = Cursors.WaitCursor;
+                                bOk = CalibrateMixer(300, 3, wndProgress);
+
+                                if (bOk)
+                                {
+                                    wndProgress.textLine3.Text = string.Format("Calibrating - Step 5/{0}...", nTotalSteps);
+                                    wndProgress.ProgressBar.Value = 4;
+                                    Application.DoEvents();
+                                    Cursor.Current = Cursors.WaitCursor;
+                                    bOk = CalibrateMixer(112, 10, wndProgress);
+                                }
+                            }
+                        }
+                    }
+
+                    if (bOk)
+                    {
+                        if (m_bExpansionBoardActive)
+                        {
+                            //Date-time : this is only available on expansion ROM at the moment
+                            DateTime CalibrationTime = DateTime.Now;
+                            string sCalibrationTime = "CR" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) + "CD:" +
+                                (CalibrationTime.Year - 2000).ToString("D2") + CalibrationTime.Month.ToString("D2") + CalibrationTime.Day.ToString("D2") +
+                                CalibrationTime.Hour.ToString("D2") + CalibrationTime.Minute.ToString("D2") + CalibrationTime.Second.ToString("D2");
+                            SendCommand(sCalibrationTime);
+                        }
+
+                        Thread.Sleep(1000);
+                        SendCommand("CS"); //save calibration settings and reinit config
+                        Thread.Sleep(2000);
+                        AskConfigData();
+                    }
                 }
-
-                if (m_bExpansionBoardActive)
-                {
-                    //this is only available on expansion ROM at the moment
-                    DateTime CalibrationTime = DateTime.Now;
-                    string sCalibrationTime = "CR" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) + "CD:" +
-                        (CalibrationTime.Year-2000).ToString("D2") + CalibrationTime.Month.ToString("D2") + CalibrationTime.Day.ToString("D2") +
-                        CalibrationTime.Hour.ToString("D2") + CalibrationTime.Minute.ToString("D2") + CalibrationTime.Second.ToString("D2");
-                    SendCommand(sCalibrationTime);
-                }
-
-                Thread.Sleep(1000);
-                SendCommand("CS"); //save calibration settings and reinit config
-                Thread.Sleep(2000);
-                AskConfigData();
             }
             catch (Exception obEx)
             {
@@ -3399,6 +3485,12 @@ namespace RFExplorerClient
                 wndProgress.Close();
                 wndProgress = null;
                 m_timer_receive.Enabled = true;
+
+                m_fStartFrequencyMHZ = fOldStart;
+                m_fStepFrequencyMHZ = fOldStep;
+                m_fAmplitudeTop = fOldTop;
+                m_fAmplitudeBottom = fOldBottom;
+                SetupSpectrumAnalyzerAxis();
             }
         }
 

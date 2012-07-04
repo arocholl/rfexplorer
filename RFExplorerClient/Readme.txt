@@ -3,7 +3,7 @@ RF Explorer Windows Client - Readme
 
 Please read the included WindowsClientReleaseNotes.pdf document for details on features of this version.
 
-There is an user manual available online at http://www.rf-explorer/windows .
+There is an user manual available online at http://www.rf-explorer.com/windows .
 
 Contents
 ========
