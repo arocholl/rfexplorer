@@ -214,11 +214,8 @@ namespace RFExplorerClient
             this.groupCalibration.SuspendLayout();
             this.tabReport.SuspendLayout();
             this.groupCommands.SuspendLayout();
-            this.tabRAWDecoder.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).BeginInit();
-            this.groupDemodulator.SuspendLayout();
-            this.groupRAWDecoder.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numMultiGraph)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numSampleDecoder)).BeginInit();
             this.SuspendLayout();
@@ -675,7 +672,7 @@ namespace RFExplorerClient
             this.chkCalcMin.AutoSize = true;
             this.chkCalcMin.Location = new System.Drawing.Point(160, 79);
             this.chkCalcMin.Name = "chkCalcMin";
-            this.chkCalcMin.Size = new System.Drawing.Size(67, 17);
+            this.chkCalcMin.Size = new System.Drawing.Size(66, 17);
             this.chkCalcMin.TabIndex = 51;
             this.chkCalcMin.Text = "Minimum";
             this.chkCalcMin.UseVisualStyleBackColor = true;
@@ -686,7 +683,7 @@ namespace RFExplorerClient
             this.chkCalcMax.AutoSize = true;
             this.chkCalcMax.Location = new System.Drawing.Point(160, 59);
             this.chkCalcMax.Name = "chkCalcMax";
-            this.chkCalcMax.Size = new System.Drawing.Size(74, 17);
+            this.chkCalcMax.Size = new System.Drawing.Size(72, 17);
             this.chkCalcMax.TabIndex = 51;
             this.chkCalcMax.Text = "Max Peak";
             this.chkCalcMax.UseVisualStyleBackColor = true;
@@ -697,7 +694,7 @@ namespace RFExplorerClient
             this.chkCalcAverage.AutoSize = true;
             this.chkCalcAverage.Location = new System.Drawing.Point(160, 39);
             this.chkCalcAverage.Name = "chkCalcAverage";
-            this.chkCalcAverage.Size = new System.Drawing.Size(66, 17);
+            this.chkCalcAverage.Size = new System.Drawing.Size(67, 17);
             this.chkCalcAverage.TabIndex = 51;
             this.chkCalcAverage.Text = "Average";
             this.chkCalcAverage.UseVisualStyleBackColor = true;
@@ -719,7 +716,7 @@ namespace RFExplorerClient
             this.numericIterations.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.numericIterations.Location = new System.Drawing.Point(80, 73);
             this.numericIterations.Minimum = new decimal(new int[] {
-            1,
+            2,
             0,
             0,
             0});
@@ -1260,7 +1257,7 @@ namespace RFExplorerClient
             // numVideoFPS
             // 
             this.numVideoFPS.DecimalPlaces = 1;
-            this.numScreenIndex.ImeMode = System.Windows.Forms.ImeMode.Katakana;
+            this.numVideoFPS.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             this.numVideoFPS.Location = new System.Drawing.Point(209, 76);
             this.numVideoFPS.Maximum = new decimal(new int[] {
             30,
@@ -1577,29 +1574,6 @@ namespace RFExplorerClient
             this.textBox_message.Size = new System.Drawing.Size(920, 383);
             this.textBox_message.TabIndex = 49;
             this.textBox_message.WordWrap = false;
-            // 
-            // tabRAWDecoder
-            // trackBarSensitivity
-            // 
-            this.tabRAWDecoder.Controls.Add(this.groupDemodulator);
-            this.tabRAWDecoder.Controls.Add(this.groupRAWDecoder);
-            this.tabRAWDecoder.Controls.Add(this.zedRAWDecoder);
-            this.tabRAWDecoder.Location = new System.Drawing.Point(4, 26);
-            this.tabRAWDecoder.Name = "tabRAWDecoder";
-            this.tabRAWDecoder.Padding = new System.Windows.Forms.Padding(3);
-            this.tabRAWDecoder.Size = new System.Drawing.Size(932, 510);
-            this.tabRAWDecoder.TabIndex = 4;
-            this.tabRAWDecoder.Text = "RAW Decoder";
-            this.tabRAWDecoder.UseVisualStyleBackColor = true;
-            this.tabRAWDecoder.Enter += new System.EventHandler(this.tabRAWDecoder_Enter);
-            // 
-            // groupDemodulator
-            // 
-            this.groupDemodulator.Controls.Add(this.chkPSK);
-            this.groupDemodulator.Controls.Add(this.chkOOK);
-            this.groupDemodulator.Controls.Add(this.m_sBaudRate);
-            this.groupDemodulator.Controls.Add(this.m_sRefFrequency);
-            this.groupDemodulator.Controls.Add(this.label18);
             this.trackBarSensitivity.Location = new System.Drawing.Point(184, 17);
             this.trackBarSensitivity.Maximum = 255;
             this.trackBarSensitivity.Minimum = 1;
@@ -1619,14 +1593,6 @@ namespace RFExplorerClient
             this.trackBarContrast.TabIndex = 57;
             this.trackBarContrast.Value = 215;
             this.trackBarContrast.ValueChanged += new System.EventHandler(this.trackBarContrast_ValueChanged);
-            this.groupDemodulator.Controls.Add(this.label17);
-            this.groupDemodulator.Controls.Add(this.label16);
-            this.groupDemodulator.Location = new System.Drawing.Point(527, 6);
-            this.groupDemodulator.Name = "groupDemodulator";
-            this.groupDemodulator.Size = new System.Drawing.Size(171, 108);
-            this.groupDemodulator.TabIndex = 52;
-            this.groupDemodulator.TabStop = false;
-            this.groupDemodulator.Text = "Demodulator";
             // 
             // chkPSK
             // 
@@ -1900,10 +1866,6 @@ namespace RFExplorerClient
             this.groupCommands.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).EndInit();
-            this.tabRAWDecoder.ResumeLayout(false);
-            this.groupDemodulator.ResumeLayout(false);
-            this.groupDemodulator.PerformLayout();
-            this.groupRAWDecoder.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.numMultiGraph)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numSampleDecoder)).EndInit();
             this.ResumeLayout(false);

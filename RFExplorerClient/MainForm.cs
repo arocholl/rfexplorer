@@ -551,7 +551,6 @@ namespace RFExplorerClient
             btnSendCmd.Enabled = m_bPortConnected;
 
             groupFreqSettings.Enabled = m_bPortConnected;
-            groupDemodulator.Enabled = m_bPortConnected;
             chkHoldMode.Enabled = m_bPortConnected;
             chkRunMode.Enabled = m_bPortConnected;
             chkRunDecoder.Enabled = m_bPortConnected;
@@ -2746,8 +2745,8 @@ namespace RFExplorerClient
 
         private void tabRemoteScreen_UpdateZoomValues()
         {
-            controlRemoteScreen.Size = new Size((int)(1.0 + m_fSizeX * (float)(7)), (int)(1.0 + m_fSizeY * (float)(7)));
-            controlRemoteScreen.UpdateZoom((int)(7));
+            controlRemoteScreen.Size = new Size((int)(1.0 + m_fSizeX * (float)(numericZoom.Value)), (int)(1.0 + m_fSizeY * (float)(numericZoom.Value)));
+            controlRemoteScreen.UpdateZoom((int)(numericZoom.Value));
             RelocateRemoteControl();
             controlRemoteScreen.Invalidate();
         }
@@ -2770,48 +2769,6 @@ namespace RFExplorerClient
                 SendCommand("D0");
             }
         }
-
-        private void AddAVIFrame(AviManager aviManager, ref VideoStream aviStream)
-        {
-            Rectangle rectArea = controlRemoteScreen.ClientRectangle;
-            using (Bitmap objAppBmp = new Bitmap(rectArea.Width, rectArea.Height))
-            {
-                controlRemoteScreen.DrawToBitmap(objAppBmp, rectArea);
-
-                int nSize = (int)(numericZoom.Value);
-                using (Bitmap objImage = new Bitmap(rectArea.Width, rectArea.Height))
-                {
-                    Graphics.FromImage(objImage).DrawImage(objAppBmp, rectArea);
-                    if (aviStream == null)
-                    {
-                        aviStream = aviManager.AddVideoStream(true, (double)numVideoFPS.Value, objImage);
-                    }
-                    else
-                    {
-                        aviStream.AddFrame(objImage);
-                    }
-                }
-            }
-        }
-
-        private void btnSaveRemoteVideo_Click(object sender, EventArgs e)
-        {
-            Cursor.Current = Cursors.WaitCursor;
-
-            AviManager aviManager = new AviManager("c:\\temp\\RFExplorerVideo.avi", false);
-            VideoStream aviStream = null;
-
-            for (m_nScreenIndex = 0; m_nScreenIndex < m_nMaxScreenIndex; m_nScreenIndex++)
-            {
-                numScreenIndex.Value = m_nScreenIndex;
-                numScreenIndex_ValueChanged(null, null);
-                Cursor.Current = Cursors.WaitCursor;
-                AddAVIFrame(aviManager, ref aviStream);
-            }
-            aviManager.Close();
-
-            Cursor.Current = Cursors.Default;
-        }        
 
         private void SavePNG(string sFilename)
         {
