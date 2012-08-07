@@ -136,7 +136,8 @@ namespace RFExplorerClient
             this.btnSend = new System.Windows.Forms.Button();
             this.tabWaterfall = new System.Windows.Forms.TabPage();
             this.waterfallGroupBox = new System.Windows.Forms.GroupBox();
-            this.checkBoxEnableLCD = new System.Windows.Forms.CheckBox();
+            this.trackBarContrast = new System.Windows.Forms.TrackBar();
+            this.trackBarSensitivity = new System.Windows.Forms.TrackBar();
             this.numericContrast = new System.Windows.Forms.NumericUpDown();
             this.numericSensitivity = new System.Windows.Forms.NumericUpDown();
             this.labelSensitivity = new System.Windows.Forms.Label();
@@ -171,8 +172,6 @@ namespace RFExplorerClient
             this.comboCustomCommand = new System.Windows.Forms.ComboBox();
             this.btnSendCmd = new System.Windows.Forms.Button();
             this.textBox_message = new System.Windows.Forms.TextBox();
-            this.trackBarSensitivity = new System.Windows.Forms.TrackBar();
-            this.trackBarContrast = new System.Windows.Forms.TrackBar();
             this.chkPSK = new System.Windows.Forms.RadioButton();
             this.chkOOK = new System.Windows.Forms.RadioButton();
             this.m_sBaudRate = new System.Windows.Forms.TextBox();
@@ -200,6 +199,8 @@ namespace RFExplorerClient
             this.groupFreqSettings.SuspendLayout();
             this.tabWaterfall.SuspendLayout();
             this.waterfallGroupBox.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericContrast)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericSensitivity)).BeginInit();
             this.panelWaterfall.SuspendLayout();
@@ -214,8 +215,7 @@ namespace RFExplorerClient
             this.groupCalibration.SuspendLayout();
             this.tabReport.SuspendLayout();
             this.groupCommands.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).BeginInit();
-            ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).BeginInit();
+            this.groupRAWDecoder.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numMultiGraph)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numSampleDecoder)).BeginInit();
             this.SuspendLayout();
@@ -672,7 +672,7 @@ namespace RFExplorerClient
             this.chkCalcMin.AutoSize = true;
             this.chkCalcMin.Location = new System.Drawing.Point(160, 79);
             this.chkCalcMin.Name = "chkCalcMin";
-            this.chkCalcMin.Size = new System.Drawing.Size(66, 17);
+            this.chkCalcMin.Size = new System.Drawing.Size(67, 17);
             this.chkCalcMin.TabIndex = 51;
             this.chkCalcMin.Text = "Minimum";
             this.chkCalcMin.UseVisualStyleBackColor = true;
@@ -683,7 +683,7 @@ namespace RFExplorerClient
             this.chkCalcMax.AutoSize = true;
             this.chkCalcMax.Location = new System.Drawing.Point(160, 59);
             this.chkCalcMax.Name = "chkCalcMax";
-            this.chkCalcMax.Size = new System.Drawing.Size(72, 17);
+            this.chkCalcMax.Size = new System.Drawing.Size(74, 17);
             this.chkCalcMax.TabIndex = 51;
             this.chkCalcMax.Text = "Max Peak";
             this.chkCalcMax.UseVisualStyleBackColor = true;
@@ -694,7 +694,7 @@ namespace RFExplorerClient
             this.chkCalcAverage.AutoSize = true;
             this.chkCalcAverage.Location = new System.Drawing.Point(160, 39);
             this.chkCalcAverage.Name = "chkCalcAverage";
-            this.chkCalcAverage.Size = new System.Drawing.Size(67, 17);
+            this.chkCalcAverage.Size = new System.Drawing.Size(66, 17);
             this.chkCalcAverage.TabIndex = 51;
             this.chkCalcAverage.Text = "Average";
             this.chkCalcAverage.UseVisualStyleBackColor = true;
@@ -1099,7 +1099,7 @@ namespace RFExplorerClient
             this.tabWaterfall.Location = new System.Drawing.Point(4, 26);
             this.tabWaterfall.Name = "tabWaterfall";
             this.tabWaterfall.Padding = new System.Windows.Forms.Padding(3);
-            this.tabWaterfall.Size = new System.Drawing.Size(932, 647);
+            this.tabWaterfall.Size = new System.Drawing.Size(932, 510);
             this.tabWaterfall.TabIndex = 3;
             this.tabWaterfall.Text = "Waterfall";
             this.tabWaterfall.Paint += new System.Windows.Forms.PaintEventHandler(this.tabWaterfall_Paint);
@@ -1109,7 +1109,6 @@ namespace RFExplorerClient
             // 
             this.waterfallGroupBox.Controls.Add(this.trackBarContrast);
             this.waterfallGroupBox.Controls.Add(this.trackBarSensitivity);
-            this.waterfallGroupBox.Controls.Add(this.checkBoxEnableLCD);
             this.waterfallGroupBox.Controls.Add(this.numericContrast);
             this.waterfallGroupBox.Controls.Add(this.numericSensitivity);
             this.waterfallGroupBox.Controls.Add(this.labelSensitivity);
@@ -1117,26 +1116,32 @@ namespace RFExplorerClient
             this.waterfallGroupBox.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.waterfallGroupBox.Location = new System.Drawing.Point(512, 6);
             this.waterfallGroupBox.Name = "waterfallGroupBox";
-            this.waterfallGroupBox.Size = new System.Drawing.Size(410, 128);
+            this.waterfallGroupBox.Size = new System.Drawing.Size(410, 108);
             this.waterfallGroupBox.TabIndex = 56;
             this.waterfallGroupBox.TabStop = false;
             this.waterfallGroupBox.Text = "Waterfall Controls";
             // 
-            // checkBoxEnableLCD
+            // trackBarContrast
             // 
-            this.checkBoxEnableLCD.Checked = true;
-            this.checkBoxEnableLCD.CheckState = System.Windows.Forms.CheckState.Checked;
-            this.checkBoxEnableLCD.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.checkBoxEnableLCD.Font = new System.Drawing.Font("Tahoma", 12F, System.Drawing.FontStyle.Bold);
-            this.checkBoxEnableLCD.Location = new System.Drawing.Point(10, 91);
-            this.checkBoxEnableLCD.MinimumSize = new System.Drawing.Size(60, 0);
-            this.checkBoxEnableLCD.Name = "checkBoxEnableLCD";
-            this.checkBoxEnableLCD.Size = new System.Drawing.Size(138, 21);
-            this.checkBoxEnableLCD.TabIndex = 55;
-            this.checkBoxEnableLCD.Text = "Enable LCD";
-            this.checkBoxEnableLCD.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.checkBoxEnableLCD.UseVisualStyleBackColor = true;
-            this.checkBoxEnableLCD.CheckedChanged += new System.EventHandler(this.checkBoxEnableLCD_CheckedChanged);
+            this.trackBarContrast.Location = new System.Drawing.Point(184, 54);
+            this.trackBarContrast.Maximum = 255;
+            this.trackBarContrast.Minimum = 1;
+            this.trackBarContrast.Name = "trackBarContrast";
+            this.trackBarContrast.Size = new System.Drawing.Size(220, 45);
+            this.trackBarContrast.TabIndex = 57;
+            this.trackBarContrast.Value = 215;
+            this.trackBarContrast.ValueChanged += new System.EventHandler(this.trackBarContrast_ValueChanged);
+            // 
+            // trackBarSensitivity
+            // 
+            this.trackBarSensitivity.Location = new System.Drawing.Point(184, 17);
+            this.trackBarSensitivity.Maximum = 255;
+            this.trackBarSensitivity.Minimum = 1;
+            this.trackBarSensitivity.Name = "trackBarSensitivity";
+            this.trackBarSensitivity.Size = new System.Drawing.Size(220, 45);
+            this.trackBarSensitivity.TabIndex = 56;
+            this.trackBarSensitivity.Value = 100;
+            this.trackBarSensitivity.ValueChanged += new System.EventHandler(this.trackBarSensitivity_ValueChanged);
             // 
             // numericContrast
             // 
@@ -1209,7 +1214,7 @@ namespace RFExplorerClient
             // panelWaterfall
             // 
             this.panelWaterfall.Controls.Add(this.controlWaterfall);
-            this.panelWaterfall.Location = new System.Drawing.Point(12, 140);
+            this.panelWaterfall.Location = new System.Drawing.Point(12, 120);
             this.panelWaterfall.Name = "panelWaterfall";
             this.panelWaterfall.Size = new System.Drawing.Size(910, 462);
             this.panelWaterfall.TabIndex = 55;
@@ -1359,6 +1364,7 @@ namespace RFExplorerClient
             this.btnSaveRemoteVideo.TabIndex = 53;
             this.btnSaveRemoteVideo.Text = "Save Video...";
             this.btnSaveRemoteVideo.UseVisualStyleBackColor = true;
+            this.btnSaveRemoteVideo.Click += new System.EventHandler(this.btnSaveRemoteVideo_Click);
             // 
             // btnSaveRemoteBitmap
             // 
@@ -1574,25 +1580,6 @@ namespace RFExplorerClient
             this.textBox_message.Size = new System.Drawing.Size(920, 383);
             this.textBox_message.TabIndex = 49;
             this.textBox_message.WordWrap = false;
-            this.trackBarSensitivity.Location = new System.Drawing.Point(184, 17);
-            this.trackBarSensitivity.Maximum = 255;
-            this.trackBarSensitivity.Minimum = 1;
-            this.trackBarSensitivity.Name = "trackBarSensitivity";
-            this.trackBarSensitivity.Size = new System.Drawing.Size(220, 45);
-            this.trackBarSensitivity.TabIndex = 56;
-            this.trackBarSensitivity.Value = 100;
-            this.trackBarSensitivity.ValueChanged += new System.EventHandler(this.trackBarSensitivity_ValueChanged);
-            // 
-            // trackBarContrast
-            // 
-            this.trackBarContrast.Location = new System.Drawing.Point(184, 54);
-            this.trackBarContrast.Maximum = 255;
-            this.trackBarContrast.Minimum = 1;
-            this.trackBarContrast.Name = "trackBarContrast";
-            this.trackBarContrast.Size = new System.Drawing.Size(220, 45);
-            this.trackBarContrast.TabIndex = 57;
-            this.trackBarContrast.Value = 215;
-            this.trackBarContrast.ValueChanged += new System.EventHandler(this.trackBarContrast_ValueChanged);
             // 
             // chkPSK
             // 
@@ -1847,6 +1834,8 @@ namespace RFExplorerClient
             this.tabWaterfall.ResumeLayout(false);
             this.waterfallGroupBox.ResumeLayout(false);
             this.waterfallGroupBox.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericContrast)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericSensitivity)).EndInit();
             this.panelWaterfall.ResumeLayout(false);
@@ -1864,8 +1853,7 @@ namespace RFExplorerClient
             this.tabReport.PerformLayout();
             this.groupCommands.ResumeLayout(false);
             this.groupCommands.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.trackBarSensitivity)).EndInit();
-            ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).EndInit();
+            this.groupRAWDecoder.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.numMultiGraph)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numSampleDecoder)).EndInit();
             this.ResumeLayout(false);
@@ -1971,7 +1959,6 @@ namespace RFExplorerClient
         private System.Windows.Forms.Label labelContrast;
         private System.Windows.Forms.NumericUpDown numericContrast;
         private System.Windows.Forms.NumericUpDown numericSensitivity;
-        private System.Windows.Forms.CheckBox checkBoxEnableLCD;
         private System.Windows.Forms.TrackBar trackBarContrast;
         private System.Windows.Forms.TrackBar trackBarSensitivity;
         private System.Windows.Forms.Button btnSaveRemoteVideo;

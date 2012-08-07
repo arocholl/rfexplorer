@@ -38,7 +38,6 @@ namespace RFExplorerClient
 {
     public partial class MainForm : Form
     {
-
         #region Data Members
         const byte m_nFileFormat = 1;               //File format constant
         const int m_nTotalBufferSize = 10240;       //buffer size for the different available collections
@@ -230,7 +229,7 @@ namespace RFExplorerClient
                 tabReport.BackColor = Color.LightYellow;
                 tabRemoteScreen.BackColor = Color.LightYellow;
                 tabConfiguration.BackColor = Color.LightYellow;
-            tabWaterfall.BackColor = Color.LightYellow;
+                tabWaterfall.BackColor = Color.LightYellow;
 
                 myPane.Fill = new Fill(Color.White, Color.LightYellow, 90.0f);
                 myPane.Chart.Fill = new Fill(Color.White, Color.LightYellow, 90.0f);
@@ -1233,9 +1232,6 @@ namespace RFExplorerClient
                         ReportLog("Visit http://www.rf-explorer/download for latest updates.");
                     }
                 } while (bProcessAllEvents && (m_arrReceivedStrings.Count > 0));
-                {
-                    UpdateWaterfall();
-                }
             }
             catch (Exception obEx)
             {
@@ -1254,10 +1250,13 @@ namespace RFExplorerClient
             try
             {
                 string sOut;
-                bool bDraw=ProcessReceivedString(true, out sOut);
+                bool bDraw = ProcessReceivedString(true, out sOut);
 
                 if (bDraw)
+                {
                     DisplaySpectrumAnalyzerData();
+                    UpdateWaterfall();
+                }
             }
             catch (Exception obEx)
             {
@@ -2441,179 +2440,6 @@ namespace RFExplorerClient
             DisplayGroups();
         }
 
-        #region Waterfall
-        float m_wSizeX;
-        float m_wSizeY;
-
-        private void controlWaterfall_Load(object sender, EventArgs e)
-        {
-
-        }
-        private void tabWaterfall_Enter(object sender, EventArgs e)
-        {
-            Rectangle rectArea = panelWaterfall.ClientRectangle;
-            m_wSizeX = (float)(rectArea.Width / 7.0);
-            m_wSizeY = (float)(rectArea.Height / 7.0);
-
-            groupCOM.Parent = tabWaterfall;
-            tabWaterfall_UpdateZoomValues();
-        }
-
-        private void numericSensitivity_ValueChanged(object sender, EventArgs e)
-        {
-            int sensitivity = (UInt16)numericSensitivity.Value;
-            trackBarSensitivity.Value = sensitivity;
-            controlWaterfall.UpdateSensitivity(sensitivity);
-            if (m_bHoldMode)
-                controlWaterfall.Invalidate();
-        }
-
-        private void numericContrast_ValueChanged(object sender, EventArgs e)
-        {
-            int contrast = (UInt16)numericContrast.Value;
-            trackBarContrast.Value = contrast;
-            controlWaterfall.UpdateContrast(contrast);
-            if (m_bHoldMode)
-                controlWaterfall.Invalidate();
-        }
-
-        private void trackBarSensitivity_ValueChanged(object sender, EventArgs e)
-        {
-            int sensitivity = (UInt16)trackBarSensitivity.Value;
-            numericSensitivity.Value = sensitivity;
-            controlWaterfall.UpdateSensitivity(sensitivity);
-            if (m_bHoldMode)
-                controlWaterfall.Invalidate();
-        }
-
-        private void trackBarContrast_ValueChanged(object sender, EventArgs e)
-        {
-            int contrast = (UInt16)trackBarContrast.Value;
-            numericContrast.Value = contrast;
-            controlWaterfall.UpdateContrast(contrast);
-            if (m_bHoldMode)
-                controlWaterfall.Invalidate();
-        }
-
-        private void checkBoxEnableLCD_CheckedChanged(object sender, EventArgs e)
-        {
-            if (checkBoxEnableLCD.Checked)
-            {
-                SendCommand("L1");
-            }
-            else
-            {
-                SendCommand("L0");
-            }
-        }
-
-        private void tabWaterfall_Paint(object sender, PaintEventArgs e)
-        {
-        }
-
-        private void ClearWaterfall()
-        {
-            controlWaterfall.ClearWaterfall();
-        }
-
-        private void UpdateWaterfall() 
-        {
-            Dictionary<double, double> RTList = new Dictionary<double, double>();
-            Dictionary<double, double> MaxList = new Dictionary<double, double>();
-            Dictionary<double, double> MinList = new Dictionary<double, double>();
-            Dictionary<double, double> AvgList = new Dictionary<double, double>();
-
-            //TODO: This code is duplicated from DisplayData, needs to be abstracted
-
-            int nIndex = m_nDataIndex - 1;
-            if (nIndex < 0)
-                nIndex = 0;
-            m_nDrawingIteration++;
-
-            int nCalculatorMax = (int)numericIterations.Value;
-            if (nCalculatorMax > nIndex)
-                nCalculatorMax = nIndex;
-
-            double fRealtimeMax_Amp = -200.0;
-            int fRealtimeMax_Iter = 0;
-            double fAverageMax_Amp = -200.0;
-            int fAverageMax_Iter = 0;
-            double fMaxMax_Amp = -200.0;
-            int fMaxMax_Iter = 0;
-
-            m_AveragePeak.Text = "";
-            m_RealtimePeak.Text = "";
-            m_MaxPeak.Text = "";
-
-            for (int nInd = 0; nInd < m_nFreqSpectrumSteps; nInd++)
-            {
-                double fVal = m_arrData[nIndex, nInd];
-                if (fVal > fRealtimeMax_Amp)
-                {
-                    fRealtimeMax_Amp = fVal;
-                    fRealtimeMax_Iter = nInd;
-                }
-
-                double fFreq = m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * nInd;
-
-                double fMax = fVal;
-                double fMin = fVal;
-                double fValAvg = fVal;
-
-                for (int nIterator = nIndex - nCalculatorMax; nIterator < nIndex; nIterator++)
-                {
-                    //Calculate average, max and min over Calculator range
-                    double fVal2 = m_arrData[nIterator, nInd];
-
-                    fMax = Math.Max(fMax, fVal2);
-                    fMin = Math.Min(fMin, fVal2);
-
-                    fValAvg += fVal2;
-                }
-
-                if (m_bDrawRealtime)
-                    RTList.Add(fFreq, fVal);
-                if (m_bDrawMin)
-                    MinList.Add(fFreq, fMin);
-
-                if (m_bDrawMax)
-                {
-                    MaxList.Add(fFreq, fMax);
-                    if (fMax > fMaxMax_Amp)
-                    {
-                        fMaxMax_Amp = fMax;
-                        fMaxMax_Iter = nInd;
-                    }
-                }
-
-                if (m_bDrawAverage)
-                {
-                    fValAvg = fValAvg / (nCalculatorMax + 1);
-                    AvgList.Add(fFreq, fValAvg);
-                    if (fValAvg > fAverageMax_Amp)
-                    {
-                        fAverageMax_Amp = fValAvg;
-                        fAverageMax_Iter = nInd;
-                    }
-                }
-            }
-            if ((int)numericIterations.Value > 1) 
-                controlWaterfall.DrawWaterfall(MaxList);
-            else
-                controlWaterfall.DrawWaterfall(RTList);
-
-            controlWaterfall.Invalidate();
-        }
-        private void tabWaterfall_UpdateZoomValues()
-        {
-            controlWaterfall.Size = new Size((int)(1.0 + m_wSizeX * (float)(numericZoom.Value)), (int)(1.0 + m_wSizeY * (float)(numericZoom.Value)));
-            controlWaterfall.UpdateZoom((int)(numericZoom.Value));
-            controlWaterfall.Invalidate();
-        }
-
-        #endregion
-
-
         private void MainForm_Resize(object sender, EventArgs e)
         {
             DisplayGroups();
@@ -2704,6 +2530,167 @@ namespace RFExplorerClient
             DefineGraphColors(zedSpectrumAnalyzer);
             Invalidate();
         }        
+        #endregion
+
+        #region Waterfall
+        float m_wSizeX;
+        float m_wSizeY;
+
+        private void controlWaterfall_Load(object sender, EventArgs e)
+        {
+
+        }
+        private void tabWaterfall_Enter(object sender, EventArgs e)
+        {
+            Rectangle rectArea = panelWaterfall.ClientRectangle;
+            m_wSizeX = (float)(rectArea.Width / 7.0);
+            m_wSizeY = (float)(rectArea.Height / 7.0);
+            groupDataFeed.Parent = tabWaterfall;
+            groupCOM.Parent = tabWaterfall;
+
+            tabWaterfall_UpdateZoomValues();
+        }
+
+        private void numericSensitivity_ValueChanged(object sender, EventArgs e)
+        {
+            int sensitivity = (UInt16)numericSensitivity.Value;
+            trackBarSensitivity.Value = sensitivity;
+            controlWaterfall.UpdateSensitivity(sensitivity);
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
+        }
+
+        private void numericContrast_ValueChanged(object sender, EventArgs e)
+        {
+            int contrast = (UInt16)numericContrast.Value;
+            trackBarContrast.Value = contrast;
+            controlWaterfall.UpdateContrast(contrast);
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
+        }
+
+        private void trackBarSensitivity_ValueChanged(object sender, EventArgs e)
+        {
+            int sensitivity = (UInt16)trackBarSensitivity.Value;
+            numericSensitivity.Value = sensitivity;
+            controlWaterfall.UpdateSensitivity(sensitivity);
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
+        }
+
+        private void trackBarContrast_ValueChanged(object sender, EventArgs e)
+        {
+            int contrast = (UInt16)trackBarContrast.Value;
+            numericContrast.Value = contrast;
+            controlWaterfall.UpdateContrast(contrast);
+            if (m_bHoldMode)
+                controlWaterfall.Invalidate();
+        }
+
+        private void tabWaterfall_Paint(object sender, PaintEventArgs e)
+        {
+        }
+
+        private void ClearWaterfall()
+        {
+            controlWaterfall.ClearWaterfall();
+        }
+
+        private void UpdateWaterfall()
+        {
+            Dictionary<double, double> RTList = new Dictionary<double, double>();
+            Dictionary<double, double> MaxList = new Dictionary<double, double>();
+            Dictionary<double, double> MinList = new Dictionary<double, double>();
+            Dictionary<double, double> AvgList = new Dictionary<double, double>();
+
+            //TODO: This code is duplicated from DisplayData, needs to be abstracted
+
+            int nIndex = m_nDataIndex - 1;
+            if (nIndex < 0)
+                nIndex = 0;
+            m_nDrawingIteration++;
+
+            int nCalculatorMax = (int)numericIterations.Value;
+            if (nCalculatorMax > nIndex)
+                nCalculatorMax = nIndex;
+
+            double fRealtimeMax_Amp = -200.0;
+            int fRealtimeMax_Iter = 0;
+            double fAverageMax_Amp = -200.0;
+            int fAverageMax_Iter = 0;
+            double fMaxMax_Amp = -200.0;
+            int fMaxMax_Iter = 0;
+
+            m_AveragePeak.Text = "";
+            m_RealtimePeak.Text = "";
+            m_MaxPeak.Text = "";
+
+            for (int nInd = 0; nInd < m_nFreqSpectrumSteps; nInd++)
+            {
+                double fVal = m_arrData[nIndex, nInd];
+                if (fVal > fRealtimeMax_Amp)
+                {
+                    fRealtimeMax_Amp = fVal;
+                    fRealtimeMax_Iter = nInd;
+                }
+
+                double fFreq = m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * nInd;
+
+                double fMax = fVal;
+                double fMin = fVal;
+                double fValAvg = fVal;
+
+                for (int nIterator = nIndex - nCalculatorMax; nIterator < nIndex; nIterator++)
+                {
+                    //Calculate average, max and min over Calculator range
+                    double fVal2 = m_arrData[nIterator, nInd];
+
+                    fMax = Math.Max(fMax, fVal2);
+                    fMin = Math.Min(fMin, fVal2);
+
+                    fValAvg += fVal2;
+                }
+
+                if (m_bDrawRealtime)
+                    RTList.Add(fFreq, fVal);
+                if (m_bDrawMin)
+                    MinList.Add(fFreq, fMin);
+
+                if (m_bDrawMax)
+                {
+                    MaxList.Add(fFreq, fMax);
+                    if (fMax > fMaxMax_Amp)
+                    {
+                        fMaxMax_Amp = fMax;
+                        fMaxMax_Iter = nInd;
+                    }
+                }
+
+                if (m_bDrawAverage)
+                {
+                    fValAvg = fValAvg / (nCalculatorMax + 1);
+                    AvgList.Add(fFreq, fValAvg);
+                    if (fValAvg > fAverageMax_Amp)
+                    {
+                        fAverageMax_Amp = fValAvg;
+                        fAverageMax_Iter = nInd;
+                    }
+                }
+            }
+            if ((int)numericIterations.Value > 1)
+                controlWaterfall.DrawWaterfall(MaxList);
+            else
+                controlWaterfall.DrawWaterfall(RTList);
+
+            controlWaterfall.Invalidate();
+        }
+        private void tabWaterfall_UpdateZoomValues()
+        {
+            controlWaterfall.Size = new Size((int)(1.0 + m_wSizeX * (float)(numericZoom.Value)), (int)(1.0 + m_wSizeY * (float)(numericZoom.Value)));
+            controlWaterfall.UpdateZoom((int)(numericZoom.Value));
+            controlWaterfall.Invalidate();
+        }
+
         #endregion
 
         #region Remote screen
@@ -2918,19 +2905,7 @@ namespace RFExplorerClient
         {
             controlRemoteScreen.Top = (panelRemoteScreen.Height - controlRemoteScreen.Height) / 2;
             controlRemoteScreen.Left = (panelRemoteScreen.Width - controlRemoteScreen.Width) / 2;
-
-            if (groupCOM.Parent == tabSpectrumAnalyzer)
-            {
-                MainStatusBar.Parent = tabSpectrumAnalyzer;
-            }
-            if (groupCOM.Parent == tabRemoteScreen)
-            {
-                MainStatusBar.Parent = tabRemoteScreen;
-            }
-            if (groupCOM.Parent == tabRAWDecoder)
-            {
-                MainStatusBar.Parent = tabRAWDecoder;
-            }
+            MainStatusBar.Parent = groupCOM.Parent;
         }
         #endregion
 
@@ -3651,5 +3626,9 @@ namespace RFExplorerClient
         }
     #endregion
 
+        private void btnSaveRemoteVideo_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("Sorry, this is still under development\nCheck in upcoming versions.");
+        }
     }
 }
