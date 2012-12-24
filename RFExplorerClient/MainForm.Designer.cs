@@ -1,4 +1,4 @@
-﻿//============================================================================
+//============================================================================
 //RF Explorer PC Client - A Handheld Spectrum Analyzer for everyone!
 //Copyright © 2010-11 Ariel Rocholl, www.rf-explorer.com
 //
@@ -53,7 +53,10 @@ namespace RFExplorerClient
             this.MainFileMenu = new System.Windows.Forms.ToolStripMenuItem();
             this.menuLoadRFE = new System.Windows.Forms.ToolStripMenuItem();
             this.menuSaveAsRFE = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuContinuousLog = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuSaveOnClose = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator4 = new System.Windows.Forms.ToolStripSeparator();
+            this.menusSaveSimpleCSV = new System.Windows.Forms.ToolStripMenuItem();
             this.menuSaveCSV = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator5 = new System.Windows.Forms.ToolStripSeparator();
             this.menuSaveRFS = new System.Windows.Forms.ToolStripMenuItem();
@@ -61,7 +64,6 @@ namespace RFExplorerClient
             this.menuSaveRemoteImage = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator6 = new System.Windows.Forms.ToolStripSeparator();
             this.menuAutoLCDOff = new System.Windows.Forms.ToolStripMenuItem();
-            this.menuSaveOnClose = new System.Windows.Forms.ToolStripMenuItem();
             this.menuReinitializeData = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.menuPortInfo = new System.Windows.Forms.ToolStripMenuItem();
@@ -79,6 +81,7 @@ namespace RFExplorerClient
             this.menuShowPeak = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
             this.menuCleanReport = new System.Windows.Forms.ToolStripMenuItem();
+            this.menuComboSavedOptions = new System.Windows.Forms.ToolStripComboBox();
             this.m_timer_receive = new System.Windows.Forms.Timer(this.components);
             this.m_serialPortObj = new System.IO.Ports.SerialPort(this.components);
             this.MainTab = new System.Windows.Forms.TabControl();
@@ -145,20 +148,27 @@ namespace RFExplorerClient
             this.panelWaterfall = new System.Windows.Forms.Panel();
             this.controlWaterfall = new RFEClientControls.WaterfallControl();
             this.tabRemoteScreen = new System.Windows.Forms.TabPage();
-            this.groupRemoteScreen = new System.Windows.Forms.GroupBox();
             this.numVideoFPS = new System.Windows.Forms.NumericUpDown();
-            this.label13 = new System.Windows.Forms.Label();
+            this.groupRemoteScreen = new System.Windows.Forms.GroupBox();
             this.numericZoom = new System.Windows.Forms.NumericUpDown();
             this.numScreenIndex = new System.Windows.Forms.NumericUpDown();
             this.label10 = new System.Windows.Forms.Label();
             this.label9 = new System.Windows.Forms.Label();
-            this.btnSaveRemoteVideo = new System.Windows.Forms.Button();
             this.btnSaveRemoteBitmap = new System.Windows.Forms.Button();
             this.chkDumpScreen = new System.Windows.Forms.CheckBox();
+            this.label13 = new System.Windows.Forms.Label();
             this.panelRemoteScreen = new System.Windows.Forms.Panel();
             this.controlRemoteScreen = new RFEClientControls.RemoteScreenControl();
+            this.btnSaveRemoteVideo = new System.Windows.Forms.Button();
             this.tabConfiguration = new System.Windows.Forms.TabPage();
             this.panelConfiguration = new System.Windows.Forms.Panel();
+            this.groupBoxFiles = new System.Windows.Forms.GroupBox();
+            this.comboCSVFieldSeparator = new System.Windows.Forms.ComboBox();
+            this.label21 = new System.Windows.Forms.Label();
+            this.btnOpenLog = new System.Windows.Forms.Button();
+            this.labelReportFile = new System.Windows.Forms.Label();
+            this.edDefaultFilePath = new System.Windows.Forms.TextBox();
+            this.label20 = new System.Windows.Forms.Label();
             this.groupCalibration = new System.Windows.Forms.GroupBox();
             this.btnCalibrate = new System.Windows.Forms.Button();
             this.m_edCalibrationFreq = new System.Windows.Forms.TextBox();
@@ -172,6 +182,8 @@ namespace RFExplorerClient
             this.comboCustomCommand = new System.Windows.Forms.ComboBox();
             this.btnSendCmd = new System.Windows.Forms.Button();
             this.textBox_message = new System.Windows.Forms.TextBox();
+            this.tabRAWDecoder = new System.Windows.Forms.TabPage();
+            this.groupDemodulator = new System.Windows.Forms.GroupBox();
             this.chkPSK = new System.Windows.Forms.RadioButton();
             this.chkOOK = new System.Windows.Forms.RadioButton();
             this.m_sBaudRate = new System.Windows.Forms.TextBox();
@@ -188,6 +200,11 @@ namespace RFExplorerClient
             this.numSampleDecoder = new System.Windows.Forms.NumericUpDown();
             this.label14 = new System.Windows.Forms.Label();
             this.zedRAWDecoder = new ZedGraph.ZedGraphControl();
+            this.m_MainFormTooltip = new System.Windows.Forms.ToolTip(this.components);
+            this.btnSaveSettings = new System.Windows.Forms.Button();
+            this.btnDelSettings = new System.Windows.Forms.Button();
+            this.btnLoadSettings = new System.Windows.Forms.Button();
+            this.m_chkDebugTraces = new System.Windows.Forms.CheckBox();
             this.MainMenu.SuspendLayout();
             this.MainTab.SuspendLayout();
             this.tabSpectrumAnalyzer.SuspendLayout();
@@ -205,17 +222,17 @@ namespace RFExplorerClient
             ((System.ComponentModel.ISupportInitialize)(this.numericSensitivity)).BeginInit();
             this.panelWaterfall.SuspendLayout();
             this.tabRemoteScreen.SuspendLayout();
-            this.groupRemoteScreen.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numVideoFPS)).BeginInit();
+            this.groupRemoteScreen.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericZoom)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numScreenIndex)).BeginInit();
             this.panelRemoteScreen.SuspendLayout();
             this.tabConfiguration.SuspendLayout();
             this.panelConfiguration.SuspendLayout();
+            this.groupBoxFiles.SuspendLayout();
             this.groupCalibration.SuspendLayout();
             this.tabReport.SuspendLayout();
             this.groupCommands.SuspendLayout();
-            this.groupRAWDecoder.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numMultiGraph)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numSampleDecoder)).BeginInit();
             this.SuspendLayout();
@@ -224,11 +241,12 @@ namespace RFExplorerClient
             // 
             this.MainMenu.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.MainFileMenu,
-            this.MainViewMenu});
+            this.MainViewMenu,
+            this.menuComboSavedOptions});
             this.MainMenu.Location = new System.Drawing.Point(0, 0);
             this.MainMenu.Name = "MainMenu";
             this.MainMenu.RenderMode = System.Windows.Forms.ToolStripRenderMode.Professional;
-            this.MainMenu.Size = new System.Drawing.Size(940, 24);
+            this.MainMenu.Size = new System.Drawing.Size(940, 27);
             this.MainMenu.TabIndex = 46;
             this.MainMenu.Text = "menu";
             // 
@@ -237,7 +255,10 @@ namespace RFExplorerClient
             this.MainFileMenu.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.menuLoadRFE,
             this.menuSaveAsRFE,
+            this.menuContinuousLog,
+            this.menuSaveOnClose,
             this.toolStripSeparator4,
+            this.menusSaveSimpleCSV,
             this.menuSaveCSV,
             this.toolStripSeparator5,
             this.menuSaveRFS,
@@ -245,7 +266,6 @@ namespace RFExplorerClient
             this.menuSaveRemoteImage,
             this.toolStripSeparator6,
             this.menuAutoLCDOff,
-            this.menuSaveOnClose,
             this.menuReinitializeData,
             this.toolStripSeparator2,
             this.menuPortInfo,
@@ -253,117 +273,131 @@ namespace RFExplorerClient
             this.toolStripSeparator1,
             this.exitToolStripMenuItem});
             this.MainFileMenu.Name = "MainFileMenu";
-            this.MainFileMenu.Size = new System.Drawing.Size(37, 20);
+            this.MainFileMenu.Size = new System.Drawing.Size(37, 23);
             this.MainFileMenu.Text = "&File";
             this.MainFileMenu.DropDownOpening += new System.EventHandler(this.fileToolStripMenuItem_DropDownOpening);
             // 
             // menuLoadRFE
             // 
             this.menuLoadRFE.Name = "menuLoadRFE";
-            this.menuLoadRFE.Size = new System.Drawing.Size(211, 22);
+            this.menuLoadRFE.Size = new System.Drawing.Size(237, 22);
             this.menuLoadRFE.Text = "&Load RFE data file...";
             this.menuLoadRFE.Click += new System.EventHandler(this.toolStripMenuItemLoad_Click);
             // 
             // menuSaveAsRFE
             // 
             this.menuSaveAsRFE.Name = "menuSaveAsRFE";
-            this.menuSaveAsRFE.Size = new System.Drawing.Size(211, 22);
+            this.menuSaveAsRFE.Size = new System.Drawing.Size(237, 22);
             this.menuSaveAsRFE.Text = "Sa&ve RFE data As...";
             this.menuSaveAsRFE.Click += new System.EventHandler(this.saveAsToolStripMenuItem_Click);
+            // 
+            // menuContinuousLog
+            // 
+            this.menuContinuousLog.CheckOnClick = true;
+            this.menuContinuousLog.Name = "menuContinuousLog";
+            this.menuContinuousLog.Size = new System.Drawing.Size(237, 22);
+            this.menuContinuousLog.Text = "&Continuous log to RFE data file";
+            // 
+            // menuSaveOnClose
+            // 
+            this.menuSaveOnClose.CheckOnClick = true;
+            this.menuSaveOnClose.Name = "menuSaveOnClose";
+            this.menuSaveOnClose.Size = new System.Drawing.Size(237, 22);
+            this.menuSaveOnClose.Text = "&Save RFE data on Close";
             // 
             // toolStripSeparator4
             // 
             this.toolStripSeparator4.Name = "toolStripSeparator4";
-            this.toolStripSeparator4.Size = new System.Drawing.Size(208, 6);
+            this.toolStripSeparator4.Size = new System.Drawing.Size(234, 6);
+            // 
+            // menusSaveSimpleCSV
+            // 
+            this.menusSaveSimpleCSV.Name = "menusSaveSimpleCSV";
+            this.menusSaveSimpleCSV.Size = new System.Drawing.Size(237, 22);
+            this.menusSaveSimpleCSV.Text = "Export Single Signal CSV &as...";
+            this.menusSaveSimpleCSV.Click += new System.EventHandler(this.menusSaveSimpleCSV_Click);
             // 
             // menuSaveCSV
             // 
             this.menuSaveCSV.Name = "menuSaveCSV";
-            this.menuSaveCSV.Size = new System.Drawing.Size(211, 22);
-            this.menuSaveCSV.Text = "Export CS&V As...";
+            this.menuSaveCSV.Size = new System.Drawing.Size(237, 22);
+            this.menuSaveCSV.Text = "Export Cumulative CS&V As...";
             this.menuSaveCSV.Click += new System.EventHandler(this.SaveCSVtoolStripMenuItem_Click);
             // 
             // toolStripSeparator5
             // 
             this.toolStripSeparator5.Name = "toolStripSeparator5";
-            this.toolStripSeparator5.Size = new System.Drawing.Size(208, 6);
+            this.toolStripSeparator5.Size = new System.Drawing.Size(234, 6);
             // 
             // menuSaveRFS
             // 
             this.menuSaveRFS.Name = "menuSaveRFS";
-            this.menuSaveRFS.Size = new System.Drawing.Size(211, 22);
+            this.menuSaveRFS.Size = new System.Drawing.Size(237, 22);
             this.menuSaveRFS.Text = "Sav&e RFS Screen file As... ";
             this.menuSaveRFS.Click += new System.EventHandler(this.menu_SaveRFS_Click);
             // 
             // menuLoadRFS
             // 
             this.menuLoadRFS.Name = "menuLoadRFS";
-            this.menuLoadRFS.Size = new System.Drawing.Size(211, 22);
+            this.menuLoadRFS.Size = new System.Drawing.Size(237, 22);
             this.menuLoadRFS.Text = "Load &RFS Screen file As...";
             this.menuLoadRFS.Click += new System.EventHandler(this.menu_LoadRFS_Click);
             // 
             // menuSaveRemoteImage
             // 
             this.menuSaveRemoteImage.Name = "menuSaveRemoteImage";
-            this.menuSaveRemoteImage.Size = new System.Drawing.Size(211, 22);
+            this.menuSaveRemoteImage.Size = new System.Drawing.Size(237, 22);
             this.menuSaveRemoteImage.Text = "Save Remote Ima&ge As...";
             this.menuSaveRemoteImage.Click += new System.EventHandler(this.SaveImagetoolStrip_Click);
             // 
             // toolStripSeparator6
             // 
             this.toolStripSeparator6.Name = "toolStripSeparator6";
-            this.toolStripSeparator6.Size = new System.Drawing.Size(208, 6);
+            this.toolStripSeparator6.Size = new System.Drawing.Size(234, 6);
             // 
             // menuAutoLCDOff
             // 
             this.menuAutoLCDOff.CheckOnClick = true;
             this.menuAutoLCDOff.Name = "menuAutoLCDOff";
-            this.menuAutoLCDOff.Size = new System.Drawing.Size(211, 22);
+            this.menuAutoLCDOff.Size = new System.Drawing.Size(237, 22);
             this.menuAutoLCDOff.Text = "Automatic LCD O&FF";
             this.menuAutoLCDOff.Click += new System.EventHandler(this.menuAutoLCDOff_Click);
-            // 
-            // menuSaveOnClose
-            // 
-            this.menuSaveOnClose.CheckOnClick = true;
-            this.menuSaveOnClose.Name = "menuSaveOnClose";
-            this.menuSaveOnClose.Size = new System.Drawing.Size(211, 22);
-            this.menuSaveOnClose.Text = "&Save on Close";
             // 
             // menuReinitializeData
             // 
             this.menuReinitializeData.Name = "menuReinitializeData";
-            this.menuReinitializeData.Size = new System.Drawing.Size(211, 22);
+            this.menuReinitializeData.Size = new System.Drawing.Size(237, 22);
             this.menuReinitializeData.Text = "Reinitialize &Data...";
             this.menuReinitializeData.Click += new System.EventHandler(this.menuReinitializeData_Click);
             // 
             // toolStripSeparator2
             // 
             this.toolStripSeparator2.Name = "toolStripSeparator2";
-            this.toolStripSeparator2.Size = new System.Drawing.Size(208, 6);
+            this.toolStripSeparator2.Size = new System.Drawing.Size(234, 6);
             // 
             // menuPortInfo
             // 
             this.menuPortInfo.Name = "menuPortInfo";
-            this.menuPortInfo.Size = new System.Drawing.Size(211, 22);
+            this.menuPortInfo.Size = new System.Drawing.Size(237, 22);
             this.menuPortInfo.Text = "Report COM port &info";
             this.menuPortInfo.Click += new System.EventHandler(this.toolStripMenuPortInfo_Click);
             // 
             // menuAbout
             // 
             this.menuAbout.Name = "menuAbout";
-            this.menuAbout.Size = new System.Drawing.Size(211, 22);
+            this.menuAbout.Size = new System.Drawing.Size(237, 22);
             this.menuAbout.Text = "A&bout RF Explorer Client...";
             this.menuAbout.Click += new System.EventHandler(this.aboutToolStripMenuItem_Click);
             // 
             // toolStripSeparator1
             // 
             this.toolStripSeparator1.Name = "toolStripSeparator1";
-            this.toolStripSeparator1.Size = new System.Drawing.Size(208, 6);
+            this.toolStripSeparator1.Size = new System.Drawing.Size(234, 6);
             // 
             // exitToolStripMenuItem
             // 
             this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
-            this.exitToolStripMenuItem.Size = new System.Drawing.Size(211, 22);
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(237, 22);
             this.exitToolStripMenuItem.Text = "E&xit";
             this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
@@ -381,7 +415,7 @@ namespace RFExplorerClient
             this.toolStripSeparator3,
             this.menuCleanReport});
             this.MainViewMenu.Name = "MainViewMenu";
-            this.MainViewMenu.Size = new System.Drawing.Size(44, 20);
+            this.MainViewMenu.Size = new System.Drawing.Size(44, 23);
             this.MainViewMenu.Text = "&View";
             this.MainViewMenu.DropDownOpening += new System.EventHandler(this.MainMenuView_DropDownOpening);
             // 
@@ -458,6 +492,17 @@ namespace RFExplorerClient
             this.menuCleanReport.Text = "C&lean Report";
             this.menuCleanReport.Click += new System.EventHandler(this.toolStripCleanReport_Click);
             // 
+            // menuComboSavedOptions
+            // 
+            this.menuComboSavedOptions.AutoSize = false;
+            this.menuComboSavedOptions.AutoToolTip = true;
+            this.menuComboSavedOptions.MaxLength = 30;
+            this.menuComboSavedOptions.Name = "menuComboSavedOptions";
+            this.menuComboSavedOptions.Size = new System.Drawing.Size(180, 23);
+            this.menuComboSavedOptions.Sorted = true;
+            this.menuComboSavedOptions.ToolTipText = "Saved preconfigured options";
+            this.menuComboSavedOptions.SelectedIndexChanged += new System.EventHandler(this.menuComboSavedOptions_SelectedIndexChanged);
+            // 
             // m_timer_receive
             // 
             this.m_timer_receive.Interval = 50;
@@ -509,12 +554,15 @@ namespace RFExplorerClient
             // 
             // btnCenterMark
             // 
-            this.btnCenterMark.Location = new System.Drawing.Point(426, 244);
+            this.btnCenterMark.Location = new System.Drawing.Point(756, 459);
             this.btnCenterMark.Name = "btnCenterMark";
             this.btnCenterMark.Size = new System.Drawing.Size(80, 23);
             this.btnCenterMark.TabIndex = 60;
             this.btnCenterMark.Text = "Center Mark";
+            this.m_MainFormTooltip.SetToolTip(this.btnCenterMark, "Useful command that will use the current peak frequency and will center it on scr" +
+        "een, moving the start/end frequency accordingly");
             this.btnCenterMark.UseVisualStyleBackColor = true;
+            this.btnCenterMark.Visible = false;
             this.btnCenterMark.Click += new System.EventHandler(this.btnCenterMark_Click);
             // 
             // btnSpanMin
@@ -524,7 +572,9 @@ namespace RFExplorerClient
             this.btnSpanMin.Size = new System.Drawing.Size(80, 23);
             this.btnSpanMin.TabIndex = 59;
             this.btnSpanMin.Text = "Span Min";
+            this.m_MainFormTooltip.SetToolTip(this.btnSpanMin, "Decrease the frequency span to the minimum available for the active module");
             this.btnSpanMin.UseVisualStyleBackColor = true;
+            this.btnSpanMin.Visible = false;
             this.btnSpanMin.Click += new System.EventHandler(this.btnSpanMin_Click);
             // 
             // btnSpanDefault
@@ -534,7 +584,9 @@ namespace RFExplorerClient
             this.btnSpanDefault.Size = new System.Drawing.Size(80, 23);
             this.btnSpanDefault.TabIndex = 58;
             this.btnSpanDefault.Text = "Span 10MHz";
+            this.m_MainFormTooltip.SetToolTip(this.btnSpanDefault, "Set the frequency span to a common use 10MHz");
             this.btnSpanDefault.UseVisualStyleBackColor = true;
+            this.btnSpanDefault.Visible = false;
             this.btnSpanDefault.Click += new System.EventHandler(this.btnSpanDefault_Click);
             // 
             // btnSpanMax
@@ -544,7 +596,9 @@ namespace RFExplorerClient
             this.btnSpanMax.Size = new System.Drawing.Size(80, 23);
             this.btnSpanMax.TabIndex = 57;
             this.btnSpanMax.Text = "Span Max";
+            this.m_MainFormTooltip.SetToolTip(this.btnSpanMax, "Increase the frequency span to the maximum available for the active module");
             this.btnSpanMax.UseVisualStyleBackColor = true;
+            this.btnSpanMax.Visible = false;
             this.btnSpanMax.Click += new System.EventHandler(this.btnSpanMax_Click);
             // 
             // btnBottom5minus
@@ -554,7 +608,9 @@ namespace RFExplorerClient
             this.btnBottom5minus.Size = new System.Drawing.Size(80, 23);
             this.btnBottom5minus.TabIndex = 56;
             this.btnBottom5minus.Text = "Bottom -5dB";
+            this.m_MainFormTooltip.SetToolTip(this.btnBottom5minus, "Decrease the visual amplitude in 5dB at the bottom");
             this.btnBottom5minus.UseVisualStyleBackColor = true;
+            this.btnBottom5minus.Visible = false;
             this.btnBottom5minus.Click += new System.EventHandler(this.btnBottom5minus_Click);
             // 
             // btnBottom5plus
@@ -564,7 +620,9 @@ namespace RFExplorerClient
             this.btnBottom5plus.Size = new System.Drawing.Size(80, 23);
             this.btnBottom5plus.TabIndex = 55;
             this.btnBottom5plus.Text = "Bottom +5dB";
+            this.m_MainFormTooltip.SetToolTip(this.btnBottom5plus, "Increase the visual amplitude in 5dB at the bottom");
             this.btnBottom5plus.UseVisualStyleBackColor = true;
+            this.btnBottom5plus.Visible = false;
             this.btnBottom5plus.Click += new System.EventHandler(this.btnBottom5plus_Click);
             // 
             // btnTop5minus
@@ -574,7 +632,9 @@ namespace RFExplorerClient
             this.btnTop5minus.Size = new System.Drawing.Size(80, 23);
             this.btnTop5minus.TabIndex = 54;
             this.btnTop5minus.Text = "Top -5dB";
+            this.m_MainFormTooltip.SetToolTip(this.btnTop5minus, "Decrease the visual amplitude in 5dB at the top");
             this.btnTop5minus.UseVisualStyleBackColor = true;
+            this.btnTop5minus.Visible = false;
             this.btnTop5minus.Click += new System.EventHandler(this.btnTop5minus_Click);
             // 
             // btnSpanDec
@@ -585,6 +645,7 @@ namespace RFExplorerClient
             this.btnSpanDec.TabIndex = 53;
             this.btnSpanDec.Text = "Span -25%";
             this.btnSpanDec.UseVisualStyleBackColor = true;
+            this.btnSpanDec.Visible = false;
             this.btnSpanDec.Click += new System.EventHandler(this.btnSpanDec_Click);
             // 
             // btnSpanInc
@@ -594,7 +655,9 @@ namespace RFExplorerClient
             this.btnSpanInc.Size = new System.Drawing.Size(80, 23);
             this.btnSpanInc.TabIndex = 53;
             this.btnSpanInc.Text = "Span +25%";
+            this.m_MainFormTooltip.SetToolTip(this.btnSpanInc, "Increase the frequency span by a 25%");
             this.btnSpanInc.UseVisualStyleBackColor = true;
+            this.btnSpanInc.Visible = false;
             this.btnSpanInc.Click += new System.EventHandler(this.btnSpanInc_Click);
             // 
             // btnMoveFreqDecSmall
@@ -604,7 +667,9 @@ namespace RFExplorerClient
             this.btnMoveFreqDecSmall.Size = new System.Drawing.Size(80, 23);
             this.btnMoveFreqDecSmall.TabIndex = 53;
             this.btnMoveFreqDecSmall.Text = "Start < 10%";
+            this.m_MainFormTooltip.SetToolTip(this.btnMoveFreqDecSmall, "Offset to a lower frequency by 10% of the span");
             this.btnMoveFreqDecSmall.UseVisualStyleBackColor = true;
+            this.btnMoveFreqDecSmall.Visible = false;
             this.btnMoveFreqDecSmall.Click += new System.EventHandler(this.btnMoveFreqDecSmall_Click);
             // 
             // btnMoveFreqIncSmall
@@ -614,7 +679,9 @@ namespace RFExplorerClient
             this.btnMoveFreqIncSmall.Size = new System.Drawing.Size(80, 23);
             this.btnMoveFreqIncSmall.TabIndex = 53;
             this.btnMoveFreqIncSmall.Text = "End > 10%";
+            this.m_MainFormTooltip.SetToolTip(this.btnMoveFreqIncSmall, "Offset to a higher frequency by 10% of the span");
             this.btnMoveFreqIncSmall.UseVisualStyleBackColor = true;
+            this.btnMoveFreqIncSmall.Visible = false;
             this.btnMoveFreqIncSmall.Click += new System.EventHandler(this.btnMoveFreqIncSmall_Click);
             // 
             // btnTop5plus
@@ -624,7 +691,9 @@ namespace RFExplorerClient
             this.btnTop5plus.Size = new System.Drawing.Size(80, 23);
             this.btnTop5plus.TabIndex = 53;
             this.btnTop5plus.Text = "Top +5dB";
+            this.m_MainFormTooltip.SetToolTip(this.btnTop5plus, "Increase the visual amplitude in 5dB at the top");
             this.btnTop5plus.UseVisualStyleBackColor = true;
+            this.btnTop5plus.Visible = false;
             this.btnTop5plus.Click += new System.EventHandler(this.btnTop5plus_Click);
             // 
             // btnMoveFreqDecLarge
@@ -634,7 +703,9 @@ namespace RFExplorerClient
             this.btnMoveFreqDecLarge.Size = new System.Drawing.Size(80, 23);
             this.btnMoveFreqDecLarge.TabIndex = 53;
             this.btnMoveFreqDecLarge.Text = "Start < 50%";
+            this.m_MainFormTooltip.SetToolTip(this.btnMoveFreqDecLarge, "Offset to a lower frequency by 50% of the span");
             this.btnMoveFreqDecLarge.UseVisualStyleBackColor = true;
+            this.btnMoveFreqDecLarge.Visible = false;
             this.btnMoveFreqDecLarge.Click += new System.EventHandler(this.btnMoveFreqDecLarge_Click);
             // 
             // btnMoveFreqIncLarge
@@ -644,7 +715,9 @@ namespace RFExplorerClient
             this.btnMoveFreqIncLarge.Size = new System.Drawing.Size(80, 23);
             this.btnMoveFreqIncLarge.TabIndex = 53;
             this.btnMoveFreqIncLarge.Text = "End > 50%";
+            this.m_MainFormTooltip.SetToolTip(this.btnMoveFreqIncLarge, "Offset to a higher frequency by 50% of the span");
             this.btnMoveFreqIncLarge.UseVisualStyleBackColor = true;
+            this.btnMoveFreqIncLarge.Visible = false;
             this.btnMoveFreqIncLarge.Click += new System.EventHandler(this.btnMoveFreqIncLarge_Click);
             // 
             // groupDataFeed
@@ -675,6 +748,7 @@ namespace RFExplorerClient
             this.chkCalcMin.Size = new System.Drawing.Size(67, 17);
             this.chkCalcMin.TabIndex = 51;
             this.chkCalcMin.Text = "Minimum";
+            this.m_MainFormTooltip.SetToolTip(this.chkCalcMin, "Display Min calculated data based on latest n Iterations");
             this.chkCalcMin.UseVisualStyleBackColor = true;
             this.chkCalcMin.CheckedChanged += new System.EventHandler(this.chkCalcMin_CheckedChanged);
             // 
@@ -686,6 +760,7 @@ namespace RFExplorerClient
             this.chkCalcMax.Size = new System.Drawing.Size(74, 17);
             this.chkCalcMax.TabIndex = 51;
             this.chkCalcMax.Text = "Max Peak";
+            this.m_MainFormTooltip.SetToolTip(this.chkCalcMax, "Display Max calculated data based on latest n Iterations");
             this.chkCalcMax.UseVisualStyleBackColor = true;
             this.chkCalcMax.CheckedChanged += new System.EventHandler(this.chkCalcMax_CheckedChanged);
             // 
@@ -697,6 +772,7 @@ namespace RFExplorerClient
             this.chkCalcAverage.Size = new System.Drawing.Size(66, 17);
             this.chkCalcAverage.TabIndex = 51;
             this.chkCalcAverage.Text = "Average";
+            this.m_MainFormTooltip.SetToolTip(this.chkCalcAverage, "Display Average calculated data based on latest n Iterations");
             this.chkCalcAverage.UseVisualStyleBackColor = true;
             this.chkCalcAverage.CheckedChanged += new System.EventHandler(this.chkCalcAverage_CheckedChanged);
             // 
@@ -708,6 +784,7 @@ namespace RFExplorerClient
             this.chkCalcRealtime.Size = new System.Drawing.Size(67, 17);
             this.chkCalcRealtime.TabIndex = 51;
             this.chkCalcRealtime.Text = "Realtime";
+            this.m_MainFormTooltip.SetToolTip(this.chkCalcRealtime, "Display Realtime data");
             this.chkCalcRealtime.UseVisualStyleBackColor = true;
             this.chkCalcRealtime.CheckedChanged += new System.EventHandler(this.chkCalcRealtime_CheckedChanged);
             // 
@@ -724,6 +801,7 @@ namespace RFExplorerClient
             this.numericIterations.Size = new System.Drawing.Size(60, 23);
             this.numericIterations.TabIndex = 17;
             this.numericIterations.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.numericIterations, "Total number of iterations to perform calculations for (Max, Min and Avg)");
             this.numericIterations.Value = new decimal(new int[] {
             2,
             0,
@@ -739,6 +817,7 @@ namespace RFExplorerClient
             this.numericSampleSA.Size = new System.Drawing.Size(60, 23);
             this.numericSampleSA.TabIndex = 16;
             this.numericSampleSA.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.numericSampleSA, "Current sample being displayed on Screen");
             this.numericSampleSA.ValueChanged += new System.EventHandler(this.numericUpDown_ValueChanged);
             // 
             // label1
@@ -761,6 +840,7 @@ namespace RFExplorerClient
             this.chkRunMode.TabIndex = 14;
             this.chkRunMode.Text = "RUN";
             this.chkRunMode.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.m_MainFormTooltip.SetToolTip(this.chkRunMode, "Restore data receive with RF Explorer");
             this.chkRunMode.UseVisualStyleBackColor = true;
             this.chkRunMode.CheckedChanged += new System.EventHandler(this.chkRunMode_CheckedChanged);
             // 
@@ -775,6 +855,7 @@ namespace RFExplorerClient
             this.chkHoldMode.TabIndex = 15;
             this.chkHoldMode.Text = "HOLD";
             this.chkHoldMode.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.m_MainFormTooltip.SetToolTip(this.chkHoldMode, "Stops receiving data from RF Explorer");
             this.chkHoldMode.UseVisualStyleBackColor = true;
             this.chkHoldMode.CheckedChanged += new System.EventHandler(this.chkHoldMode_CheckedChanged);
             // 
@@ -841,6 +922,7 @@ namespace RFExplorerClient
             this.btnRescan.Size = new System.Drawing.Size(34, 23);
             this.btnRescan.TabIndex = 11;
             this.btnRescan.Text = "*";
+            this.m_MainFormTooltip.SetToolTip(this.btnRescan, "Click to rescan available ports");
             this.btnRescan.UseVisualStyleBackColor = true;
             this.btnRescan.Click += new System.EventHandler(this.btnRescan_Click);
             // 
@@ -854,6 +936,7 @@ namespace RFExplorerClient
             this.comboBaudRate.Name = "comboBaudRate";
             this.comboBaudRate.Size = new System.Drawing.Size(92, 21);
             this.comboBaudRate.TabIndex = 12;
+            this.m_MainFormTooltip.SetToolTip(this.comboBaudRate, "Baudrate connection speed - it must match the value selected on RF Explorer");
             // 
             // btnConnect
             // 
@@ -864,6 +947,7 @@ namespace RFExplorerClient
             this.btnConnect.Size = new System.Drawing.Size(107, 38);
             this.btnConnect.TabIndex = 13;
             this.btnConnect.Text = "Connect";
+            this.m_MainFormTooltip.SetToolTip(this.btnConnect, "Click to connect to the selected USB COM port");
             this.btnConnect.Click += new System.EventHandler(this.btnConnect_Click);
             // 
             // btnDisconnect
@@ -875,6 +959,7 @@ namespace RFExplorerClient
             this.btnDisconnect.Size = new System.Drawing.Size(107, 38);
             this.btnDisconnect.TabIndex = 41;
             this.btnDisconnect.Text = "Disconnect";
+            this.m_MainFormTooltip.SetToolTip(this.btnDisconnect, "Click to disconnect from the USB COM port");
             this.btnDisconnect.Click += new System.EventHandler(this.btnDisconnect_Click);
             // 
             // COMPortCombo
@@ -884,6 +969,7 @@ namespace RFExplorerClient
             this.COMPortCombo.Name = "COMPortCombo";
             this.COMPortCombo.Size = new System.Drawing.Size(82, 21);
             this.COMPortCombo.TabIndex = 10;
+            this.m_MainFormTooltip.SetToolTip(this.COMPortCombo, "Available COM port where a potential RF Explorer device is connected");
             // 
             // zedSpectrumAnalyzer
             // 
@@ -899,9 +985,10 @@ namespace RFExplorerClient
             this.zedSpectrumAnalyzer.ScrollMinX = 0D;
             this.zedSpectrumAnalyzer.ScrollMinY = 0D;
             this.zedSpectrumAnalyzer.ScrollMinY2 = 0D;
-            this.zedSpectrumAnalyzer.Size = new System.Drawing.Size(839, 362);
+            this.zedSpectrumAnalyzer.Size = new System.Drawing.Size(655, 362);
             this.zedSpectrumAnalyzer.TabIndex = 49;
             this.zedSpectrumAnalyzer.TabStop = false;
+            this.zedSpectrumAnalyzer.Visible = false;
             this.zedSpectrumAnalyzer.ContextMenuBuilder += new ZedGraph.ZedGraphControl.ContextMenuBuilderEventHandler(this.objGraph_ContextMenuBuilder);
             // 
             // groupFreqSettings
@@ -939,6 +1026,7 @@ namespace RFExplorerClient
             this.m_sBottomDBM.TabIndex = 6;
             this.m_sBottomDBM.Text = "-120";
             this.m_sBottomDBM.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.m_sBottomDBM, "Visual amplitude at the bottom in dBm");
             this.m_sBottomDBM.Leave += new System.EventHandler(this.m_sBottomDBM_Leave);
             // 
             // m_sTopDBM
@@ -952,6 +1040,7 @@ namespace RFExplorerClient
             this.m_sTopDBM.TabIndex = 5;
             this.m_sTopDBM.Text = "-20";
             this.m_sTopDBM.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.m_sTopDBM, "Visual amplitude at the top in dBm");
             // 
             // m_sEndFreq
             // 
@@ -964,6 +1053,7 @@ namespace RFExplorerClient
             this.m_sEndFreq.TabIndex = 4;
             this.m_sEndFreq.Text = "437.000";
             this.m_sEndFreq.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.m_sEndFreq, "Stop frequency in MHZ - Center/Start will be recalculated");
             this.m_sEndFreq.Leave += new System.EventHandler(this.m_sEndFreq_Leave);
             // 
             // m_sFreqSpan
@@ -977,6 +1067,7 @@ namespace RFExplorerClient
             this.m_sFreqSpan.TabIndex = 2;
             this.m_sFreqSpan.Text = "4.000";
             this.m_sFreqSpan.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.m_sFreqSpan, "Frequency span in MHZ");
             this.m_sFreqSpan.Leave += new System.EventHandler(this.m_sFreqSpan_Leave);
             // 
             // m_sStartFreq
@@ -990,6 +1081,7 @@ namespace RFExplorerClient
             this.m_sStartFreq.TabIndex = 3;
             this.m_sStartFreq.Text = "433.000";
             this.m_sStartFreq.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.m_sStartFreq, "Start frequency in MHZ - Center will be recalculated");
             this.m_sStartFreq.Leave += new System.EventHandler(this.m_sStartFreq_Leave);
             // 
             // m_sCenterFreq
@@ -1003,6 +1095,7 @@ namespace RFExplorerClient
             this.m_sCenterFreq.TabIndex = 1;
             this.m_sCenterFreq.Text = "435.000";
             this.m_sCenterFreq.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_MainFormTooltip.SetToolTip(this.m_sCenterFreq, "Center frequency in MHZ - Start/Stop will be recalculated");
             this.m_sCenterFreq.Leave += new System.EventHandler(this.m_sCenterFreq_Leave);
             // 
             // label8
@@ -1078,6 +1171,7 @@ namespace RFExplorerClient
             this.btnReset.Size = new System.Drawing.Size(56, 34);
             this.btnReset.TabIndex = 13;
             this.btnReset.Text = "Reset";
+            this.m_MainFormTooltip.SetToolTip(this.btnReset, "Ignores all changes and restore last values received from the RF Explorer device");
             this.btnReset.UseVisualStyleBackColor = true;
             this.btnReset.Click += new System.EventHandler(this.btnReset_Click);
             // 
@@ -1088,6 +1182,7 @@ namespace RFExplorerClient
             this.btnSend.Size = new System.Drawing.Size(56, 34);
             this.btnSend.TabIndex = 12;
             this.btnSend.Text = "Send";
+            this.m_MainFormTooltip.SetToolTip(this.btnSend, "Send the updated values to the RF Explorer device");
             this.btnSend.UseVisualStyleBackColor = true;
             this.btnSend.Click += new System.EventHandler(this.btnSend_Click);
             // 
@@ -1229,8 +1324,11 @@ namespace RFExplorerClient
             // 
             // tabRemoteScreen
             // 
+            this.tabRemoteScreen.Controls.Add(this.numVideoFPS);
             this.tabRemoteScreen.Controls.Add(this.groupRemoteScreen);
+            this.tabRemoteScreen.Controls.Add(this.label13);
             this.tabRemoteScreen.Controls.Add(this.panelRemoteScreen);
+            this.tabRemoteScreen.Controls.Add(this.btnSaveRemoteVideo);
             this.tabRemoteScreen.Location = new System.Drawing.Point(4, 26);
             this.tabRemoteScreen.Name = "tabRemoteScreen";
             this.tabRemoteScreen.Size = new System.Drawing.Size(932, 510);
@@ -1240,30 +1338,11 @@ namespace RFExplorerClient
             this.tabRemoteScreen.Paint += new System.Windows.Forms.PaintEventHandler(this.tabRemoteScreen_Paint);
             this.tabRemoteScreen.Enter += new System.EventHandler(this.tabRemoteScreen_Enter);
             // 
-            // groupRemoteScreen
-            // 
-            this.groupRemoteScreen.Controls.Add(this.numVideoFPS);
-            this.groupRemoteScreen.Controls.Add(this.label13);
-            this.groupRemoteScreen.Controls.Add(this.numericZoom);
-            this.groupRemoteScreen.Controls.Add(this.numScreenIndex);
-            this.groupRemoteScreen.Controls.Add(this.label10);
-            this.groupRemoteScreen.Controls.Add(this.label9);
-            this.groupRemoteScreen.Controls.Add(this.btnSaveRemoteVideo);
-            this.groupRemoteScreen.Controls.Add(this.btnSaveRemoteBitmap);
-            this.groupRemoteScreen.Controls.Add(this.chkDumpScreen);
-            this.groupRemoteScreen.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.groupRemoteScreen.Location = new System.Drawing.Point(272, 6);
-            this.groupRemoteScreen.Name = "groupRemoteScreen";
-            this.groupRemoteScreen.Size = new System.Drawing.Size(364, 108);
-            this.groupRemoteScreen.TabIndex = 53;
-            this.groupRemoteScreen.TabStop = false;
-            this.groupRemoteScreen.Text = "Dump Remote Screen";
-            // 
             // numVideoFPS
             // 
             this.numVideoFPS.DecimalPlaces = 1;
             this.numVideoFPS.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.numVideoFPS.Location = new System.Drawing.Point(209, 76);
+            this.numVideoFPS.Location = new System.Drawing.Point(778, 88);
             this.numVideoFPS.Maximum = new decimal(new int[] {
             30,
             0,
@@ -1283,15 +1362,23 @@ namespace RFExplorerClient
             0,
             0,
             0});
+            this.numVideoFPS.Visible = false;
             // 
-            // label13
+            // groupRemoteScreen
             // 
-            this.label13.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label13.Location = new System.Drawing.Point(139, 78);
-            this.label13.Name = "label13";
-            this.label13.Size = new System.Drawing.Size(74, 21);
-            this.label13.TabIndex = 55;
-            this.label13.Text = "Video FPS";
+            this.groupRemoteScreen.Controls.Add(this.numericZoom);
+            this.groupRemoteScreen.Controls.Add(this.numScreenIndex);
+            this.groupRemoteScreen.Controls.Add(this.label10);
+            this.groupRemoteScreen.Controls.Add(this.label9);
+            this.groupRemoteScreen.Controls.Add(this.btnSaveRemoteBitmap);
+            this.groupRemoteScreen.Controls.Add(this.chkDumpScreen);
+            this.groupRemoteScreen.FlatStyle = System.Windows.Forms.FlatStyle.System;
+            this.groupRemoteScreen.Location = new System.Drawing.Point(272, 6);
+            this.groupRemoteScreen.Name = "groupRemoteScreen";
+            this.groupRemoteScreen.Size = new System.Drawing.Size(253, 108);
+            this.groupRemoteScreen.TabIndex = 53;
+            this.groupRemoteScreen.TabStop = false;
+            this.groupRemoteScreen.Text = "Dump Remote Screen";
             // 
             // numericZoom
             // 
@@ -1356,19 +1443,9 @@ namespace RFExplorerClient
             this.label9.TabIndex = 52;
             this.label9.Text = "Sample";
             // 
-            // btnSaveRemoteVideo
-            // 
-            this.btnSaveRemoteVideo.Location = new System.Drawing.Point(264, 62);
-            this.btnSaveRemoteVideo.Name = "btnSaveRemoteVideo";
-            this.btnSaveRemoteVideo.Size = new System.Drawing.Size(91, 37);
-            this.btnSaveRemoteVideo.TabIndex = 53;
-            this.btnSaveRemoteVideo.Text = "Save Video...";
-            this.btnSaveRemoteVideo.UseVisualStyleBackColor = true;
-            this.btnSaveRemoteVideo.Click += new System.EventHandler(this.btnSaveRemoteVideo_Click);
-            // 
             // btnSaveRemoteBitmap
             // 
-            this.btnSaveRemoteBitmap.Location = new System.Drawing.Point(264, 20);
+            this.btnSaveRemoteBitmap.Location = new System.Drawing.Point(150, 62);
             this.btnSaveRemoteBitmap.Name = "btnSaveRemoteBitmap";
             this.btnSaveRemoteBitmap.Size = new System.Drawing.Size(91, 37);
             this.btnSaveRemoteBitmap.TabIndex = 53;
@@ -1390,6 +1467,16 @@ namespace RFExplorerClient
             this.chkDumpScreen.UseVisualStyleBackColor = true;
             this.chkDumpScreen.CheckedChanged += new System.EventHandler(this.chkDumpScreen_CheckedChanged);
             // 
+            // label13
+            // 
+            this.label13.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.label13.Location = new System.Drawing.Point(708, 90);
+            this.label13.Name = "label13";
+            this.label13.Size = new System.Drawing.Size(74, 21);
+            this.label13.TabIndex = 55;
+            this.label13.Text = "Video FPS";
+            this.label13.Visible = false;
+            // 
             // panelRemoteScreen
             // 
             this.panelRemoteScreen.Controls.Add(this.controlRemoteScreen);
@@ -1405,6 +1492,16 @@ namespace RFExplorerClient
             this.controlRemoteScreen.Size = new System.Drawing.Size(292, 174);
             this.controlRemoteScreen.TabIndex = 54;
             // 
+            // btnSaveRemoteVideo
+            // 
+            this.btnSaveRemoteVideo.Location = new System.Drawing.Point(833, 74);
+            this.btnSaveRemoteVideo.Name = "btnSaveRemoteVideo";
+            this.btnSaveRemoteVideo.Size = new System.Drawing.Size(91, 37);
+            this.btnSaveRemoteVideo.TabIndex = 53;
+            this.btnSaveRemoteVideo.Text = "Save Video...";
+            this.btnSaveRemoteVideo.UseVisualStyleBackColor = true;
+            this.btnSaveRemoteVideo.Visible = false;
+            // 
             // tabConfiguration
             // 
             this.tabConfiguration.Controls.Add(this.panelConfiguration);
@@ -1419,57 +1516,90 @@ namespace RFExplorerClient
             // 
             // panelConfiguration
             // 
+            this.panelConfiguration.Controls.Add(this.groupBoxFiles);
             this.panelConfiguration.Controls.Add(this.groupCalibration);
             this.panelConfiguration.Location = new System.Drawing.Point(12, 140);
             this.panelConfiguration.Name = "panelConfiguration";
             this.panelConfiguration.Size = new System.Drawing.Size(912, 363);
             this.panelConfiguration.TabIndex = 56;
             // 
-            // groupCalibration
+            // groupBoxFiles
             // 
-            this.groupCalibration.Controls.Add(this.btnCalibrate);
-            this.groupCalibration.Controls.Add(this.m_edCalibrationFreq);
-            this.groupCalibration.Controls.Add(this.label19);
-            this.groupCalibration.Location = new System.Drawing.Point(3, 3);
-            this.groupCalibration.Name = "groupCalibration";
-            this.groupCalibration.Size = new System.Drawing.Size(247, 100);
-            this.groupCalibration.TabIndex = 4;
-            this.groupCalibration.TabStop = false;
-            this.groupCalibration.Text = "Calibration";
+            this.groupBoxFiles.Controls.Add(this.comboCSVFieldSeparator);
+            this.groupBoxFiles.Controls.Add(this.label21);
+            this.groupBoxFiles.Controls.Add(this.btnOpenLog);
+            this.groupBoxFiles.Controls.Add(this.labelReportFile);
+            this.groupBoxFiles.Controls.Add(this.edDefaultFilePath);
+            this.groupBoxFiles.Controls.Add(this.label20);
+            this.groupBoxFiles.Location = new System.Drawing.Point(256, 3);
+            this.groupBoxFiles.Name = "groupBoxFiles";
+            this.groupBoxFiles.Size = new System.Drawing.Size(653, 118);
+            this.groupBoxFiles.TabIndex = 7;
+            this.groupBoxFiles.TabStop = false;
+            this.groupBoxFiles.Text = "Configuration files and folders";
             // 
-            // btnCalibrate
+            // comboCSVFieldSeparator
             // 
-            this.btnCalibrate.Location = new System.Drawing.Point(131, 58);
-            this.btnCalibrate.Name = "btnCalibrate";
-            this.btnCalibrate.Size = new System.Drawing.Size(98, 36);
-            this.btnCalibrate.TabIndex = 4;
-            this.btnCalibrate.Text = "Calibrate";
-            this.btnCalibrate.UseVisualStyleBackColor = true;
-            this.btnCalibrate.Click += new System.EventHandler(this.btnCalibrate_Click);
+            this.comboCSVFieldSeparator.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboCSVFieldSeparator.FormattingEnabled = true;
+            this.comboCSVFieldSeparator.Items.AddRange(new object[] {
+            "Comma (,)",
+            "Division (|)",
+            "Semicolon (;)",
+            "Space ( )",
+            "Tabulator (\\t)"});
+            this.comboCSVFieldSeparator.Location = new System.Drawing.Point(119, 84);
+            this.comboCSVFieldSeparator.Name = "comboCSVFieldSeparator";
+            this.comboCSVFieldSeparator.Size = new System.Drawing.Size(94, 21);
+            this.comboCSVFieldSeparator.Sorted = true;
+            this.comboCSVFieldSeparator.TabIndex = 10;
             // 
-            // m_edCalibrationFreq
+            // label21
             // 
-            this.m_edCalibrationFreq.BackColor = System.Drawing.Color.RoyalBlue;
-            this.m_edCalibrationFreq.Font = new System.Drawing.Font("Digital-7", 14.25F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.m_edCalibrationFreq.ForeColor = System.Drawing.Color.White;
-            this.m_edCalibrationFreq.Location = new System.Drawing.Point(131, 26);
-            this.m_edCalibrationFreq.Name = "m_edCalibrationFreq";
-            this.m_edCalibrationFreq.Size = new System.Drawing.Size(98, 26);
-            this.m_edCalibrationFreq.TabIndex = 3;
-            this.m_edCalibrationFreq.Text = "780";
-            this.m_edCalibrationFreq.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_edCalibrationFreq.Leave += new System.EventHandler(this.m_edCalibrationFreq_Leave);
+            this.label21.AutoSize = true;
+            this.label21.Location = new System.Drawing.Point(14, 87);
+            this.label21.Name = "label21";
+            this.label21.Size = new System.Drawing.Size(99, 13);
+            this.label21.TabIndex = 9;
+            this.label21.Text = "CSV field separator";
             // 
-            // label19
+            // btnOpenLog
             // 
-            this.label19.AutoSize = true;
-            this.label19.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label19.ForeColor = System.Drawing.Color.DarkBlue;
-            this.label19.Location = new System.Drawing.Point(6, 32);
-            this.label19.Name = "label19";
-            this.label19.Size = new System.Drawing.Size(119, 16);
-            this.label19.TabIndex = 2;
-            this.label19.Text = "REFERENCE (MHz)";
+            this.btnOpenLog.Location = new System.Drawing.Point(572, 58);
+            this.btnOpenLog.Name = "btnOpenLog";
+            this.btnOpenLog.Size = new System.Drawing.Size(75, 23);
+            this.btnOpenLog.TabIndex = 8;
+            this.btnOpenLog.Text = "Open Log";
+            this.btnOpenLog.UseVisualStyleBackColor = true;
+            this.btnOpenLog.Click += new System.EventHandler(this.btnOpenLog_Click);
+            // 
+            // labelReportFile
+            // 
+            this.labelReportFile.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            this.labelReportFile.Location = new System.Drawing.Point(14, 58);
+            this.labelReportFile.Name = "labelReportFile";
+            this.labelReportFile.Size = new System.Drawing.Size(552, 23);
+            this.labelReportFile.TabIndex = 7;
+            this.labelReportFile.Text = "Report log file:";
+            this.labelReportFile.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.m_MainFormTooltip.SetToolTip(this.labelReportFile, "Full path of the report log file, you may need this upon Support request");
+            // 
+            // edDefaultFilePath
+            // 
+            this.edDefaultFilePath.Location = new System.Drawing.Point(170, 31);
+            this.edDefaultFilePath.Name = "edDefaultFilePath";
+            this.edDefaultFilePath.Size = new System.Drawing.Size(477, 21);
+            this.edDefaultFilePath.TabIndex = 6;
+            this.edDefaultFilePath.Leave += new System.EventHandler(this.edDefaultFilePath_Leave);
+            // 
+            // label20
+            // 
+            this.label20.AutoSize = true;
+            this.label20.Location = new System.Drawing.Point(14, 34);
+            this.label20.Name = "label20";
+            this.label20.Size = new System.Drawing.Size(150, 13);
+            this.label20.TabIndex = 5;
+            this.label20.Text = "Default Output data file path:";
             // 
             // tabReport
             // 
@@ -1486,6 +1616,7 @@ namespace RFExplorerClient
             // 
             // groupCommands
             // 
+            this.groupCommands.Controls.Add(this.m_chkDebugTraces);
             this.groupCommands.Controls.Add(this.btnSendCustomCmd);
             this.groupCommands.Controls.Add(this.comboStdCmd);
             this.groupCommands.Controls.Add(this.label12);
@@ -1581,212 +1712,131 @@ namespace RFExplorerClient
             this.textBox_message.TabIndex = 49;
             this.textBox_message.WordWrap = false;
             // 
+            // tabRAWDecoder
+            // 
+            this.tabRAWDecoder.Location = new System.Drawing.Point(0, 0);
+            this.tabRAWDecoder.Name = "tabRAWDecoder";
+            this.tabRAWDecoder.Size = new System.Drawing.Size(200, 100);
+            this.tabRAWDecoder.TabIndex = 0;
+            // 
+            // groupDemodulator
+            // 
+            this.groupDemodulator.Location = new System.Drawing.Point(0, 0);
+            this.groupDemodulator.Name = "groupDemodulator";
+            this.groupDemodulator.Size = new System.Drawing.Size(200, 100);
+            this.groupDemodulator.TabIndex = 0;
+            this.groupDemodulator.TabStop = false;
+            // 
             // chkPSK
             // 
-            this.chkPSK.Appearance = System.Windows.Forms.Appearance.Button;
-            this.chkPSK.AutoSize = true;
-            this.chkPSK.Location = new System.Drawing.Point(126, 80);
+            this.chkPSK.Location = new System.Drawing.Point(0, 0);
             this.chkPSK.Name = "chkPSK";
-            this.chkPSK.Size = new System.Drawing.Size(38, 23);
-            this.chkPSK.TabIndex = 10;
-            this.chkPSK.TabStop = true;
-            this.chkPSK.Text = "PSK";
-            this.chkPSK.UseVisualStyleBackColor = true;
+            this.chkPSK.Size = new System.Drawing.Size(104, 24);
+            this.chkPSK.TabIndex = 0;
             // 
             // chkOOK
             // 
-            this.chkOOK.Appearance = System.Windows.Forms.Appearance.Button;
-            this.chkOOK.Location = new System.Drawing.Point(63, 80);
+            this.chkOOK.Location = new System.Drawing.Point(0, 0);
             this.chkOOK.Name = "chkOOK";
-            this.chkOOK.Size = new System.Drawing.Size(60, 23);
-            this.chkOOK.TabIndex = 9;
-            this.chkOOK.TabStop = true;
-            this.chkOOK.Text = "ASK/OOK";
-            this.chkOOK.UseVisualStyleBackColor = true;
+            this.chkOOK.Size = new System.Drawing.Size(104, 24);
+            this.chkOOK.TabIndex = 0;
             // 
             // m_sBaudRate
             // 
-            this.m_sBaudRate.BackColor = System.Drawing.Color.RoyalBlue;
-            this.m_sBaudRate.Font = new System.Drawing.Font("Digital-7", 14.25F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.m_sBaudRate.ForeColor = System.Drawing.Color.White;
-            this.m_sBaudRate.Location = new System.Drawing.Point(63, 51);
+            this.m_sBaudRate.Location = new System.Drawing.Point(0, 0);
             this.m_sBaudRate.Name = "m_sBaudRate";
-            this.m_sBaudRate.Size = new System.Drawing.Size(98, 26);
-            this.m_sBaudRate.TabIndex = 7;
-            this.m_sBaudRate.Text = "5600";
-            this.m_sBaudRate.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
+            this.m_sBaudRate.Size = new System.Drawing.Size(100, 20);
+            this.m_sBaudRate.TabIndex = 0;
             // 
             // m_sRefFrequency
             // 
-            this.m_sRefFrequency.BackColor = System.Drawing.Color.RoyalBlue;
-            this.m_sRefFrequency.Font = new System.Drawing.Font("Digital-7", 14.25F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.m_sRefFrequency.ForeColor = System.Drawing.Color.White;
-            this.m_sRefFrequency.Location = new System.Drawing.Point(63, 24);
+            this.m_sRefFrequency.Location = new System.Drawing.Point(0, 0);
             this.m_sRefFrequency.Name = "m_sRefFrequency";
-            this.m_sRefFrequency.Size = new System.Drawing.Size(98, 26);
-            this.m_sRefFrequency.TabIndex = 5;
-            this.m_sRefFrequency.Text = "433.920";
-            this.m_sRefFrequency.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.m_sRefFrequency.Leave += new System.EventHandler(this.m_sRefFrequency_Leave);
+            this.m_sRefFrequency.Size = new System.Drawing.Size(100, 20);
+            this.m_sRefFrequency.TabIndex = 0;
             // 
             // label18
             // 
-            this.label18.AutoSize = true;
-            this.label18.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Bold);
-            this.label18.ForeColor = System.Drawing.Color.DarkBlue;
-            this.label18.Location = new System.Drawing.Point(8, 83);
+            this.label18.Location = new System.Drawing.Point(0, 0);
             this.label18.Name = "label18";
-            this.label18.Size = new System.Drawing.Size(37, 16);
-            this.label18.TabIndex = 8;
-            this.label18.Text = "MOD";
+            this.label18.Size = new System.Drawing.Size(100, 23);
+            this.label18.TabIndex = 0;
             // 
             // label17
             // 
-            this.label17.AutoSize = true;
-            this.label17.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Bold);
-            this.label17.ForeColor = System.Drawing.Color.DarkBlue;
-            this.label17.Location = new System.Drawing.Point(6, 56);
+            this.label17.Location = new System.Drawing.Point(0, 0);
             this.label17.Name = "label17";
-            this.label17.Size = new System.Drawing.Size(53, 16);
-            this.label17.TabIndex = 6;
-            this.label17.Text = "B.RATE";
+            this.label17.Size = new System.Drawing.Size(100, 23);
+            this.label17.TabIndex = 0;
             // 
             // label16
             // 
-            this.label16.AutoSize = true;
-            this.label16.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Bold);
-            this.label16.ForeColor = System.Drawing.Color.DarkBlue;
-            this.label16.Location = new System.Drawing.Point(6, 29);
+            this.label16.Location = new System.Drawing.Point(0, 0);
             this.label16.Name = "label16";
-            this.label16.Size = new System.Drawing.Size(39, 16);
-            this.label16.TabIndex = 4;
-            this.label16.Text = "FREQ";
+            this.label16.Size = new System.Drawing.Size(100, 23);
+            this.label16.TabIndex = 0;
             // 
             // groupRAWDecoder
             // 
-            this.groupRAWDecoder.Controls.Add(this.chkRunDecoder);
-            this.groupRAWDecoder.Controls.Add(this.chkHoldDecoder);
-            this.groupRAWDecoder.Controls.Add(this.btnSaveRAWDecoderCSV);
-            this.groupRAWDecoder.Controls.Add(this.numMultiGraph);
-            this.groupRAWDecoder.Controls.Add(this.label15);
-            this.groupRAWDecoder.Controls.Add(this.numSampleDecoder);
-            this.groupRAWDecoder.Controls.Add(this.label14);
-            this.groupRAWDecoder.Location = new System.Drawing.Point(272, 6);
+            this.groupRAWDecoder.Location = new System.Drawing.Point(0, 0);
             this.groupRAWDecoder.Name = "groupRAWDecoder";
-            this.groupRAWDecoder.Size = new System.Drawing.Size(249, 108);
-            this.groupRAWDecoder.TabIndex = 51;
+            this.groupRAWDecoder.Size = new System.Drawing.Size(200, 100);
+            this.groupRAWDecoder.TabIndex = 0;
             this.groupRAWDecoder.TabStop = false;
-            this.groupRAWDecoder.Text = "RAW Decoder";
             // 
             // chkRunDecoder
             // 
-            this.chkRunDecoder.Appearance = System.Windows.Forms.Appearance.Button;
-            this.chkRunDecoder.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.chkRunDecoder.Location = new System.Drawing.Point(12, 20);
-            this.chkRunDecoder.MinimumSize = new System.Drawing.Size(60, 0);
+            this.chkRunDecoder.Location = new System.Drawing.Point(0, 0);
             this.chkRunDecoder.Name = "chkRunDecoder";
-            this.chkRunDecoder.Size = new System.Drawing.Size(60, 23);
-            this.chkRunDecoder.TabIndex = 59;
-            this.chkRunDecoder.Text = "RUN";
-            this.chkRunDecoder.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.chkRunDecoder.UseVisualStyleBackColor = true;
-            this.chkRunDecoder.CheckedChanged += new System.EventHandler(this.chkRunDecoder_CheckedChanged);
+            this.chkRunDecoder.Size = new System.Drawing.Size(104, 24);
+            this.chkRunDecoder.TabIndex = 0;
             // 
             // chkHoldDecoder
             // 
-            this.chkHoldDecoder.Appearance = System.Windows.Forms.Appearance.Button;
-            this.chkHoldDecoder.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.chkHoldDecoder.Location = new System.Drawing.Point(78, 20);
-            this.chkHoldDecoder.MinimumSize = new System.Drawing.Size(60, 0);
+            this.chkHoldDecoder.Location = new System.Drawing.Point(0, 0);
             this.chkHoldDecoder.Name = "chkHoldDecoder";
-            this.chkHoldDecoder.Size = new System.Drawing.Size(60, 23);
-            this.chkHoldDecoder.TabIndex = 60;
-            this.chkHoldDecoder.Text = "HOLD";
-            this.chkHoldDecoder.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-            this.chkHoldDecoder.UseVisualStyleBackColor = true;
-            this.chkHoldDecoder.CheckedChanged += new System.EventHandler(this.chkHoldDecoder_CheckedChanged);
+            this.chkHoldDecoder.Size = new System.Drawing.Size(104, 24);
+            this.chkHoldDecoder.TabIndex = 0;
             // 
             // btnSaveRAWDecoderCSV
             // 
-            this.btnSaveRAWDecoderCSV.Location = new System.Drawing.Point(152, 13);
+            this.btnSaveRAWDecoderCSV.Location = new System.Drawing.Point(0, 0);
             this.btnSaveRAWDecoderCSV.Name = "btnSaveRAWDecoderCSV";
-            this.btnSaveRAWDecoderCSV.Size = new System.Drawing.Size(91, 37);
-            this.btnSaveRAWDecoderCSV.TabIndex = 58;
-            this.btnSaveRAWDecoderCSV.Text = "Save CSV...";
-            this.btnSaveRAWDecoderCSV.UseVisualStyleBackColor = true;
-            this.btnSaveRAWDecoderCSV.Click += new System.EventHandler(this.btnSaveRAWDecoderCSV_Click);
+            this.btnSaveRAWDecoderCSV.Size = new System.Drawing.Size(75, 23);
+            this.btnSaveRAWDecoderCSV.TabIndex = 0;
             // 
             // numMultiGraph
             // 
-            this.numMultiGraph.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.numMultiGraph.Location = new System.Drawing.Point(90, 76);
-            this.numMultiGraph.Maximum = new decimal(new int[] {
-            4,
-            0,
-            0,
-            0});
-            this.numMultiGraph.Minimum = new decimal(new int[] {
-            1,
-            0,
-            0,
-            0});
+            this.numMultiGraph.Location = new System.Drawing.Point(0, 0);
             this.numMultiGraph.Name = "numMultiGraph";
-            this.numMultiGraph.Size = new System.Drawing.Size(47, 23);
-            this.numMultiGraph.TabIndex = 55;
-            this.numMultiGraph.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.numMultiGraph.Value = new decimal(new int[] {
-            4,
-            0,
-            0,
-            0});
-            this.numMultiGraph.ValueChanged += new System.EventHandler(this.numMultiGraph_ValueChanged);
+            this.numMultiGraph.Size = new System.Drawing.Size(120, 20);
+            this.numMultiGraph.TabIndex = 0;
             // 
             // label15
             // 
-            this.label15.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label15.Location = new System.Drawing.Point(9, 78);
+            this.label15.Location = new System.Drawing.Point(0, 0);
             this.label15.Name = "label15";
-            this.label15.Size = new System.Drawing.Size(75, 22);
-            this.label15.TabIndex = 56;
-            this.label15.Text = "Multi-graph";
+            this.label15.Size = new System.Drawing.Size(100, 23);
+            this.label15.TabIndex = 0;
             // 
             // numSampleDecoder
             // 
-            this.numSampleDecoder.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Italic, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.numSampleDecoder.Location = new System.Drawing.Point(67, 52);
-            this.numSampleDecoder.Maximum = new decimal(new int[] {
-            7,
-            0,
-            0,
-            0});
+            this.numSampleDecoder.Location = new System.Drawing.Point(0, 0);
             this.numSampleDecoder.Name = "numSampleDecoder";
-            this.numSampleDecoder.Size = new System.Drawing.Size(70, 23);
-            this.numSampleDecoder.TabIndex = 53;
-            this.numSampleDecoder.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
-            this.numSampleDecoder.Value = new decimal(new int[] {
-            2,
-            0,
-            0,
-            0});
-            this.numSampleDecoder.ValueChanged += new System.EventHandler(this.numSampleDecoder_ValueChanged);
+            this.numSampleDecoder.Size = new System.Drawing.Size(120, 20);
+            this.numSampleDecoder.TabIndex = 0;
             // 
             // label14
             // 
-            this.label14.Font = new System.Drawing.Font("Tahoma", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.label14.Location = new System.Drawing.Point(9, 54);
+            this.label14.Location = new System.Drawing.Point(0, 0);
             this.label14.Name = "label14";
-            this.label14.Size = new System.Drawing.Size(62, 22);
-            this.label14.TabIndex = 54;
-            this.label14.Text = "Sample";
+            this.label14.Size = new System.Drawing.Size(100, 23);
+            this.label14.TabIndex = 0;
             // 
             // zedRAWDecoder
             // 
-            this.zedRAWDecoder.EditButtons = System.Windows.Forms.MouseButtons.Left;
-            this.zedRAWDecoder.IsAntiAlias = true;
-            this.zedRAWDecoder.IsShowHScrollBar = true;
-            this.zedRAWDecoder.Location = new System.Drawing.Point(6, 120);
+            this.zedRAWDecoder.Location = new System.Drawing.Point(0, 0);
             this.zedRAWDecoder.Name = "zedRAWDecoder";
-            this.zedRAWDecoder.PanModifierKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Shift | System.Windows.Forms.Keys.None)));
             this.zedRAWDecoder.ScrollGrace = 0D;
             this.zedRAWDecoder.ScrollMaxX = 0D;
             this.zedRAWDecoder.ScrollMaxY = 0D;
@@ -1794,9 +1844,56 @@ namespace RFExplorerClient
             this.zedRAWDecoder.ScrollMinX = 0D;
             this.zedRAWDecoder.ScrollMinY = 0D;
             this.zedRAWDecoder.ScrollMinY2 = 0D;
-            this.zedRAWDecoder.Size = new System.Drawing.Size(920, 383);
-            this.zedRAWDecoder.TabIndex = 50;
-            this.zedRAWDecoder.TabStop = false;
+            this.zedRAWDecoder.Size = new System.Drawing.Size(150, 150);
+            this.zedRAWDecoder.TabIndex = 0;
+            // 
+            // m_MainFormTooltip
+            // 
+            this.m_MainFormTooltip.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(224)))), ((int)(((byte)(224)))), ((int)(((byte)(224)))));
+            this.m_MainFormTooltip.ForeColor = System.Drawing.Color.Blue;
+            // 
+            // btnSaveSettings
+            // 
+            this.btnSaveSettings.Location = new System.Drawing.Point(328, 4);
+            this.btnSaveSettings.Name = "btnSaveSettings";
+            this.btnSaveSettings.Size = new System.Drawing.Size(46, 23);
+            this.btnSaveSettings.TabIndex = 50;
+            this.btnSaveSettings.Text = "Save";
+            this.m_MainFormTooltip.SetToolTip(this.btnSaveSettings, "Save current settings to the selected name");
+            this.btnSaveSettings.UseVisualStyleBackColor = true;
+            this.btnSaveSettings.Click += new System.EventHandler(this.btnSaveSettings_Click);
+            // 
+            // btnDelSettings
+            // 
+            this.btnDelSettings.Location = new System.Drawing.Point(380, 4);
+            this.btnDelSettings.Name = "btnDelSettings";
+            this.btnDelSettings.Size = new System.Drawing.Size(46, 23);
+            this.btnDelSettings.TabIndex = 50;
+            this.btnDelSettings.Text = "Del";
+            this.m_MainFormTooltip.SetToolTip(this.btnDelSettings, "Delete the selected named settings");
+            this.btnDelSettings.UseVisualStyleBackColor = true;
+            this.btnDelSettings.Click += new System.EventHandler(this.btnDelSettings_Click);
+            // 
+            // btnLoadSettings
+            // 
+            this.btnLoadSettings.Location = new System.Drawing.Point(276, 4);
+            this.btnLoadSettings.Name = "btnLoadSettings";
+            this.btnLoadSettings.Size = new System.Drawing.Size(46, 23);
+            this.btnLoadSettings.TabIndex = 51;
+            this.btnLoadSettings.Text = "Load";
+            this.m_MainFormTooltip.SetToolTip(this.btnLoadSettings, "Load and apply the selected settings");
+            this.btnLoadSettings.UseVisualStyleBackColor = true;
+            this.btnLoadSettings.Click += new System.EventHandler(this.btnLoadSettings_Click);
+            // 
+            // m_chkDebugTraces
+            // 
+            this.m_chkDebugTraces.AutoSize = true;
+            this.m_chkDebugTraces.Location = new System.Drawing.Point(353, 15);
+            this.m_chkDebugTraces.Name = "m_chkDebugTraces";
+            this.m_chkDebugTraces.Size = new System.Drawing.Size(293, 17);
+            this.m_chkDebugTraces.TabIndex = 19;
+            this.m_chkDebugTraces.Text = "Detailed debug info (only if required to diagnose issues)";
+            this.m_chkDebugTraces.UseVisualStyleBackColor = true;
             // 
             // MainForm
             // 
@@ -1804,6 +1901,9 @@ namespace RFExplorerClient
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.SystemColors.Info;
             this.ClientSize = new System.Drawing.Size(940, 568);
+            this.Controls.Add(this.btnLoadSettings);
+            this.Controls.Add(this.btnDelSettings);
+            this.Controls.Add(this.btnSaveSettings);
             this.Controls.Add(this.MainTab);
             this.Controls.Add(this.MainMenu);
             this.Font = new System.Drawing.Font("Tahoma", 8.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
@@ -1840,20 +1940,21 @@ namespace RFExplorerClient
             ((System.ComponentModel.ISupportInitialize)(this.numericSensitivity)).EndInit();
             this.panelWaterfall.ResumeLayout(false);
             this.tabRemoteScreen.ResumeLayout(false);
-            this.groupRemoteScreen.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.numVideoFPS)).EndInit();
+            this.groupRemoteScreen.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.numericZoom)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numScreenIndex)).EndInit();
             this.panelRemoteScreen.ResumeLayout(false);
             this.tabConfiguration.ResumeLayout(false);
             this.panelConfiguration.ResumeLayout(false);
+            this.groupBoxFiles.ResumeLayout(false);
+            this.groupBoxFiles.PerformLayout();
             this.groupCalibration.ResumeLayout(false);
             this.groupCalibration.PerformLayout();
             this.tabReport.ResumeLayout(false);
             this.tabReport.PerformLayout();
             this.groupCommands.ResumeLayout(false);
             this.groupCommands.PerformLayout();
-            this.groupRAWDecoder.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.numMultiGraph)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numSampleDecoder)).EndInit();
             this.ResumeLayout(false);
@@ -2004,6 +2105,21 @@ namespace RFExplorerClient
         private System.Windows.Forms.TextBox m_edCalibrationFreq;
         private System.Windows.Forms.Label label19;
         private System.Windows.Forms.Button btnCalibrate;
+        private System.Windows.Forms.TextBox edDefaultFilePath;
+        private System.Windows.Forms.Label label20;
+        private System.Windows.Forms.GroupBox groupBoxFiles;
+        private System.Windows.Forms.Button btnOpenLog;
+        private System.Windows.Forms.Label labelReportFile;
+        private System.Windows.Forms.ToolStripComboBox menuComboSavedOptions;
+        private System.Windows.Forms.ToolTip m_MainFormTooltip;
+        private System.Windows.Forms.Button btnSaveSettings;
+        private System.Windows.Forms.Button btnDelSettings;
+        private System.Windows.Forms.ToolStripMenuItem menusSaveSimpleCSV;
+        private System.Windows.Forms.Label label21;
+        private System.Windows.Forms.ComboBox comboCSVFieldSeparator;
+        private System.Windows.Forms.Button btnLoadSettings;
+        private System.Windows.Forms.ToolStripMenuItem menuContinuousLog;
+        private System.Windows.Forms.CheckBox m_chkDebugTraces;
     }
 }
 

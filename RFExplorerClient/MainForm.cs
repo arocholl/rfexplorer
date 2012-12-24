@@ -1,4 +1,4 @@
-﻿//============================================================================
+//============================================================================
 //RF Explorer PC Client - A Handheld Spectrum Analyzer for everyone!
 //Copyright © 2010-12 Ariel Rocholl, www.rf-explorer.com
 //
@@ -33,14 +33,16 @@ using System.Reflection;
 using System.Threading;
 using System.Collections;
 using Microsoft.Win32;
+using System.Diagnostics;
 
 namespace RFExplorerClient
 {
     public partial class MainForm : Form
     {
+
         #region Data Members
         const byte m_nFileFormat = 1;               //File format constant
-        const int m_nTotalBufferSize = 10240;       //buffer size for the different available collections
+        const int m_nTotalBufferSize = 30000;       //buffer size for the different available collections
 
         const double MIN_AMPLITUDE_DBM = -120.0;
         const double MAX_AMPLITUDE_DBM = -1.0;
@@ -48,11 +50,15 @@ namespace RFExplorerClient
         const double MAX_RAW_SAMPLE = 4356 * 8;     //default value for RAW data sample
         const UInt16 MAX_SPECTRUM_STEPS = 1024;
 
-        const string m_sRFExplorerFirmwareCertified = "01.09"; //Firmware version of RF Explorer which was tested and certified with this PC Client
+        const string m_sRFExplorerFirmwareCertified = "01.10"; //Firmware version of RF Explorer which was tested and certified with this PC Client
 
         UInt16 m_nFreqSpectrumSteps = 112;  //$S byte buffer by default
         
         int m_nDrawingIteration = 0;        //Iteration counter to do regular updates on GUI
+
+        DataSet m_DataSettings;             //Settings data collection
+        bool m_bVersionAlerted = false;     //Used to alert about firmware version popup only once per session
+        bool m_bCalibrating = false;        //True when the application is calibrating
 
         enum eModel
         {
@@ -82,19 +88,8 @@ namespace RFExplorerClient
         eMode m_eMode;                      //The current operational mode
         bool m_bExpansionBoardActive;       //True when the expansion board is active, false otherwise
 
-        enum eModulation
-        {
-            MODULATION_OOK,         //0
-            MODULATION_PSK,         //1
-            MODULATION_NONE = 0xFF  //0xFF
-        };
-        eModulation m_eModulation;          //Modulation being used
-
-        //calibration values
-        Byte m_nCalibrationCapSi4x;
-        Byte m_nCalibrationCapMixer;
-        string m_sMainBoardCalibrated = ""; //Date when this was calibrated
-        string m_sExpansionBoardCalibrated = ""; //Date when this was calibrated
+        double m_fPeakValueMHZ = 0.0f;      //Last drawing iteration peak value MHZ read
+        double m_fPeakValueAmp = -120.0f;   //Last drawing iteration peak value dBm read
 
         //Initializer for 433MHz model, will change later based on settings
         double m_fMinSpanMHZ = 0.112;       //Min valid span in MHZ for connected model
@@ -107,7 +102,6 @@ namespace RFExplorerClient
 
         string m_sFilenameRFE="";           //RFE data file name
         string m_sReportFilePath="";        //Path and name of the report log file
-        string m_sDefaultFolder = "";       //RFE default folder for saving data files
 
         Boolean m_bPortConnected = false;   //Will be true while COM port is connected, as IsOpen() is not reliable
 
@@ -121,10 +115,6 @@ namespace RFExplorerClient
 
         const float m_fSizeX = 130;         //Size of the dump screen in pixels (128x64 + 2 border)
         const float m_fSizeY = 66;
-
-        UInt16 m_nRAWSnifferIndex=0;        //Index pointing to current RAW data value shown
-        UInt16 m_nMaxRAWSnifferIndex=0;     //Index pointing to the last RAW data value available
-        string[] m_arrRAWSnifferData;       //Array of strings for sniffer data
 
         string[] m_arrConnectedPorts;      //Collection of available COM ports
         string[] m_arrValidCP2101Ports;    //Collection of true CP2102 COM ports
@@ -165,8 +155,15 @@ namespace RFExplorerClient
 
         bool m_bIsWinXP = false;            //True if it is a Windows XP platform, which has some GUI differences with Win7/Vista
 
+        LineItem m_AvgLine, m_MinLine, m_RealtimeLine, m_MaxLine;   //Line curve item for the analyzer zed graph
+        PointPairList m_PointListRealtime, m_PointListMax, m_PointListMin, m_PointListAverage;  //pair list used by the line curve items
+        BarItem m_MaxBar;                   //Bar curve used by the wifi analyzer
+
         Button[] m_arrAnalyzerButtonList=new Button[14];
-        
+
+        string m_sAppDataFolder = "";       //Default folder based on %APPDATA% to store log and report files
+        string m_sDefaultDataFolder = "";   //Default folder to store CSV and RFE or other data files
+        string m_sSettingsFile = "";        //Filename and path of the named settings file
         #endregion
 
         #region Main Window
@@ -178,6 +175,70 @@ namespace RFExplorerClient
             SetStyle(ControlStyles.AllPaintingInWmPaint, true);
             SetStyle(ControlStyles.UserPaint, true);
             InitializeComponent();
+        }
+
+        private void CreateSettingsSchema()
+        {
+            try
+            {
+                DataTable objTableCommon = m_DataSettings.Tables.Add("Common_Settings");
+
+                objTableCommon.Columns.Add(new DataColumn("Name", System.Type.GetType("System.String")));
+                objTableCommon.Columns.Add(new DataColumn("StartFreq", System.Type.GetType("System.Double")));
+                objTableCommon.Columns.Add(new DataColumn("StepFreq", System.Type.GetType("System.Double")));
+                objTableCommon.Columns.Add(new DataColumn("TopAmp", System.Type.GetType("System.Double")));
+                objTableCommon.Columns.Add(new DataColumn("BottomAmp", System.Type.GetType("System.Double")));
+                objTableCommon.Columns.Add(new DataColumn("Calculator", System.Type.GetType("System.UInt16")));
+                objTableCommon.Columns.Add(new DataColumn("ViewAvg", System.Type.GetType("System.Boolean")));
+                objTableCommon.Columns.Add(new DataColumn("ViewRT", System.Type.GetType("System.Boolean")));
+                objTableCommon.Columns.Add(new DataColumn("ViewMin", System.Type.GetType("System.Boolean")));
+                objTableCommon.Columns.Add(new DataColumn("ViewMax", System.Type.GetType("System.Boolean")));
+
+                DataRow objRow=objTableCommon.NewRow();
+                objRow["Name"] = "Default";
+                objRow["StartFreq"] = 430.000;
+                objRow["StepFreq"] = 0.500;
+                objRow["TopAmp"] = 5;
+                objRow["BottomAmp"] = -120;
+                objRow["Calculator"] = 10;
+                objRow["ViewAvg"] = true;
+                objRow["ViewRT"] = true;
+                objRow["ViewMin"] = false;
+                objRow["ViewMax"] = false;
+                objTableCommon.Rows.Add(objRow);
+
+                m_DataSettings.WriteXml(m_sSettingsFile,XmlWriteMode.WriteSchema);
+            }
+            catch (Exception objEx)
+            {
+                MessageBox.Show(objEx.Message);
+            }
+        }
+
+        private void btnLoadSettings_Click(object sender, EventArgs e)
+        {
+            RestoreSettingsXML(menuComboSavedOptions.Text);
+        }
+        
+        private void menuComboSavedOptions_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            btnDelSettings.Enabled = menuComboSavedOptions.Text != "Default";
+        }
+
+        private void btnSaveSettings_Click(object sender, EventArgs e)
+        {
+            string sItem = menuComboSavedOptions.Text;
+            SaveSettingsXML(sItem);
+            PopulateReadedSettings();
+            menuComboSavedOptions.SelectedItem = sItem;
+        }
+
+        private void btnDelSettings_Click(object sender, EventArgs e)
+        {
+            string sItem = menuComboSavedOptions.Text;
+            DeleteSettingsXML(sItem);
+            menuComboSavedOptions.Items.Remove(sItem);
+            menuComboSavedOptions.SelectedItem = "Default";
         }
 
         private void DefineGraphColors(ZedGraphControl objGraph)
@@ -280,6 +341,37 @@ namespace RFExplorerClient
             // Get a reference to the GraphPane instance in the ZedGraphControl
             GraphPane myPane = zedSpectrumAnalyzer.GraphPane;
 
+            m_PointListRealtime = new PointPairList();
+            m_PointListMax = new PointPairList();
+            m_PointListMin = new PointPairList();
+            m_PointListAverage = new PointPairList();
+
+            m_MaxBar = zedSpectrumAnalyzer.GraphPane.AddHiLowBar("Max", m_PointListMax, Color.Red);
+            m_MaxBar.Bar.Border.Color = Color.DarkRed;
+            m_MaxBar.Bar.Border.Width = 2;
+            m_AvgLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Avg", m_PointListAverage, Color.Brown, SymbolType.None);
+            m_AvgLine.Line.Width = 2;
+            m_AvgLine.Line.SmoothTension = 0.3F;
+            m_AvgLine.Line.IsSmooth = true;
+            m_MinLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Min", m_PointListMin, Color.DarkGreen, SymbolType.None);
+            m_MinLine.Line.Width = 2;
+            m_MinLine.Line.SmoothTension = 0.3F;
+            m_MinLine.Line.IsSmooth = true; 
+            m_RealtimeLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Realtime", m_PointListRealtime, Color.Blue, SymbolType.None);
+            m_RealtimeLine.Line.Width = 3;
+            m_RealtimeLine.Line.SmoothTension = 0.2F;
+            m_RealtimeLine.Line.IsSmooth = true;
+            m_MaxLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Max", m_PointListMax, Color.Red, SymbolType.None);
+            m_MaxLine.Line.Width = 2;
+            m_MaxLine.Line.SmoothTension = 0.3F;
+            m_MaxLine.Line.IsSmooth = true;
+
+            foreach (CurveItem objCurve in zedSpectrumAnalyzer.GraphPane.CurveList)
+            {
+                objCurve.IsVisible = false;
+                objCurve.Label.IsVisible = false;
+            }
+
             m_arrAnalyzerButtonList[0] = btnTop5plus;
             m_arrAnalyzerButtonList[1] = btnTop5minus;
             m_arrAnalyzerButtonList[2] = btnMoveFreqDecLarge;
@@ -356,7 +448,7 @@ namespace RFExplorerClient
             m_RealtimePeak.IsClippedToChartRect = true;
             m_RealtimePeak.Location.AlignH = AlignH.Center;
             m_RealtimePeak.Location.AlignV = AlignV.Bottom;
-            m_RealtimePeak.FontSpec.Size = 8;
+            m_RealtimePeak.FontSpec.Size = 8f;
             m_RealtimePeak.FontSpec.Border.IsVisible = false;
             m_RealtimePeak.FontSpec.FontColor = Color.Blue;
             m_RealtimePeak.FontSpec.StringAlignment = StringAlignment.Center;
@@ -415,7 +507,6 @@ namespace RFExplorerClient
             {
                 SendCommand("L1");
             }
-            groupRemoteScreen.Enabled = !menuAutoLCDOff.Checked;
         }
 
         private void GetNewFilename()
@@ -426,18 +517,6 @@ namespace RFExplorerClient
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            /*for (byte nInd = 0; nInd < 32; nInd++)
-            {
-                m_nCalibrationCapMixer = nInd;
-                byte nHex = MixerCapacitor2Hex();
-                string sReport = nInd.ToString("X2") + ":" + nHex.ToString("X2") + "|";
-                Hex2MixerCapacitor(nHex);
-                sReport += m_nCalibrationCapMixer.ToString("X2");
-                ReportLog(sReport);
-            }*/
-
-            m_sDefaultFolder = Environment.GetEnvironmentVariable("APPDATA") + "\\";
-
             //up to m_nTotalBufferSize pages of m_nFreqSpectrumSteps bytes each
             m_arrData               = new float[m_nTotalBufferSize, MAX_SPECTRUM_STEPS]; 
 
@@ -445,13 +524,6 @@ namespace RFExplorerClient
             m_arrRemoteScreenData.Initialize();
             m_nScreenIndex          = 0;
             m_nMaxScreenIndex       = 0;
-
-            m_arrRAWSnifferData     = new string[m_nTotalBufferSize];
-            m_nRAWSnifferIndex      = 0;
-            m_nMaxRAWSnifferIndex   = 0;
-            numSampleDecoder.Maximum = m_nTotalBufferSize;
-            numSampleDecoder.Minimum = 0;
-            numSampleDecoder.Value  = 0;
 
             toolStripMemory.Maximum = m_nTotalBufferSize;
             toolStripMemory.Step    = m_nTotalBufferSize / 25;
@@ -477,13 +549,11 @@ namespace RFExplorerClient
             {
                 m_serialPortObj             = new SerialPort();
 
-                GetConnectedPorts();
-
                 LoadProperties();
+
+                GetConnectedPorts();
                 InitializeSpectrumAnalyzerGraph();
                 SetupSpectrumAnalyzerAxis();
-
-                InitializeRAWDecoderGraph();
 
                 UpdateButtonStatus();
                 m_arrReceivedStrings        = new Queue();
@@ -510,7 +580,7 @@ namespace RFExplorerClient
             }
             catch
             {
-                ReportLog("Error in MainForm_Load");
+                ReportLog("Error in MainForm_Load", true);
             }
             textBox_message.Focus();
         }
@@ -530,11 +600,11 @@ namespace RFExplorerClient
                     COMPortCombo.SelectedItem = RFExplorerClient.Properties.Settings.Default.COMPort;
                 }
                 else
-                    ReportLog("ERROR: No valid COM ports available\r\nConnect RFExplorer and click on [*]");
+                    ReportLog("ERROR: No valid COM ports available\r\nConnect RFExplorer and click on [*]", false);
             }
             catch (Exception obEx)
             {
-                ReportLog("Error scanning COM ports: " + obEx.Message); 
+                ReportLog("Error scanning COM ports: " + obEx.Message, true); 
             }
         }
 
@@ -545,11 +615,13 @@ namespace RFExplorerClient
             COMPortCombo.Enabled = !m_bPortConnected;
             comboBaudRate.Enabled = !m_bPortConnected;
             btnRescan.Enabled = !m_bPortConnected;
-            chkDumpScreen.Enabled = m_bPortConnected;
+            chkDumpScreen.Checked = chkDumpScreen.Checked && !menuAutoLCDOff.Checked && m_bPortConnected;
+            chkDumpScreen.Enabled = m_bPortConnected && !menuAutoLCDOff.Checked;
 
             btnSendCmd.Enabled = m_bPortConnected;
 
             groupFreqSettings.Enabled = m_bPortConnected;
+            groupDemodulator.Enabled = m_bPortConnected;
             chkHoldMode.Enabled = m_bPortConnected;
             chkRunMode.Enabled = m_bPortConnected;
             chkRunDecoder.Enabled = m_bPortConnected;
@@ -563,7 +635,8 @@ namespace RFExplorerClient
             btnSaveRemoteBitmap.Enabled = m_nMaxScreenIndex > 0;
             btnSaveRemoteVideo.Enabled = m_nMaxScreenIndex > 0;
 
-            panelConfiguration.Enabled = m_bPortConnected;
+            panelConfiguration.Enabled = true;
+            groupCalibration.Enabled = m_bPortConnected;
 
             for (int nInd = 0; nInd < m_arrAnalyzerButtonList.Length; nInd++)
             {
@@ -597,10 +670,9 @@ namespace RFExplorerClient
                 UpdateFeedMode();
                 SaveProperties();
 
-                ReportLog("Connected: " + m_serialPortObj.PortName.ToString() + ", " + m_serialPortObj.BaudRate.ToString() + " bauds");
+                ReportLog("Connected: " + m_serialPortObj.PortName.ToString() + ", " + m_serialPortObj.BaudRate.ToString() + " bauds", true);
 
                 Thread.Sleep(500);
-                StopAPIMode(); //stop api mode, if any
                 Thread.Sleep(200);
                 AskConfigData();
                 Thread.Sleep(500);
@@ -608,7 +680,7 @@ namespace RFExplorerClient
             }
             catch (Exception obException) 
             { 
-                ReportLog("ERROR ConnectPort: " + obException.Message); 
+                ReportLog("ERROR ConnectPort: " + obException.Message, false); 
             }
             finally
             {
@@ -619,25 +691,89 @@ namespace RFExplorerClient
 
         private void LoadProperties()
         {
+            //Load standard WinForm .NET properties
             comboBaudRate.SelectedItem  = RFExplorerClient.Properties.Settings.Default.COMSpeed;
             COMPortCombo.SelectedItem   = RFExplorerClient.Properties.Settings.Default.COMPort;
             menuSaveOnClose.Checked     = RFExplorerClient.Properties.Settings.Default.SaveOnClose;
-            m_fStartFrequencyMHZ        = RFExplorerClient.Properties.Settings.Default.StartFreq;
-            m_fStepFrequencyMHZ         = RFExplorerClient.Properties.Settings.Default.StepFreq;
-            numericIterations.Value     = RFExplorerClient.Properties.Settings.Default.Calculator;
-            m_fAmplitudeBottom          = RFExplorerClient.Properties.Settings.Default.BottomAmp;
-            m_fAmplitudeTop             = RFExplorerClient.Properties.Settings.Default.TopAmp;
-            m_bDrawMax                  = RFExplorerClient.Properties.Settings.Default.ViewMax;
-            m_bDrawMin                  = RFExplorerClient.Properties.Settings.Default.ViewMin;
-            m_bDrawRealtime             = RFExplorerClient.Properties.Settings.Default.ViewRT;
-            m_bDrawAverage              = RFExplorerClient.Properties.Settings.Default.ViewAvg;
             numericZoom.Value           = RFExplorerClient.Properties.Settings.Default.ScreenZoom;
             m_bShowPeaks                = RFExplorerClient.Properties.Settings.Default.ViewPeaks;
             menuShowControlArea.Checked = RFExplorerClient.Properties.Settings.Default.ShowControlArea;
             m_bDark                     = RFExplorerClient.Properties.Settings.Default.DarkMode;
             menuAutoLCDOff.Checked      = RFExplorerClient.Properties.Settings.Default.AutoLCDOff;
+            menuContinuousLog.Checked   = RFExplorerClient.Properties.Settings.Default.ContinuousLog;
+            string sTemp                = RFExplorerClient.Properties.Settings.Default.DefaultDataFolder;
+            comboCSVFieldSeparator.SelectedIndex = (int)RFExplorerClient.Properties.Settings.Default.CSVDelimiter;
+
+            //Configuring and loading default folders
+            m_sAppDataFolder = Environment.GetEnvironmentVariable("APPDATA") + "\\RFExplorer";
+            m_sAppDataFolder = m_sAppDataFolder.Replace("\\\\", "\\");
+            if (m_sDefaultDataFolder == "")
+            {
+                m_sDefaultDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "\\RFExplorer";
+                m_sDefaultDataFolder = m_sDefaultDataFolder.Replace("\\\\", "\\");
+                edDefaultFilePath.Text = m_sDefaultDataFolder;
+            }
+            //Create specific RF Explorer folders if they don't exist, alert with a message box if that fails
+            try
+            {
+                Directory.CreateDirectory(m_sAppDataFolder);
+                Directory.CreateDirectory(m_sDefaultDataFolder);
+            }
+            catch (Exception obEx)
+            {
+                MessageBox.Show(obEx.Message);
+            }
+
+
+            m_sSettingsFile = m_sAppDataFolder + "\\RFExplorer_Settings.xml";
+            try
+            {
+                //Check if old settings file exists, and not the new one, thus move it to reuse it. This "old file" was
+                //created in v1.09.04 and has the problem of some users with limited access rights cannot create it.
+                string sOldSettingsFile = Assembly.GetExecutingAssembly().Location + ".Settings.xml";
+                if (File.Exists(sOldSettingsFile) && !File.Exists(m_sSettingsFile))
+                {
+                    //We do not really move it as there may be restricted permissions and want to avoid any problem
+                    File.Copy(sOldSettingsFile, m_sSettingsFile);
+                    MessageBox.Show("NOTE: Old named-settings file has been migrated to the new location " + m_sSettingsFile);
+                    //we try to delete it now, may fail but worth trying. We already copied it, anyway
+                    File.Delete(sOldSettingsFile);
+                }
+            }
+            catch { };
+            //open new settings file
+            m_DataSettings = new DataSet("RF_Explorer_Settings");
+            if (!File.Exists(m_sSettingsFile))
+            {
+                CreateSettingsSchema();
+            }
+
+            //Load custom name saved properties
+            if (m_DataSettings.Tables.Count == 0)
+            {
+                //do not load it twice or records will be repeated
+                m_DataSettings.ReadXml(m_sSettingsFile);
+            }
+            PopulateReadedSettings();
+            RestoreSettingsXML("Default");
+
+            if (sTemp != "")
+            {
+                m_sDefaultDataFolder = sTemp;
+            }
+            edDefaultFilePath.Text = m_sDefaultDataFolder;
 
             comboCustomCommand.DataSource = RFExplorerClient.Properties.Settings.Default.CustomCommands;
+        }
+
+        private void PopulateReadedSettings()
+        {
+            menuComboSavedOptions.Items.Clear();
+            foreach (DataRow objRow in m_DataSettings.Tables["Common_Settings"].Rows)
+            {
+                menuComboSavedOptions.Items.Add((string)objRow["Name"]);
+            }
+            menuComboSavedOptions.SelectedItem = "Default";
         }
 
         private void SaveProperties()
@@ -651,28 +787,129 @@ namespace RFExplorerClient
 
             RFExplorerClient.Properties.Settings.Default.COMSpeed = comboBaudRate.SelectedItem.ToString();
             RFExplorerClient.Properties.Settings.Default.SaveOnClose = menuSaveOnClose.Checked;
-            RFExplorerClient.Properties.Settings.Default.StartFreq = m_fStartFrequencyMHZ;
-            RFExplorerClient.Properties.Settings.Default.StepFreq = m_fStepFrequencyMHZ;
-            RFExplorerClient.Properties.Settings.Default.Calculator = (int)numericIterations.Value;
-            RFExplorerClient.Properties.Settings.Default.BottomAmp = m_fAmplitudeBottom;
-            RFExplorerClient.Properties.Settings.Default.TopAmp = m_fAmplitudeTop;
-            RFExplorerClient.Properties.Settings.Default.ViewMax = m_bDrawMax;
-            RFExplorerClient.Properties.Settings.Default.ViewMin = m_bDrawMin;
-            RFExplorerClient.Properties.Settings.Default.ViewRT = m_bDrawRealtime;
-            RFExplorerClient.Properties.Settings.Default.ViewAvg = m_bDrawAverage;
             RFExplorerClient.Properties.Settings.Default.ScreenZoom = (int)numericZoom.Value;
             RFExplorerClient.Properties.Settings.Default.ViewPeaks = m_bShowPeaks;
             RFExplorerClient.Properties.Settings.Default.ShowControlArea = menuShowControlArea.Checked;
             RFExplorerClient.Properties.Settings.Default.DarkMode = m_bDark;
             RFExplorerClient.Properties.Settings.Default.AutoLCDOff = menuAutoLCDOff.Checked;
+            RFExplorerClient.Properties.Settings.Default.DefaultDataFolder = m_sDefaultDataFolder;
+            RFExplorerClient.Properties.Settings.Default.CSVDelimiter = (uint)comboCSVFieldSeparator.SelectedIndex;
+            RFExplorerClient.Properties.Settings.Default.ContinuousLog = menuContinuousLog.Checked;
             RFExplorerClient.Properties.Settings.Default.Save();
+
+            SaveSettingsXML("Default");
+        }
+
+        private void DeleteSettingsXML(string sSettingsName)
+        {
+            try
+            {
+                DataRow[] objRowCol = m_DataSettings.Tables["Common_Settings"].Select("Name='" + sSettingsName + "'");
+                if (objRowCol.Length > 0)
+                {
+                    m_DataSettings.Tables["Common_Settings"].Rows.Remove(objRowCol[0]);
+                    m_DataSettings.WriteXml(m_sSettingsFile, XmlWriteMode.WriteSchema);
+                }
+            }
+            catch (Exception obEx)
+            {
+                ReportLog("ERROR DeleteSettingsXML:" + obEx.Message, true);
+            }
+        }
+        
+        private void RestoreSettingsXML(string sSettingsName)
+        {
+            try
+            {
+                DataRow[] objRowCol = m_DataSettings.Tables["Common_Settings"].Select("Name='" + sSettingsName + "'");
+                if (objRowCol.Length > 0)
+                {
+                    DataRow objRowDefault = objRowCol[0];
+                    double fStartFrequencyMHZ = (double)objRowDefault["StartFreq"];
+                    double fStepFrequencyMHZ = (double)objRowDefault["StepFreq"];
+                    double fAmplitudeTop = (double)objRowDefault["TopAmp"];
+                    double fAmplitudeBottom = (double)objRowDefault["BottomAmp"];
+                    numericIterations.Value = (UInt16)objRowDefault["Calculator"];
+                    m_bDrawAverage = (bool)objRowDefault["ViewAvg"];
+                    m_bDrawRealtime = (bool)objRowDefault["ViewRT"];
+                    m_bDrawMin = (bool)objRowDefault["ViewMin"];
+                    m_bDrawMax = (bool)objRowDefault["ViewMax"];
+
+                    if (m_bPortConnected == false)
+                    {
+                        //If device is disconnected, we just need to update visible parts of screen as otherwise it won't change
+                        m_fAmplitudeTop = fAmplitudeTop;
+                        m_fAmplitudeBottom = fAmplitudeBottom;
+
+                        //Check to reinitiate buffer here, otherwise after changing it the receive function will not know the data was changed
+                        if ((Math.Abs(m_fStartFrequencyMHZ - fStartFrequencyMHZ) >= 0.001) || (Math.Abs(m_fStepFrequencyMHZ - fStepFrequencyMHZ) >= 0.001))
+                        {
+                            m_fStartFrequencyMHZ = fStartFrequencyMHZ;
+                            m_fStepFrequencyMHZ = fStepFrequencyMHZ;
+                            m_nDataIndex = 0; //we cannot use previous data for avg, etc when new frequency range is selected
+                            m_nMaxDataIndex = 0;
+                        }
+                        SetupSpectrumAnalyzerAxis(); //will update everything including the edit boxes
+                    }
+                    else
+                    {
+                        //if device is connected, we do not need to change anything: just ask the device to reconfigure and the new configuration will come back
+                        SendNewConfig(fStartFrequencyMHZ, fStartFrequencyMHZ + fStepFrequencyMHZ * m_nFreqSpectrumSteps, fAmplitudeTop, fAmplitudeBottom);
+                    }
+                    UpdateButtonStatus();
+                }
+            }
+            catch (Exception obEx)
+            {
+                ReportLog("ERROR RestoreSettingsXML:" + obEx.Message, true);
+            }
+        }
+
+        private void SaveSettingsXML(string sSettingsName)
+        {
+            try
+            {
+                DataRow[] objRowCol = m_DataSettings.Tables["Common_Settings"].Select("Name='" + sSettingsName + "'");
+                DataRow objRow = null;
+
+                if (objRowCol.Length == 0)
+                {
+                    objRow = m_DataSettings.Tables["Common_Settings"].NewRow();
+                    objRow["Name"] = sSettingsName;
+                    m_DataSettings.Tables["Common_Settings"].Rows.Add(objRow);
+                }
+                else
+                {
+                    objRow = objRowCol[0];
+                }
+
+                objRow["StartFreq"] = m_fStartFrequencyMHZ;
+                objRow["StepFreq"] = m_fStepFrequencyMHZ;
+                objRow["TopAmp"] = m_fAmplitudeTop;
+                objRow["BottomAmp"] = m_fAmplitudeBottom;
+                objRow["Calculator"] = (int)numericIterations.Value;
+                objRow["ViewAvg"] = m_bDrawAverage;
+                objRow["ViewRT"] = m_bDrawRealtime;
+                objRow["ViewMin"] = m_bDrawMin;
+                objRow["ViewMax"] = m_bDrawMax;
+                m_DataSettings.WriteXml(m_sSettingsFile, XmlWriteMode.WriteSchema);
+
+                if (sSettingsName == "Default")
+                {
+                    //If we are saving the default value, that is because we are doing it automatically (e.g. when closing the port)
+                    //Therefore select it as the default on screen too
+                    menuComboSavedOptions.SelectedItem = "Default";
+                }
+            }
+            catch (Exception obEx)
+            {
+                ReportLog("ERROR SaveSettingsXML:" + obEx.Message, true);
+            }
         }
 
         private void ManualConnect()
         {
             ConnectPort(COMPortCombo.SelectedValue.ToString());
-
-            SaveProperties();
         }
 
         private void ClosePort()
@@ -684,14 +921,13 @@ namespace RFExplorerClient
 
                 if (m_serialPortObj.IsOpen)
                 {
-                    StopAPIMode(); //stop api mode, if any
                     Thread.Sleep(200);
                     SendCommand("L1"); //restore LCD
                     Thread.Sleep(200);
                     SendCommand("CH"); //Switch data dump to off
                     Thread.Sleep(200);
                     //Close the port
-                    ReportLog("Disconnected.");
+                    ReportLog("Disconnected.", true);
                     m_serialPortObj.Close();
                 }
             }
@@ -708,14 +944,12 @@ namespace RFExplorerClient
             Cursor.Current = Cursors.Default;
         }
 
-        bool m_bModeAPI = false;
-
         private void ReceiveThreadfunc()
         {
             while (m_bRunReceiveThread)
             {
                 string strReceived = "";
-                while (m_bPortConnected && !m_bModeAPI)
+                while (m_bPortConnected)
                 {
                     string sNewText = "";
 
@@ -880,51 +1114,21 @@ namespace RFExplorerClient
                 {
                     ReportLog("\r\nWARNING: Firmware version connected v" + m_sRFExplorerFirmware + " is newer than the one certified v" + m_sRFExplorerFirmwareCertified + " for this version of PC Client.\r\n" +
                                   "         However, it may be compatible but you should check www.rf-explorer.com website\r\n"+
-                                  "         to double check there is not a newer version available.\r\n");
+                                  "         to double check there is not a newer version available.\r\n", false);
                 }
                 else
                 {
                     string sText = "RF Explorer device has an older firmware version " + m_sRFExplorerFirmware +
                         "\r\nPlease upgrade it to required version " + m_sRFExplorerFirmwareCertified +
                         "\r\nVisit www.rf-explorer/download to get required firmware.";
-                    MessageBox.Show(sText,"Firmware Warning");
-                    ReportLog(sText);
+                    if (!m_bVersionAlerted)
+                    {
+                        m_bVersionAlerted = true;
+                        MessageBox.Show(sText, "Firmware Warning");
+                    }
+                    ReportLog(sText, false);
                 }
             }
-        }
-
-        UInt16 m_nTotalConfigurableSteps = 200;
-        UInt32 m_nConfigurableStepHZ = 100000;
-        double m_fConfigurableStartFreqMHZ = 1000.0f;
-
-        private void RenderConfigurableAnalyzer()
-        {
-            string sDummy = m_serialPortObj.ReadExisting(); //clean all previous buffer, just in case
-
-            zedSpectrumAnalyzer.GraphPane.CurveList.Clear();
-            PointPairList RTList = new PointPairList();
-
-            for (int nStep = 0; nStep < m_nTotalConfigurableSteps; nStep++)
-            {
-                string sCommand;
-                double fFreqKHZ=m_fConfigurableStartFreqMHZ * 1000.0f + (m_nConfigurableStepHZ * nStep)/1000.0f;
-                sCommand = "f" + (Convert.ToUInt32(fFreqKHZ)).ToString("D7") + "," + m_nConfigurableStepHZ.ToString("D7");
-                SendCommand(sCommand);
-
-                string sResponse="";
-                do
-                {
-                    sResponse = m_serialPortObj.ReadExisting();
-                } while (sResponse.Length == 0);
-
-                double fVal = (double)(Convert.ToByte(sResponse[0]))/-2.0f;
-                RTList.Add(fFreqKHZ/1000.0f, fVal, -120.0f);
-            }
-            ClosePort();
-
-            LineItem RealtimeLine = zedSpectrumAnalyzer.GraphPane.AddCurve("API", RTList, Color.DarkBlue, SymbolType.None);
-            RealtimeLine.Line.Width = 3;
-            zedSpectrumAnalyzer.Refresh();
         }
 
         //Returns true if an event was received requiring redraw
@@ -961,38 +1165,21 @@ namespace RFExplorerClient
                             m_nDataIndex++;
                             if (m_nDataIndex >= m_nTotalBufferSize)
                             {
-                                m_nDataIndex = m_nTotalBufferSize;
-                                m_bHoldMode = true;
-                                UpdateFeedMode();
-                                ReportLog("Buffer is full.");
+                                if (menuContinuousLog.Checked)
+                                {
+                                    GetNewFilename();
+                                    SaveFile(m_sFilenameRFE);
+                                    ReportLog("Buffer is full but continuous data log is active - Auto saved data file: " + m_sFilenameRFE, false);
+                                }
+                                else
+                                {
+                                    ReportLog("Buffer is full, previous data was lost - use menu option File->Continuous log to RFE data file.", false);
+                                }
+                                m_nDataIndex = 0;
+                                m_nMaxDataIndex = 0;
                             }
                             m_nMaxDataIndex = m_nDataIndex;
                             numericSampleSA.Value = m_nDataIndex;
-                        }
-                    }
-                    else if ((sLine.Length > 2) && sLine.Substring(0, 2) == "$R")
-                    {
-                        if (!m_bHoldMode && m_nRAWSnifferIndex < m_nTotalBufferSize)
-                        {
-                            if (m_arrRAWSnifferData == null)
-                            {
-                                //don't allocate memory for this object before actually required as most users may not need this
-                                m_arrRAWSnifferData = new string[m_nTotalBufferSize];
-                            }
-                            m_nRAWSnifferIndex++;
-                            if (m_nRAWSnifferIndex >= m_nTotalBufferSize)
-                            {
-                                m_nRAWSnifferIndex = m_nTotalBufferSize;
-                                m_bHoldMode = true;
-                                UpdateFeedMode();
-                                ReportLog("Buffer is full.");
-                            }
-                            else
-                            {
-                                m_arrRAWSnifferData[m_nRAWSnifferIndex] = sLine;
-                            }
-                            m_nMaxRAWSnifferIndex = m_nRAWSnifferIndex;
-                            DrawRAWDecoder();
                         }
                     }
                     else if ((sLine.Length > 2) && sLine.Substring(0, 2) == "$D")
@@ -1029,34 +1216,9 @@ namespace RFExplorerClient
                             SendCommand("D0");
                         }
                     }
-                    else if ((sLine.Length >= 5) && sLine.Substring(0, 3) == "$Cc")
-                    {
-                        m_nCalibrationCapSi4x = Convert.ToByte(sLine[4]);
-                        Hex2MixerCapacitor(Convert.ToByte(sLine[5])); //m_nCalibrationCapMixer set internally by this function
-                        ReportLog("Calibration data: 0x" + m_nCalibrationCapSi4x.ToString("x") + ", 0x" + m_nCalibrationCapMixer.ToString("x") + ", " + Convert.ToByte(sLine[6])+"ºC");
-                    }
-                    else if ((sLine.Length >= 5) && sLine.Substring(0, 3) == "$Cr")
-                    {
-                        //ignore - internally used by callers to this function, not really used here
-                        int nSize=Convert.ToByte(sLine[3]);
-                        string sDebugOutput="";
-                        for (int nInd=0; nInd<nSize; nInd++)
-                        {
-                            if ((nInd % 16) == 0)
-                            {
-                                sDebugOutput += "DUMP: ["+nInd.ToString("X2")+"]:";
-                            }
-                            sDebugOutput+="["+Convert.ToByte(sLine[4+nInd]).ToString("X2")+"]";
-                            if (((nInd + 1) % 16) == 0)
-                            {
-                                sDebugOutput += Environment.NewLine;
-                            }
-                        }
-                        ReportLog(sDebugOutput);
-                    }
                     else if ((sLine.Length > 6) && sLine.Substring(0, 6) == "#C2-M:")
                     {
-                        ReportLog("Received RFExplorer device model info:" + sLine);
+                        ReportLog("Received RFExplorer device model info:" + sLine, true);
                         m_eMainBoardModel = (eModel)Convert.ToUInt16(sLine.Substring(6, 3));
                         m_eExpansionBoardModel = (eModel)Convert.ToUInt16(sLine.Substring(10, 3));
                         m_sRFExplorerFirmware = (sLine.Substring(14, 5));
@@ -1064,7 +1226,7 @@ namespace RFExplorerClient
                     }
                     else if ((sLine.Length > 6) && (sLine.Substring(0, 6) == "#C3-F:"))
                     {
-                        ReportLog("Received configuration from RFExplorer device:" + sLine);
+                        ReportLog("Received configuration from RFExplorer device:" + sLine, true);
                         //#C3-F:<Ref_Freq>, <ExpModuleActive>, <CurrentMode>,  <Sample_Rate>, <Digital_Baudrate>, <Modulation><EOL>
                         //      6           14                 16              20             27                  34
                         if (sLine.Length >= 34)
@@ -1074,9 +1236,7 @@ namespace RFExplorerClient
                             {
                                 //We cannot use previous data if ref frequency changed
                                 m_fRefFrequencyMHZ = fRefMHZ;
-                                m_nMaxRAWSnifferIndex = 0;
-                                m_nRAWSnifferIndex = 0;
-                                ReportLog("New reference Freq - buffer cleared.");
+                                ReportLog("New reference Freq - buffer cleared.", true);
                             }
 
                             m_bExpansionBoardActive = (sLine[14] == '1');
@@ -1088,14 +1248,12 @@ namespace RFExplorerClient
                             m_eMode = (eMode)Convert.ToUInt16(sLine.Substring(16, 3));
 
                             double fSampleRateKHZ = Convert.ToInt32(sLine.Substring(20, 6));        //note it comes in KHZ=KS/sec
-                            double fDigitalBaudrateKHZ = Convert.ToInt32(sLine.Substring(27, 6));   //note it comes in KHZ=Kbauds
-                            m_eModulation = (eModulation)Convert.ToUInt16(sLine.Substring(34, 1));
                             MainTab.SelectedTab = tabRAWDecoder;
                         }
                     }
                     else if ((sLine.Length > 6) && (sLine.Substring(0, 6) == "#C2-F:"))
                     {
-                        ReportLog("Received configuration from RFExplorer device:" + sLine);
+                        ReportLog("Received configuration from RFExplorer device:" + sLine, true);
                         if (sLine.Length >= 60)
                         {
                             double fStartMHZ = Convert.ToInt32(sLine.Substring(6, 7)) / 1000.0; //note it comes in KHZ
@@ -1104,8 +1262,20 @@ namespace RFExplorerClient
                             {
                                 m_fStartFrequencyMHZ = fStartMHZ;
                                 m_fStepFrequencyMHZ = fStepMHZ;
+
+                                if (menuContinuousLog.Checked)
+                                {
+                                    GetNewFilename();
+                                    SaveFile(m_sFilenameRFE);
+                                    ReportLog("Buffer is cleared due to frequency range change, but continuous data log is active - Auto saved data file: " + m_sFilenameRFE, false);
+                                }
+                                else
+                                {
+                                    ReportLog("New Freq range - buffer cleared - use continuous data log to capture data automatically.", false);
+                                }
+
                                 m_nDataIndex = 0; //we cannot use previous data for avg, etc when new frequency range is selected
-                                ReportLog("New Freq range - buffer cleared.");
+                                m_nMaxDataIndex = 0;
                             }
                             m_fAmplitudeTop = Convert.ToInt32(sLine.Substring(22, 4));
                             m_fAmplitudeBottom = Convert.ToInt32(sLine.Substring(27, 4));
@@ -1200,15 +1370,6 @@ namespace RFExplorerClient
                         else
                             bWrongFormat = true;
                     }
-                    else if ((sLine.Length > 4) && (sLine.Substring(0, 5) == "#API0"))
-                    {
-                        //this may never reach here from the timer, but anyway, sanity code...
-                        m_bModeAPI = false;
-                    }
-                    else if ((sLine.Length > 4) && (sLine.Substring(0, 5) == "#API1"))
-                    {
-                        m_bModeAPI = true;
-                    }
                     else if (((sLine.Length > 12) && (sLine.Substring(0, 12) == "RF Explorer ")) ||
                              ((sLine.Length > 18) && (sLine.Substring(0, 18) == "(C) Ariel Rocholl "))
                             )
@@ -1222,20 +1383,20 @@ namespace RFExplorerClient
                     }
                     else
                     {
-                        ReportLog(sLine);
+                        ReportLog(sLine, true);
                     }
                     if (bWrongFormat)
                     {
-                        ReportLog("Received unexpected data from RFExplorer device:" + sLine);
-                        ReportLog("Please update your RF Explorer to a recent firmware version and");
-                        ReportLog("make sure you are using the latest version of this software.");
-                        ReportLog("Visit http://www.rf-explorer/download for latest updates.");
+                        ReportLog("Received unexpected data from RFExplorer device:" + sLine, false);
+                        ReportLog("Please update your RF Explorer to a recent firmware version and", false);
+                        ReportLog("make sure you are using the latest version of this software.", false);
+                        ReportLog("Visit http://www.rf-explorer/download for latest updates.", false);
                     }
                 } while (bProcessAllEvents && (m_arrReceivedStrings.Count > 0));
             }
             catch (Exception obEx)
             {
-                ReportLog("ProcessReceivedString: " + obEx.Message);
+                ReportLog("ProcessReceivedString: " + obEx.Message, true);
             }
             finally
             {
@@ -1254,29 +1415,35 @@ namespace RFExplorerClient
 
                 if (bDraw)
                 {
-                    DisplaySpectrumAnalyzerData();
-                    UpdateWaterfall();
+                    if (groupCOM.Parent == tabSpectrumAnalyzer)
+                    {
+                        DisplaySpectrumAnalyzerData();
+                    }
+                    else if (groupCOM.Parent == tabWaterfall)
+                    {
+                        UpdateWaterfall();
+                    }
                 }
             }
             catch (Exception obEx)
             {
-                ReportLog("timer_receive_Tick: " + obEx.Message);
+                ReportLog("timer_receive_Tick: " + obEx.Message, true);
             }
 
             if (m_bFirstTick)
             {
                 m_bFirstTick = false;
-                ReportLog("");
+                ReportLog("", true);
             }
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
             m_bRunReceiveThread = false;
-            if (menuSaveOnClose.Checked && (m_nMaxDataIndex > 0) && (m_sFilenameRFE.Length==0))
+            if ((menuSaveOnClose.Checked || menuContinuousLog.Checked) && (m_nMaxDataIndex > 0) && (m_sFilenameRFE.Length==0))
             {
                 GetNewFilename();
-                SaveFile(m_sDefaultFolder + m_sFilenameRFE);
+                SaveFile(m_sFilenameRFE);
             }
             ClosePort();
             SaveProperties();
@@ -1291,11 +1458,7 @@ namespace RFExplorerClient
             zedSpectrumAnalyzer.GraphPane.XAxis.Scale.Min = fStart;
             zedSpectrumAnalyzer.GraphPane.XAxis.Scale.Max = fEnd;
 
-            if (m_eMode == eMode.MODE_SPECTRUM_ANALYZER)
-            {
-                //objGraph is a standard graph
-            }
-            else if (m_eMode == eMode.MODE_WIFI_ANALYZER)
+            if (m_eMode == eMode.MODE_WIFI_ANALYZER)
             {
                 //objGraph is a bar chart
                 zedSpectrumAnalyzer.GraphPane.XAxis.Scale.Min = fStart-2.5f;
@@ -1332,8 +1495,22 @@ namespace RFExplorerClient
             UpdateDialogFromFreqSettings();
         }
 
-        double m_fPeakValueMHZ = 0.0f;
-        double m_fPeakValueAmp = -120.0f;
+        private void GetTopBottomDataRange(out double dTopRangeDBM, out double dBottomRangeDBM)
+        {
+            dTopRangeDBM = -120.0;
+            dBottomRangeDBM = +5.0;
+            for (int nIndSample = 0; nIndSample < m_nMaxDataIndex; nIndSample++)
+            {
+                for (int nIndStep = 0; nIndStep < m_nFreqSpectrumSteps; nIndStep++)
+                {
+                    double dValueDBM=m_arrData[nIndSample, nIndStep];
+                    if (dTopRangeDBM < dValueDBM)
+                        dTopRangeDBM = dValueDBM;
+                    if (dBottomRangeDBM > dValueDBM)
+                        dBottomRangeDBM = dValueDBM;
+                }
+            }
+        }
 
         private void DisplaySpectrumAnalyzerData()
         {
@@ -1342,10 +1519,17 @@ namespace RFExplorerClient
             m_fPeakValueMHZ = 0.0;
             m_fPeakValueAmp = fNoiseFloor;
 
-            PointPairList RTList = new PointPairList();
-            PointPairList MaxList = new PointPairList();
-            PointPairList MinList = new PointPairList();
-            PointPairList AvgList = new PointPairList();
+            foreach (CurveItem objCurve in zedSpectrumAnalyzer.GraphPane.CurveList)
+            {
+                objCurve.Clear();
+                objCurve.IsVisible = false;
+                objCurve.Label.IsVisible = false;
+            }
+            m_PointListRealtime.Clear();
+            m_PointListAverage.Clear();
+            m_PointListMin.Clear();
+            m_PointListMax.Clear();
+            m_MaxBar.Clear();
 
             int nIndex = m_nDataIndex - 1;
             if (nIndex < 0)
@@ -1407,13 +1591,13 @@ namespace RFExplorerClient
                 }
 
                 if (m_bDrawRealtime)
-                    RTList.Add(fFreq, fVal, fNoiseFloor);
+                    m_PointListRealtime.Add(fFreq, fVal, fNoiseFloor);
                 if (m_bDrawMin)
-                    MinList.Add(fFreq, fMin, fNoiseFloor);
+                    m_PointListMin.Add(fFreq, fMin, fNoiseFloor);
 
                 if (m_bDrawMax)
                 {
-                    MaxList.Add(fFreq, fMax, fNoiseFloor);
+                    m_PointListMax.Add(fFreq, fMax, fNoiseFloor);
                     if (fMax > fMaxMax_Amp)
                     {
                         fMaxMax_Amp = fMax;
@@ -1436,7 +1620,7 @@ namespace RFExplorerClient
                 if (m_bDrawAverage || m_bCalibrating)
                 {
                     fValAvg = fValAvg / (nCalculatorMax + 1);
-                    AvgList.Add(fFreq, fValAvg, fNoiseFloor);
+                    m_PointListAverage.Add(fFreq, fValAvg, fNoiseFloor);
                     if (fValAvg > fAverageMax_Amp)
                     {
                         fAverageMax_Amp = fValAvg;
@@ -1445,37 +1629,48 @@ namespace RFExplorerClient
                 }
             }
 
-            if (m_bCalibrating)
+            //Get the m_fPeakValueMHZ/m_fPeakValueAmp based on what is available on calculation
+            if (fAverageMax_Amp > fNoiseFloor)
             {
                 m_fPeakValueMHZ = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fAverageMax_Iter);
                 m_fPeakValueAmp = fAverageMax_Amp;
             }
-            else
+            else if (fMaxMax_Amp > fNoiseFloor)
             {
-                zedSpectrumAnalyzer.GraphPane.CurveList.Clear();
+                m_fPeakValueMHZ = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fMaxMax_Iter);
+                m_fPeakValueAmp = fMaxMax_Amp;
+            }
+            else if (fRealtimeMax_Amp > fNoiseFloor)
+            {
+                m_fPeakValueMHZ = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fRealtimeMax_Iter);
+                m_fPeakValueAmp = fRealtimeMax_Amp;
+            }
+
+            if (!m_bCalibrating)
+            {
+                //zedSpectrumAnalyzer.GraphPane.CurveList.Clear();
                 if (m_bDrawAverage)
                 {
-                    LineItem AvgLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Avg", AvgList, Color.Brown, SymbolType.None);
-                    AvgLine.Line.Width = 2;
+                    m_AvgLine.Points = m_PointListAverage;
+                    m_AvgLine.IsVisible = true;
+                    m_AvgLine.Label.IsVisible = true;
                     double fFreqMark = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fAverageMax_Iter);
-                    m_fPeakValueMHZ = fFreqMark;
                     if (m_bShowPeaks)
                     {
-                        m_AveragePeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fAverageMax_Amp.ToString("0.0") + "dBm";
+                        m_AveragePeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fAverageMax_Amp.ToString("0.00") + "dBm";
                         m_AveragePeak.Location.X = fFreqMark;
                         m_AveragePeak.Location.Y = fAverageMax_Amp;
                     }
                 }
                 if (m_bDrawRealtime)
                 {
-                    LineItem RealtimeLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Realtime", RTList, Color.Blue, SymbolType.None);
-                    RealtimeLine.Line.Width = 3;
+                    m_RealtimeLine.Points = m_PointListRealtime;
+                    m_RealtimeLine.IsVisible = true;
+                    m_RealtimeLine.Label.IsVisible = true;
                     double fFreqMark = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fRealtimeMax_Iter);
-                    if (m_fPeakValueMHZ == 0.0f)
-                        m_fPeakValueMHZ = fFreqMark;
                     if (m_bShowPeaks)
                     {
-                        m_RealtimePeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fRealtimeMax_Amp.ToString() + "dBm";
+                        m_RealtimePeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fRealtimeMax_Amp.ToString("0.0") + "dBm";
                         m_RealtimePeak.Location.X = fFreqMark;
                         m_RealtimePeak.Location.Y = fRealtimeMax_Amp;
                     }
@@ -1484,25 +1679,21 @@ namespace RFExplorerClient
                 {
                     if (m_eMode == eMode.MODE_SPECTRUM_ANALYZER)
                     {
-                        LineItem MaxLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Max", MaxList, Color.Red, SymbolType.None);
-                        MaxLine.Line.Width = 2;
+                        m_MaxLine.Points = m_PointListMax;
+                        m_MaxLine.IsVisible = true;
+                        m_MaxLine.Label.IsVisible = true;
                         double fFreqMark = (m_fStartFrequencyMHZ + m_fStepFrequencyMHZ * fMaxMax_Iter);
-                        if (m_fPeakValueMHZ == 0.0f)
-                            m_fPeakValueMHZ = fFreqMark;
                         if (m_bShowPeaks)
                         {
-                            m_MaxPeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fMaxMax_Amp.ToString() + "dBm";
+                            m_MaxPeak.Text = fFreqMark.ToString("0.000") + "MHZ\n" + fMaxMax_Amp.ToString("0.0") + "dBm";
                             m_MaxPeak.Location.X = fFreqMark;
                             m_MaxPeak.Location.Y = fMaxMax_Amp;
                         }
                     }
                     else if (m_eMode == eMode.MODE_WIFI_ANALYZER)
                     {
-                        BarItem MaxBar = zedSpectrumAnalyzer.GraphPane.AddHiLowBar("Max", MaxList, Color.Red);
-
-                        //MaxBar.Bar.Fill.IsVisible = false;
-                        MaxBar.Bar.Border.Color = Color.DarkRed;
-                        MaxBar.Bar.Border.Width = 2;
+                        m_MaxBar.Points = m_PointListMax;
+                        m_MaxBar.IsVisible = true;
                         if (m_bShowPeaks)
                         {
                             m_arrWiFiBarText[fMaxMax_Iter].FontSpec.IsBold = true;
@@ -1515,8 +1706,9 @@ namespace RFExplorerClient
                 }
                 if (m_bDrawMin)
                 {
-                    LineItem MinLine = zedSpectrumAnalyzer.GraphPane.AddCurve("Min", MinList, Color.DarkGreen, SymbolType.None);
-                    MinLine.Line.Width = 2;
+                    m_MinLine.Points = m_PointListMin;
+                    m_MinLine.IsVisible = true;
+                    m_MinLine.Label.IsVisible = true;
                 }
 
                 zedSpectrumAnalyzer.Refresh();
@@ -1539,12 +1731,12 @@ namespace RFExplorerClient
                 if (m_bPortConnected)
                 {
                     m_serialPortObj.Write("#" + Convert.ToChar(sData.Length + 2) + sData);
-                    //ReportLog("-> Sent to RFE: " + "#["+(sData.Length + 2).ToString()+"]"+sData);
+                    ReportLog("-> Sent to RFE: " + "#["+(sData.Length + 2).ToString()+"]"+sData, true);
                 }
             }
             catch (Exception obEx)
             {
-                ReportLog("SendCommand error: " + obEx.Message);
+                ReportLog("SendCommand error: " + obEx.Message, false);
             }
         }
 
@@ -1556,43 +1748,28 @@ namespace RFExplorerClient
             }
         }
 
-        private void StartAPIMode()
+        private void SendNewConfig(double fStartMHZ, double fEndMHZ, double fTopDBM, double fBottomDBM)
         {
-            if (m_bPortConnected)
-            {
-                SendCommand("a");
-                //Note m_bModeAPI will be updated by the timer if properly received string is found after this
-            }
-        }
+            //#[32]C2-F:Sssssss,Eeeeeee,tttt,bbbb
+            UInt32 nStartKhz = (UInt32)(fStartMHZ * 1000);
+            UInt32 nEndKhz = (UInt32)(fEndMHZ * 1000);
+            Int16 nTopDBM = (Int16)fTopDBM;
+            Int16 nBottomDBM = (Int16)fBottomDBM;
 
-        private void StopAPIMode()
-        {
-            if (m_bPortConnected)
-            {
-                SendCommand("A");
-            }
-            m_bModeAPI = false;
+            string sData = "C2-F:" +
+                nStartKhz.ToString("D7") + "," + nEndKhz.ToString("D7") + "," +
+                nTopDBM.ToString("D3") + "," + nBottomDBM.ToString("D3");
+            SendCommand(sData);
+
+            Thread.Sleep(500); //wait some time for the unit to process changes, otherwise may get a different command too soon
         }
 
         private void UpdateRemoteConfigData()
         {
             if (m_bPortConnected)
             {
-                double fStartFreq = Convert.ToDouble(m_sStartFreq.Text);
-                double fEndFreq = Convert.ToDouble(m_sEndFreq.Text);
-
-                //#[32]C2-F:Sssssss,Eeeeeee,tttt,bbbb
-                UInt32 nStartKhz = (UInt32)(fStartFreq * 1000);
-                UInt32 nEndKhz = (UInt32)(fEndFreq * 1000);
-                Int16 nTopDBM = (Int16)(Convert.ToDouble(m_sTopDBM.Text));
-                Int16 nBottomDBM = (Int16)(Convert.ToDouble(m_sBottomDBM.Text));
-
-                string sData = "C2-F:" +
-                    nStartKhz.ToString("D7") + "," + nEndKhz.ToString("D7") + "," +
-                    nTopDBM.ToString("D3") + "," + nBottomDBM.ToString("D3");
-                SendCommand(sData);
-
-                Thread.Sleep(500); //wait some time for the unit to process changes, otherwise may get a different command too soon
+                SendNewConfig(Convert.ToDouble(m_sStartFreq.Text), Convert.ToDouble(m_sEndFreq.Text),
+                    Convert.ToDouble(m_sTopDBM.Text), Convert.ToDouble(m_sBottomDBM.Text));
             }
         }   
 
@@ -1613,7 +1790,7 @@ namespace RFExplorerClient
             {
                 m_nDataIndex = 0;
                 m_nMaxDataIndex = 0;
-                ReportLog("Buffer cleared.");
+                ReportLog("Buffer cleared.", false);
             }
             UpdateFeedMode();
         }
@@ -1698,6 +1875,7 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = "RFExplorer files (*.rfe)|*.rfe|All files (*.*)|*.*";
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
 
                     GetNewFilename();
                     MySaveFileDialog.FileName = m_sFilenameRFE;
@@ -1720,6 +1898,7 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = "RFExplorer CSV files (*.csv)|*.csv|All files (*.*)|*.*";
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
 
                     GetNewFilename();
                     MySaveFileDialog.FileName = m_sFilenameRFE.Replace(".rfe",".csv");
@@ -1733,10 +1912,119 @@ namespace RFExplorerClient
             catch (Exception obEx) { MessageBox.Show(obEx.Message); }
         }
 
+        private void menusSaveSimpleCSV_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                PointPairList listCurrentPointList = null;
+
+                int nSelectionCounter = 0;
+                if (m_bDrawAverage)
+                {
+                    nSelectionCounter++;
+                    listCurrentPointList = m_PointListAverage;
+                }
+                if (m_bDrawMax)
+                {
+                    listCurrentPointList = m_PointListMax;
+                    nSelectionCounter++;
+                }
+                if (m_bDrawMin)
+                {
+                    nSelectionCounter++;
+                    listCurrentPointList = m_PointListMin;
+                }
+                if (m_bDrawRealtime)
+                {
+                    listCurrentPointList = m_PointListRealtime;
+                    nSelectionCounter++;
+                }
+
+                if (nSelectionCounter == 0)
+                {
+                    MessageBox.Show("Single Signal CSV export needs one active display curve on screen (Avg, Max, Min or Realtime)", "Single Curve CSV Export");
+                    return;
+                }
+                else if (nSelectionCounter > 1)
+                {
+                    MessageBox.Show("Single Signal CSV export requires one active display curve only on screen (Avg, Max, Min or Realtime)", "Single Curve CSV Export");
+                    return;
+                }
+
+                using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
+                {
+                    MySaveFileDialog.Filter = "RFExplorer CSV files (*.csv)|*.csv|All files (*.*)|*.*";
+                    MySaveFileDialog.FilterIndex = 1;
+                    MySaveFileDialog.RestoreDirectory = false;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
+
+                    GetNewFilename();
+                    MySaveFileDialog.FileName = m_sFilenameRFE.Replace(".rfe", ".csv");
+
+                    if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        SaveSimpleCSV(MySaveFileDialog.FileName, listCurrentPointList);
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private char GetCSVDelimiter()
+        {
+            char cReturn = ',';
+
+            /*
+                Comma (,)
+                Division (|)
+                Semicolon (;)
+                Space ( )
+                Tabulator (\t)
+             */
+
+            switch (comboCSVFieldSeparator.SelectedIndex)
+            {
+                default:
+                case 0: cReturn = ','; break;
+                case 1: cReturn = '|'; break;
+                case 2: cReturn = ';'; break;
+                case 3: cReturn = ' '; break;
+                case 4: cReturn = '\t'; break;
+            }
+
+            return cReturn;
+        }
+
+        private void SaveSimpleCSV(string sFilename, PointPairList listCurrentPointList)
+        {
+            try
+            {
+
+                //if no file path was explicited, add the default folder
+                if (sFilename.IndexOf("\\") < 0)
+                {
+                    sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    sFilename = sFilename.Replace("\\\\", "\\");
+                }
+
+                char cCSV = GetCSVDelimiter();
+
+                using (StreamWriter myFile = new StreamWriter(sFilename, true))
+                {
+                    foreach (PointPair objPointPair in listCurrentPointList)
+                    {
+                        myFile.WriteLine(objPointPair.X.ToString("0.000") + cCSV + objPointPair.Y.ToString("0.00"));
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
         private void fileToolStripMenuItem_DropDownOpening(object sender, EventArgs e)
         {
             menuSaveAsRFE.Enabled = (m_nMaxDataIndex > 0) && (MainTab.SelectedTab == tabSpectrumAnalyzer);
             menuSaveCSV.Enabled = (m_nMaxDataIndex > 0) && (MainTab.SelectedTab == tabSpectrumAnalyzer);
+            menusSaveSimpleCSV.Enabled = menuSaveCSV.Enabled;
             menuLoadRFE.Enabled = MainTab.SelectedTab == tabSpectrumAnalyzer;
 
             menuSaveRemoteImage.Enabled = (m_nMaxScreenIndex > 0) && (MainTab.SelectedTab == tabRemoteScreen);
@@ -1795,6 +2083,13 @@ namespace RFExplorerClient
         {
             try
             {
+                //if no file path was explicited, add the default folder
+                if (sFilename.IndexOf("\\") < 0)
+                {
+                    sFilename=m_sDefaultDataFolder+"\\"+sFilename;
+                    sFilename=sFilename.Replace("\\\\", "\\");
+                }
+                //Save file
                 using (FileStream myFile = new FileStream(sFilename, FileMode.Create))
                 {
                     using (BinaryWriter binStream = new BinaryWriter(myFile))
@@ -1822,6 +2117,13 @@ namespace RFExplorerClient
         {
             try
             {
+                //if no file path was explicited, add the default folder
+                if (sFilename.IndexOf("\\") < 0)
+                {
+                    sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    sFilename = sFilename.Replace("\\\\", "\\");
+                }
+
                 using (StreamWriter myFile = new StreamWriter(sFilename, true))
                 {
                     myFile.WriteLine("RF Explorer CSV data file: " + FileHeaderVersioned());
@@ -1830,15 +2132,17 @@ namespace RFExplorerClient
                         "KHZ\r\nTotal data entries: " + m_nMaxDataIndex.ToString()+
                         "\r\nSteps per entry: "+ m_nFreqSpectrumSteps.ToString());
 
+                    char cCSV = GetCSVDelimiter();
+
                     for (int nPageInd = 0; nPageInd < m_nMaxDataIndex; nPageInd++)
                     {
-                        myFile.Write(nPageInd.ToString()+"\t");
+                        myFile.Write(nPageInd.ToString() + cCSV);
 
                         for (int nByte = 0; nByte < m_nFreqSpectrumSteps; nByte++)
                         {
                             myFile.Write(((double)m_arrData[nPageInd, nByte]).ToString());
                             if (nByte!=(m_nFreqSpectrumSteps-1))
-                                myFile.Write("\t");
+                                myFile.Write(cCSV);
                         }
                         myFile.Write("\r\n");
                     }
@@ -1892,6 +2196,11 @@ namespace RFExplorerClient
                             m_bHoldMode = true;
                             UpdateFeedMode();
 
+                            GetTopBottomDataRange(out m_fAmplitudeTop, out m_fAmplitudeBottom);
+
+                            m_fAmplitudeBottom -= 5;
+                            m_fAmplitudeTop += 15;
+
                             SetupSpectrumAnalyzerAxis();
                             DisplaySpectrumAnalyzerData();
                         }
@@ -1910,6 +2219,7 @@ namespace RFExplorerClient
                     MyOpenFileDialog.Filter = "RFExplorer files (*.rfe)|*.rfe|All files (*.*)|*.*";
                     MyOpenFileDialog.FilterIndex = 1;
                     MyOpenFileDialog.RestoreDirectory = false;
+                    MyOpenFileDialog.InitialDirectory = m_sDefaultDataFolder;
 
                     if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
                     {
@@ -1926,7 +2236,7 @@ namespace RFExplorerClient
             RegistryKey regPortKey = Registry.LocalMachine.OpenSubKey(csSubkey, RegistryKeyPermissionCheck.ReadSubTree, System.Security.AccessControl.RegistryRights.QueryValues | System.Security.AccessControl.RegistryRights.EnumerateSubKeys);
 
             string[] arrPortIndexes = regPortKey.GetSubKeyNames();
-            ReportLog("Found total ports: " + arrPortIndexes.Length.ToString());
+            ReportLog("Found total ports: " + arrPortIndexes.Length.ToString(), true);
 
             //List all configured ports and driver versions for CP210x
             foreach (string sPortIndex in arrPortIndexes)
@@ -1935,26 +2245,26 @@ namespace RFExplorerClient
                 {
                     RegistryKey regPort = regPortKey.OpenSubKey(sPortIndex, RegistryKeyPermissionCheck.ReadSubTree, System.Security.AccessControl.RegistryRights.QueryValues);
 
-                    ReportLog("COM port index: " + sPortIndex);
+                    ReportLog("COM port index: " + sPortIndex, true);
                     if (regPort != null)
                     {
                         Object obDriverDesc = regPort.GetValue("DriverDesc");
                         string sDriverDesc = obDriverDesc.ToString();
-                        ReportLog("   DriverDesc: " + sDriverDesc);
+                        ReportLog("   DriverDesc: " + sDriverDesc, true);
                         if (!sDriverDesc.Contains("CP210x"))
                             continue; //if it is not a Silicon Labs CP2102, ignore next steps
                         Object obCOMID = regPort.GetValue("AssignedPortForQCDevice");
                         if (obCOMID != null)
-                            ReportLog("   AssignedPortForQCDevice: " + obCOMID.ToString());
+                            ReportLog("   AssignedPortForQCDevice: " + obCOMID.ToString(), true);
                         Object obDriverVersion = regPort.GetValue("DriverVersion");
-                        ReportLog("   DriverVersion: " + obDriverVersion.ToString());
+                        ReportLog("   DriverVersion: " + obDriverVersion.ToString(), true);
                         Object obDriverDate = regPort.GetValue("DriverDate");
-                        ReportLog("   DriverDate: " + obDriverDate.ToString());
+                        ReportLog("   DriverDate: " + obDriverDate.ToString(), true);
                         Object obMatchingDeviceId = regPort.GetValue("MatchingDeviceId");
-                        ReportLog("   MatchingDeviceId: " + obMatchingDeviceId.ToString());
+                        ReportLog("   MatchingDeviceId: " + obMatchingDeviceId.ToString(), true);
                     }
                 }
-                catch (Exception obEx) { ReportLog(obEx.Message); };
+                catch (Exception obEx) { ReportLog(obEx.Message, true); };
             }
         }
 
@@ -1989,7 +2299,7 @@ namespace RFExplorerClient
             RegistryKey regUSBKey = Registry.LocalMachine.OpenSubKey(csSubkey, RegistryKeyPermissionCheck.ReadSubTree, System.Security.AccessControl.RegistryRights.QueryValues | System.Security.AccessControl.RegistryRights.EnumerateSubKeys);
 
             string[] arrDeviceCP210x = regUSBKey.GetSubKeyNames();
-            ReportLog("Found total CP210x entries: " + arrDeviceCP210x.Length.ToString());
+            ReportLog("Found total CP210x entries: " + arrDeviceCP210x.Length.ToString(), true);
             //Iterate all driver for CP210x and get those with a valid connected COM port
             foreach (string sUSBIndex in arrDeviceCP210x)
             {
@@ -1999,16 +2309,16 @@ namespace RFExplorerClient
                     if (regUSBID != null)
                     {
                         Object obFriendlyName = regUSBID.GetValue("FriendlyName");
-                        ReportLog("   FriendlyName: " + obFriendlyName.ToString());
+                        ReportLog("   FriendlyName: " + obFriendlyName.ToString(), true);
                         RegistryKey regDevice = regUSBID.OpenSubKey("Device Parameters", RegistryKeyPermissionCheck.ReadSubTree, System.Security.AccessControl.RegistryRights.QueryValues);
                         if (regDevice != null)
                         {
                             object obPortName = regDevice.GetValue("PortName");
                             string sPortName = obPortName.ToString();
-                            ReportLog("   PortName: " + sPortName);
+                            ReportLog("   PortName: " + sPortName, true);
                             if (IsConnectedPort(sPortName) && !IsRepeatedPort(sPortName))
                             {
-                                ReportLog(sPortName + " is a valid available port.");
+                                ReportLog(sPortName + " is a valid available port.", false);
                                 if (m_arrValidCP2101Ports == null)
                                 {
                                     m_arrValidCP2101Ports = new string[] { sPortName };
@@ -2022,12 +2332,12 @@ namespace RFExplorerClient
                         }
                     }
                 }
-                catch (Exception obEx) { ReportLog(obEx.Message); };
+                catch (Exception obEx) { ReportLog(obEx.Message, true); };
             }
             string sTotalPortsFound = "0";
             if (m_arrValidCP2101Ports != null)
                 sTotalPortsFound = m_arrValidCP2101Ports.Length.ToString();
-            ReportLog("Total ports found: " + sTotalPortsFound);
+            ReportLog("Total ports found: " + sTotalPortsFound, false);
         }
 
         private void btnRescan_Click(object sender, EventArgs e)
@@ -2083,10 +2393,12 @@ namespace RFExplorerClient
         {
             ListAllCOMPorts();
         }
+        
         private void btnReset_Click(object sender, EventArgs e)
         {
             UpdateDialogFromFreqSettings();
         }
+
         private void UpdateDialogFromFreqSettings()
         {
             m_sBottomDBM.Text = m_fAmplitudeBottom.ToString();
@@ -2450,7 +2762,6 @@ namespace RFExplorerClient
             MainTab.Width = Width - 14;
             MainTab.Height = Height - 64;
 
-            StopAPIMode();
 
             if (groupCOM.Parent == tabSpectrumAnalyzer)
             {
@@ -2501,27 +2812,21 @@ namespace RFExplorerClient
                 textBox_message.Height = MainTab.Height - groupCOM.Height - 50;
             }
 
+            zedSpectrumAnalyzer.Visible = true;
             RelocateRemoteControl();
 
             btnTop5plus.Top = zedSpectrumAnalyzer.Top;
             btnTop5plus.Left = zedSpectrumAnalyzer.Right + 8;
             if (m_arrAnalyzerButtonList[0] != null)
             {
+                btnTop5plus.Visible = true;
                 for (int nInd = 1; nInd < m_arrAnalyzerButtonList.Length; nInd++)
                 {
                     m_arrAnalyzerButtonList[nInd].Top = m_arrAnalyzerButtonList[nInd - 1].Bottom + 3;
                     m_arrAnalyzerButtonList[nInd].Left = m_arrAnalyzerButtonList[0].Left;
+                    m_arrAnalyzerButtonList[nInd].Visible = true;
                 }
             }
-        }
-
-        private void tabConfiguration_Enter(object sender, EventArgs e)
-        {
-            groupCOM.Parent = tabConfiguration;
-            groupDataFeed.Parent = tabConfiguration;
-            groupFreqSettings.Parent = tabConfiguration;
-            DisplayGroups();
-            m_edCalibrationFreq_Leave(null, null);
         }
 
         private void menuDarkMode_Click(object sender, EventArgs e)
@@ -2540,6 +2845,7 @@ namespace RFExplorerClient
         {
 
         }
+
         private void tabWaterfall_Enter(object sender, EventArgs e)
         {
             Rectangle rectArea = panelWaterfall.ClientRectangle;
@@ -2684,6 +2990,7 @@ namespace RFExplorerClient
 
             controlWaterfall.Invalidate();
         }
+
         private void tabWaterfall_UpdateZoomValues()
         {
             controlWaterfall.Size = new Size((int)(1.0 + m_wSizeX * (float)(numericZoom.Value)), (int)(1.0 + m_wSizeY * (float)(numericZoom.Value)));
@@ -2700,6 +3007,7 @@ namespace RFExplorerClient
             groupCOM.Parent = tabRemoteScreen;
             UpdateButtonStatus();
             tabRemoteScreen_UpdateZoomValues();
+            tabRemoteScreen.Invalidate();
             DisplayGroups();
         }
 
@@ -2759,6 +3067,13 @@ namespace RFExplorerClient
 
         private void SavePNG(string sFilename)
         {
+            //if no file path was explicited, add the default folder
+            if (sFilename.IndexOf("\\") < 0)
+            {
+                sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                sFilename = sFilename.Replace("\\\\", "\\");
+            }
+
             Rectangle rectArea = controlRemoteScreen.ClientRectangle;
             using (Bitmap objAppBmp = new Bitmap(rectArea.Width, rectArea.Height))
             {
@@ -2782,6 +3097,7 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = "Image PNG files (*.png)|*.png|All files (*.*)|*.*";
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
 
                     GetNewFilename();
                     MySaveFileDialog.FileName = m_sFilenameRFE.Replace(".rfe", ".png");
@@ -2799,6 +3115,13 @@ namespace RFExplorerClient
         {
             try
             {
+                //if no file path was explicited, add the default folder
+                if (sFilename.IndexOf("\\") < 0)
+                {
+                    sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    sFilename = sFilename.Replace("\\\\", "\\");
+                }
+
                 using (FileStream myFile = new FileStream(sFilename, FileMode.Create))
                 {
                     using (BinaryWriter binStream = new BinaryWriter(myFile))
@@ -2834,7 +3157,7 @@ namespace RFExplorerClient
                     {
                         string sHeader = binStream.ReadString();
                         m_nMaxScreenIndex = binStream.ReadUInt16();
-                        ReportLog("RFS file loaded: " + sHeader + " with total samples:" + m_nMaxScreenIndex.ToString());
+                        ReportLog("RFS file loaded: " + sHeader + " with total samples:" + m_nMaxScreenIndex.ToString(), false);
                         for (UInt16 nPageInd = 0; nPageInd <= m_nMaxScreenIndex; nPageInd++)
                         {
                             binStream.ReadUInt16(); //page number, can be ignored here
@@ -2868,6 +3191,7 @@ namespace RFExplorerClient
                         MySaveFileDialog.Filter = "RF Explorer RFS Screen files (*.rfs)|*.rfs|All files (*.*)|*.*";
                         MySaveFileDialog.FilterIndex = 1;
                         MySaveFileDialog.RestoreDirectory = false;
+                        MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
 
                         GetNewFilename();
                         MySaveFileDialog.FileName = m_sFilenameRFE.Replace(".rfe", ".rfs");
@@ -2889,6 +3213,7 @@ namespace RFExplorerClient
                 MyOpenFileDialog.Filter = "RFExplorer files (*.rfs)|*.rfs|All files (*.*)|*.*";
                 MyOpenFileDialog.FilterIndex = 1;
                 MyOpenFileDialog.RestoreDirectory = false;
+                MyOpenFileDialog.InitialDirectory = m_sDefaultDataFolder;
 
                 if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
                 {
@@ -2896,6 +3221,7 @@ namespace RFExplorerClient
                 }
             }            
         }
+
         private void controlRemoteScreen_Load(object sender, EventArgs e)
         {
 
@@ -2917,17 +3243,24 @@ namespace RFExplorerClient
             DisplayGroups();
         }
 
-        private void ReportLog(string sLine)
+        private void ReportLog(string sLine, bool bDetailed)
         {
             if (m_bFirstText)
             {
-                m_sReportFilePath = Environment.GetEnvironmentVariable("APPDATA") + "\\RFExplorerClient_report.log";
-                textBox_message.AppendText("Welcome to RFExplorer Client - report being saved to " + m_sReportFilePath + Environment.NewLine);
+                m_sReportFilePath = m_sAppDataFolder + "\\RFExplorerClient_report_" + DateTime.Now.ToString("yyyyMMdd") + ".log";
+                m_sReportFilePath = m_sReportFilePath.Replace("\\\\", "\\");
+
+                labelReportFile.Text = "Report file: " + m_sReportFilePath;
+
+                textBox_message.AppendText("Welcome to RFExplorer Client - report being saved to: " + Environment.NewLine + m_sReportFilePath + Environment.NewLine);
             }
             else
                 sLine = Environment.NewLine + sLine;
 
-            textBox_message.AppendText(sLine);
+            if (m_chkDebugTraces.Checked || !bDetailed)
+            {
+                textBox_message.AppendText(sLine);
+            }
 
             using (StreamWriter sr = new StreamWriter(m_sReportFilePath, true))
             {
@@ -2938,7 +3271,14 @@ namespace RFExplorerClient
                     sr.WriteLine(
                         "RFExplorer client session " + DateTime.Now.ToShortDateString() + " " + DateTime.Now.ToShortTimeString());
                     sr.WriteLine(
-                        "===========================================" + Environment.NewLine + Environment.NewLine);
+                        "===========================================" + Environment.NewLine);
+
+                    sr.WriteLine("OS:       " + Environment.OSVersion.ToString());
+                    sr.WriteLine("Runtime:  " + Environment.Version.ToString());
+                    sr.WriteLine("Assembly: " + Assembly.GetExecutingAssembly().ToString());
+                    sr.WriteLine("File:     " + Assembly.GetExecutingAssembly().Location);
+
+                    sr.WriteLine("");
                 }
                 sr.Write(sLine);
             }
@@ -2955,6 +3295,7 @@ namespace RFExplorerClient
                 if (!RFExplorerClient.Properties.Settings.Default.CustomCommands.Contains(sCmd))
                 {
                     RFExplorerClient.Properties.Settings.Default.CustomCommands.Add(sCmd);
+
                     //All this to refresh the combo after the string collection is changed, something it doesn't do automatically...
                     //Anybody knows a better way?
                     comboCustomCommand.DataSource = null;
@@ -2965,7 +3306,7 @@ namespace RFExplorerClient
             if (sCmd.Length > 0)
             {
                 SendCommand(sCmd);
-                ReportLog("Command sent: " + sCmd);
+                ReportLog("Command sent: " + sCmd, true);
             }
             else
             {
@@ -2986,7 +3327,7 @@ namespace RFExplorerClient
             if (sCmd.Length > 0)
             {
                 SendCommand(sCmd);
-                ReportLog("Command sent: " + sCmd);
+                ReportLog("Command sent: " + sCmd, true);
             }
             else
             {
@@ -2996,639 +3337,28 @@ namespace RFExplorerClient
 
         #endregion
 
-        #region RAWDecoder Window
-
-        private void InitializeRAWDecoderGraph()
+        #region Configuration
+        private void tabConfiguration_Enter(object sender, EventArgs e)
         {
-            // Get a reference to the GraphPane instance in the ZedGraphControl
-            GraphPane myPane = zedRAWDecoder.GraphPane;
-            DefineGraphColors(zedRAWDecoder);
-
-            // Set the titles and axis labels
-            //myPane.Title.FontSpec.Size = 10;
-            //myPane.Title.IsVisible = false;
-            myPane.XAxis.Title.Text = "Data Sample";
-            myPane.XAxis.Scale.MajorStep = 1000;
-            myPane.XAxis.Scale.MinorStep = 100;
-
-            // Show the x axis grid
-            myPane.XAxis.MajorGrid.IsVisible = true;
-            myPane.XAxis.Type = AxisType.Linear;
-
-            myPane.YAxis.Title.IsVisible = false;
-            myPane.YAxis.Type = AxisType.Linear;
-            myPane.YAxis.Scale.Align = AlignP.Inside;
-            myPane.YAxis.IsVisible = false;
-            // Manually set the axis range
-            myPane.YAxis.Scale.Min = -3.8;
-            myPane.YAxis.Scale.Max = 1.2;
-            myPane.XAxis.Scale.Min = 0;
-            myPane.XAxis.Scale.Max = MAX_RAW_SAMPLE;
-
-            //this doesn't work as expected when enabled...
-            zedRAWDecoder.HorizontalScroll.Enabled = false;
-            zedRAWDecoder.HorizontalScroll.Visible = false;
-            zedRAWDecoder.HorizontalScroll.LargeChange = 10;
-            zedRAWDecoder.HorizontalScroll.SmallChange = 1;
-            zedRAWDecoder.HorizontalScroll.Maximum = 100;
-            zedRAWDecoder.HorizontalScroll.Minimum = 0;
-            zedRAWDecoder.AutoScroll = true;
-            zedRAWDecoder.IsEnableHPan = true;
-            //zedRAWDecoder.HorizontalScroll.Value = 20000;
-
-            zedRAWDecoder.IsShowPointValues = true;
-            zedRAWDecoder.PointValueEvent += new ZedGraphControl.PointValueHandler(RAWDecoderPointValueHandler);
-        }
-
-        private string RAWDecoderPointValueHandler(ZedGraphControl control, GraphPane pane,
-            CurveItem curve, int iPt)
-        {
-            // Get the PointPair that is under the mouse
-            PointPair pt = curve[iPt];
-
-            return "Sample: "+pt.X.ToString();
-        }
-
-
-        private void DrawRAWSingleLine(int nPrevOrdinal, Color drawColor)
-        {
-            Int16 nDrawInd = (Int16)(m_nRAWSnifferIndex - nPrevOrdinal);
-            if (nDrawInd > 0)
-            {
-                string sLine = m_arrRAWSnifferData[nDrawInd];
-                PointPairList RAWList = new PointPairList();
-                int nSize = sLine.Length - 2;
-                Byte nPrevValue = 0;
-                Byte nCurrentValue = 0;
-                for (int nInd = 0; nInd < nSize; nInd++)
-                {
-                    Byte nVal = Convert.ToByte(sLine[nInd]);
-                    for (int nBitInd = 7; nBitInd >= 0; nBitInd--)
-                    {
-                        nCurrentValue = (Byte)((nVal >> nBitInd) & 0x01);
-                        if (nCurrentValue != nPrevValue)
-                        {
-                            if ((nInd > 0) || (nBitInd < 7))
-                            {
-                                RAWList.Add(nInd * 8 + (7 - nBitInd) - 1, nCurrentValue - 1.2*nPrevOrdinal);
-                            }
-                        }
-                        RAWList.Add(nInd * 8 + (7 - nBitInd), nCurrentValue - 1.2*nPrevOrdinal);
-                        nPrevValue = nCurrentValue;
-                    }
-                }
-                LineItem RealtimeLine = zedRAWDecoder.GraphPane.AddCurve("RAW " + nDrawInd.ToString(), RAWList, drawColor, SymbolType.None);
-            }
-        }
-
-        private void DrawRAWDecoder()
-        {
-            numSampleDecoder.Value = m_nRAWSnifferIndex;
-
-            zedRAWDecoder.GraphPane.CurveList.Clear();
-            DrawRAWSingleLine(0, Color.Blue);
-            if (numMultiGraph.Value > 1)
-                DrawRAWSingleLine(1, Color.DarkMagenta);
-            if (numMultiGraph.Value > 2)
-                DrawRAWSingleLine(2, Color.Red);
-            if (numMultiGraph.Value > 3)
-                DrawRAWSingleLine(3, Color.Brown);
-            zedRAWDecoder.Refresh();
-        }
-
-        private void SaveRAWDecoderInCSV(string sFilename)
-        {
-            if (m_nMaxRAWSnifferIndex == 0)
-            {
-                MessageBox.Show("Capture data first...");
-                return;
-            }
-
-            try
-            {
-                using (StreamWriter myFile = new StreamWriter(sFilename, true))
-                {
-                    string sLine = m_arrRAWSnifferData[m_nMaxRAWSnifferIndex];
-
-                    myFile.WriteLine("RF Explorer RAW Decoder CSV data file: " + FileHeaderVersioned());
-                    myFile.WriteLine("Reference Frequency: " + m_fStartFrequencyMHZ.ToString() +
-                        "MHZ\r\nTotal data page captures: " + (m_nMaxRAWSnifferIndex).ToString()+"\r\n"+
-                        "Total bits captured: "+(m_nMaxRAWSnifferIndex*(sLine.Length-2)*8).ToString()+"\r\n\r\n");
-
-                    for (int nPageInd = 1; nPageInd < m_nMaxRAWSnifferIndex; nPageInd++)
-                    {
-                        myFile.Write(nPageInd.ToString() + "\t");
-
-                        sLine = m_arrRAWSnifferData[nPageInd];
-                        int nSize = sLine.Length - 2;
-                        for (int nInd = 0; nInd < nSize; nInd++)
-                        {
-                            Byte nVal = Convert.ToByte(sLine[nInd]);
-                            for (int nBitInd = 7; nBitInd >= 0; nBitInd--)
-                            {
-                                myFile.Write(((nVal >> nBitInd) & 0x01).ToString()+"\t");
-                            }
-                        }                        
-                        myFile.Write("\r\n");
-                    }
-                }
-            }
-            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
-        }
-
-        private void btnSaveRAWDecoderCSV_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
-                {
-                    MySaveFileDialog.Filter = "RFExplorer CSV files (*.csv)|*.csv|All files (*.*)|*.*";
-                    MySaveFileDialog.FilterIndex = 1;
-                    MySaveFileDialog.RestoreDirectory = false;
-
-                    GetNewFilename();
-                    MySaveFileDialog.FileName = m_sFilenameRFE.Replace(".rfe", ".RAWDecoder.csv");
-
-                    if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
-                    {
-                        SaveRAWDecoderInCSV(MySaveFileDialog.FileName);
-                    }
-                }
-            }
-            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
-        }
-
-        private void tabRAWDecoder_Enter(object sender, EventArgs e)
-        {
-            tabRAWDecoder.BackColor = Color.LightYellow;
-            DefineGraphColors(zedRAWDecoder);
-            if (m_fRefFrequencyMHZ == 0.0)
-            {
-                m_fRefFrequencyMHZ = CalculateCenterFrequencyMHZ();
-            }
-
-            UpdateDialogFromFreqSettings();
-
-            groupCOM.Parent = tabRAWDecoder;
-            UpdateButtonStatus();
+            groupCOM.Parent = tabConfiguration;
+            groupDataFeed.Parent = tabConfiguration;
+            groupFreqSettings.Parent = tabConfiguration;
             DisplayGroups();
         }
-
-        private void chkRunDecoder_CheckedChanged(object sender, EventArgs e)
+        private void btnOpenLog_Click(object sender, EventArgs e)
         {
-            m_bHoldMode = !chkRunDecoder.Checked;
-            UpdateFeedMode();
+            Process.Start(m_sReportFilePath);
         }
 
-        private void chkHoldDecoder_CheckedChanged(object sender, EventArgs e)
+        private void edDefaultFilePath_Leave(object sender, EventArgs e)
         {
-            m_bHoldMode = chkHoldDecoder.Checked;
-            UpdateFeedMode();
+            m_sDefaultDataFolder = edDefaultFilePath.Text;
+            SaveProperties();
         }
 
-        private void numMultiGraph_ValueChanged(object sender, EventArgs e)
-        {
-            DrawRAWDecoder();
-        }
+        #region Calibration 
+    #endregion 
 
-        private void numSampleDecoder_ValueChanged(object sender, EventArgs e)
-        {
-            if (m_bHoldMode)
-            {
-                m_nRAWSnifferIndex= (UInt16)numSampleDecoder.Value;
-                if (m_nRAWSnifferIndex > m_nMaxRAWSnifferIndex)
-                {
-                    m_nRAWSnifferIndex= m_nMaxRAWSnifferIndex;
-                    numSampleDecoder.Value = m_nMaxRAWSnifferIndex;
-                }
-                DrawRAWDecoder();
-            }
-        }
-
-        private void m_sRefFrequency_Leave(object sender, EventArgs e)
-        {
-            m_fRefFrequencyMHZ = Convert.ToDouble(m_sRefFrequency.Text);
-            m_fRefFrequencyMHZ = Math.Max(m_fMinFreqMHZ, m_fRefFrequencyMHZ);
-            m_fRefFrequencyMHZ = Math.Min(m_fMaxFreqMHZ, m_fRefFrequencyMHZ);
-            m_sRefFrequency.Text = m_fRefFrequencyMHZ.ToString("f3");
-        }
         #endregion
-
-        #region Calibration
-        bool m_bCalibrating = false;
-
-        private bool CalibrateSi4x(int nSpanKHZ, byte nStepSize, int nSeconds, CalibrationProgress wndProgress, out double fDeltaKHZ)
-        {
-            wndProgress.textLine1.Text = "Variation Range: " + nSpanKHZ.ToString() + "KHz";
-            Application.DoEvents();
-            Cursor.Current = Cursors.WaitCursor;
-            SendCommand("Cc"); //ask for calibration data
-            double fCenterFreqKHZ = Convert.ToDouble(m_edCalibrationFreq.Text) * 1000.0;
-            double fStart = fCenterFreqKHZ - nSpanKHZ/2;//Find the start frequency for this value to be at the center of a 112KHz min span
-            double fEnd = fCenterFreqKHZ + nSpanKHZ / 2;
-            ReportLog(wndProgress.textLine1.Text + " Center:" + fCenterFreqKHZ + "KHz");
-            Thread.Sleep(1000);
-            SendCommand("C2-F" + ((UInt32)fStart).ToString("D7") + "," + ((UInt32)fEnd).ToString("D7") + ",-010,-120");
-
-            bool bCalibrated = false;
-            int nSteps = 256 / nStepSize;
-            int nDirection = 0;
-            do
-            {
-                Thread.Sleep(1000 * nSeconds);
-                string sDummy;
-                ProcessReceivedString(true, out sDummy);
-                DisplaySpectrumAnalyzerData();
-                
-                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 1000 * 1000 - fCenterFreqKHZ * 1000);
-                fDeltaKHZ = nDelta / 1000.0;
-                if (nDelta > 500000)
-                {
-                    string sText = "Error: reference signal is too far from expected value.\n" +
-                        "Check your RF Signal frequency and amplitude (must be between -20 to -50dBm)\n" +
-                        "If you think this is an error, please contact rfexplorer@arocholl.com";
-                    ReportLog(sText);
-                    MessageBox.Show(sText, "Calibration Error");
-                    return false;
-                }
-                wndProgress.textLine2.Text = "Error delta: " + (nDelta / 1000.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapSi4x.ToString("X2");
-                ReportLog(wndProgress.textLine2.Text + " nDirection:" + nDirection + " nSteps:" + nSteps + " nStepSize:" + nStepSize + " Peak: "+m_fPeakValueAmp);
-                Application.DoEvents();
-                Cursor.Current = Cursors.WaitCursor;
-                GetNewFilename();
-                SaveFile(m_sDefaultFolder + m_sFilenameRFE);
-                ReportLog("Saved filename: " + m_sDefaultFolder + m_sFilenameRFE);
-
-                if (nDelta == 0)
-                {
-                    bCalibrated = true;
-                    nDirection = 0;
-                }
-                else if (nDelta < 0)
-                {
-                    if (nDirection > 0)
-                    {
-                        bCalibrated = true;
-                    }
-                    else
-                    {
-                        nDirection = -1;
-
-                        if (m_nCalibrationCapSi4x == 255)
-                        {
-                            //finish here
-                            nSteps = 1;
-                        }
-                        else
-                        {
-                            if ((int)m_nCalibrationCapSi4x + (int)nStepSize > 255)
-                                m_nCalibrationCapSi4x = 255;
-                            else
-                                m_nCalibrationCapSi4x += nStepSize;
-                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(0));
-                        }
-                    }
-                }
-                else
-                {
-                    if (nDirection < 0)
-                    {
-                        bCalibrated = true;
-                    }
-                    else
-                    {
-                        nDirection = 1;
-                        if (m_nCalibrationCapSi4x == 0)
-                        {
-                            //finish here
-                            nSteps = 1;
-                        }
-                        else
-                        {
-                            if ((int)m_nCalibrationCapSi4x - (int)nStepSize < 0)
-                                m_nCalibrationCapSi4x = 0;
-                            else
-                                m_nCalibrationCapSi4x -= nStepSize;
-                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(0));
-                        }
-                    }
-                }
-
-                nSteps--;
-            } while (!bCalibrated && nSteps > 0);
-
-            ReportLog("Calibration step finished with 0x" + m_nCalibrationCapSi4x.ToString("X2") + "," + MixerCapacitor2Hex().ToString("X2") + " Center: " + m_fPeakValueMHZ + "MHz");
-            return true;
-        }
-
-        //A value from 0-31 is valid for m_nCalibrationCapMixer
-        //But the RF2052 will take it as a 0xPQ where P is a 4 bit value for XO_CT and Q is a 1 bit value for XO_CR_S
-        //Therefore a simple | and <<8 is required on the RF Explorer to use the HEX value
-        private byte MixerCapacitor2Hex()
-        {
-            byte nHex = 0;
-
-            if ((m_nCalibrationCapMixer & 0x01)==1)
-            {
-                nHex = 0x02;    //XO_CT
-            }
-            nHex |= (byte)((m_nCalibrationCapMixer & 0x1e) << 3); //XO_CR_S
-
-            return nHex;
-        }
-
-        private void Hex2MixerCapacitor(byte nHex)
-        {
-            m_nCalibrationCapMixer = (byte)((nHex & 0xf0) >> 3); //XO_CR_S
-            if ((nHex & 0x02) == 0x02)
-            {
-                m_nCalibrationCapMixer |= 0x01; //XO_CT
-            }
-        }
-
-        //Test code
-        //for (byte nInd = 0; nInd < 32; nInd++)
-        //{
-        //    m_nCalibrationCapMixer = nInd;
-        //    byte nHex=MixerCapacitor2Hex();
-        //    string sReport=nInd.ToString("X2")+":"+nHex.ToString("X2")+"|";
-        //    Hex2MixerCapacitor(nHex);
-        //    sReport+=m_nCalibrationCapMixer.ToString("X2");
-        //    ReportLog(sReport);
-        //}
-
-        
-        private bool CalibrateMixer(int nSpanKHZ, int nSeconds, CalibrationProgress wndProgress)
-        {
-            wndProgress.textLine1.Text = "Variation Range: " + nSpanKHZ.ToString() + "KHz";
-            Application.DoEvents();
-            Cursor.Current = Cursors.WaitCursor;
-            SendCommand("Cc"); //ask for calibration data
-            double fCenterFreqKHZ = 540000.0; //hardcoded for internal CALIBRATE_WSUB3G_LO1 mode
-            double fStart = fCenterFreqKHZ - nSpanKHZ / 2;//Find the start frequency for this value to be at the center of a 112KHz min span
-            double fEnd = fCenterFreqKHZ + nSpanKHZ / 2;
-            ReportLog(wndProgress.textLine1.Text + " Center:" + fCenterFreqKHZ + "KHz");
-            Thread.Sleep(1000);
-            SendCommand("C2-F" + ((UInt32)fStart).ToString("D7") + "," + ((UInt32)fEnd).ToString("D7") + ",-010,-120");
-
-            bool bCalibrated = false;
-            int nSteps = 32;
-            int nDirection = 0;
-            do
-            {
-                Thread.Sleep(1000 * nSeconds);
-                string sDummy;
-                ProcessReceivedString(true, out sDummy);
-                DisplaySpectrumAnalyzerData();
-                Int32 nDelta = Convert.ToInt32(m_fPeakValueMHZ * 1000 * 1000 - fCenterFreqKHZ * 1000);
-                if (nDelta > 100000)
-                {
-                    string sText = "Error: reference signal is too far from expected value.\n"+
-                        "If you think this is an error, please contact rfexplorer@arocholl.com";
-                    ReportLog(sText);
-                    MessageBox.Show(sText,"Calibration Error");
-                    return false;
-                }
-                wndProgress.textLine2.Text = "Error delta: " + (nDelta / 1000.0).ToString() + "KHz, CAL:0x" + m_nCalibrationCapMixer.ToString("X2");
-                ReportLog(wndProgress.textLine2.Text + " nDirection:" + nDirection + " nSteps:" + nSteps + " Peak: " + m_fPeakValueAmp);
-                Application.DoEvents();
-                Cursor.Current = Cursors.WaitCursor;
-                GetNewFilename();
-                SaveFile(m_sDefaultFolder + m_sFilenameRFE);
-                ReportLog("Saved filename: " + m_sDefaultFolder + m_sFilenameRFE);
-
-                if (nDelta == 0)
-                {
-                    bCalibrated = true;
-                    nDirection = 0;
-                }
-                else if (nDelta < 0)
-                {
-                    if (nDirection > 0)
-                    {
-                        bCalibrated = true;
-                    }
-                    else
-                    {
-                        nDirection = -1;
-
-                        if (m_nCalibrationCapMixer == 0)
-                        {
-                            //finish here
-                            nSteps = 1;
-                        }
-                        else
-                        {
-                            m_nCalibrationCapMixer -= 1;
-                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(MixerCapacitor2Hex()));
-                        }
-                    }
-                }
-                else
-                {
-                    if (nDirection < 0)
-                    {
-                        bCalibrated = true;
-                    }
-                    else
-                    {
-                        nDirection = 1;
-                        if (m_nCalibrationCapMixer == 31)
-                        {
-                            //finish here
-                            nSteps = 1;
-                        }
-                        else
-                        {
-                            m_nCalibrationCapMixer += 1;
-                            SendCommand("CC" + Convert.ToChar(m_nCalibrationCapSi4x) + Convert.ToChar(MixerCapacitor2Hex()));
-                        }
-                    }
-                }
-
-                nSteps--;
-            } while (!bCalibrated && nSteps > 0);
-
-            ReportLog("Calibration step finished with 0x" + m_nCalibrationCapSi4x.ToString("X2") + "," + MixerCapacitor2Hex().ToString("X2") + " Center: " + m_fPeakValueMHZ + "MHz");
-            return true;
-        }
-
-        const byte FLASH_FILE_CALIBRATION_DATE=50;
-
-        private void btnCalibrate_Click(object sender, EventArgs e)
-        {
-            if (m_eActiveModel == eModel.MODEL_2400)
-            {
-                MessageBox.Show("This RF Explorer model is not yet supported");
-                return;
-            }
-
-            double fOldStart = m_fStartFrequencyMHZ;
-            double fOldStep = m_fStepFrequencyMHZ;
-            double fOldTop = m_fAmplitudeTop;
-            double fOldBottom = m_fAmplitudeBottom;
-
-            {
-                //DateTime CalibrationTime = DateTime.Now;
-                //string sCalibrationTime = "CR" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) +
-                //    CalibrationTime.Year.ToString("D4") + CalibrationTime.Month.ToString("D2") + CalibrationTime.Day.ToString("D2") +
-                //    CalibrationTime.Hour.ToString("D2") + CalibrationTime.Minute.ToString("D2") + CalibrationTime.Second.ToString("D2");
-                //SendCommand(sCalibrationTime);
-                //Thread.Sleep(1000);
-                //SendCommand("CS");
-                //Thread.Sleep(1000);
-                //SendCommand("Cr" + Convert.ToChar(0) + Convert.ToChar(0) + Convert.ToChar(32));
-                //return;
-            }
-
-            //if (m_sExpansionBoardCalibrated.Length == 0)
-            //{
-            //    //ask for calibration date
-            //    m_sExpansionBoardCalibrated = "";
-            //    SendCommand("Cr" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) + Convert.ToChar(14));
-            //    Thread.Sleep(500);
-            //    for (int nInd = 0; nInd < 10; nInd++)
-            //    {
-            //        string sOut;
-            //        ProcessReceivedString(false, out sOut);
-            //        if ((sOut.Length > 14) && (sOut.Substring(0, 3) == "$Cr"))
-            //        {
-            //            m_sExpansionBoardCalibrated = "Expansion module Calibrated on: " + sOut.Substring(4);
-            //            break;
-            //        }
-            //    }
-            //}
-
-
-            CalibrationProgress wndProgress = new CalibrationProgress();
-
-            try
-            {
-                m_timer_receive.Enabled = false;
-
-                int nTotalSteps = 3;
-                if (m_eActiveModel == eModel.MODEL_WSUB3G)
-                {
-                    nTotalSteps = 5;
-                }
-
-                m_bCalibrating = true;
-                if (DialogResult.OK == MessageBox.Show("Connect or power ON the RF Source of " + Convert.ToDouble(m_edCalibrationFreq.Text) + "MHz and (-20 to -50dBm)\n" +
-                    "Click to continue only when ready...", "RF Explorer Calibration",
-                    MessageBoxButtons.OKCancel, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1))
-                {
-                    wndProgress.Show(this);
-
-                    wndProgress.textLine3.Text = string.Format("Calibrating - Step 1/{0}...", nTotalSteps);
-                    wndProgress.ProgressBar.Maximum = nTotalSteps;
-                    wndProgress.ProgressBar.Value = 0;
-                    Application.DoEvents();
-                    Cursor.Current = Cursors.WaitCursor;
-                    double fDeltaKHZ;
-                    bool bOk = CalibrateSi4x(600, 10, 3, wndProgress, out fDeltaKHZ);
-
-                    if (bOk)
-                    {
-                        wndProgress.textLine3.Text = string.Format("Calibrating - Step 2/{0}...", nTotalSteps);
-                        wndProgress.ProgressBar.Value = 1;
-                        Application.DoEvents();
-                        Cursor.Current = Cursors.WaitCursor;
-                        bOk = CalibrateSi4x(200, 3, 3, wndProgress, out fDeltaKHZ);
-                    }
-
-                    if (bOk)
-                    {
-                        wndProgress.textLine3.Text = string.Format("Calibrating - Step 3/{0}...", nTotalSteps);
-                        wndProgress.ProgressBar.Value = 2;
-                        Application.DoEvents();
-                        Cursor.Current = Cursors.WaitCursor;
-                        bOk = CalibrateSi4x(112, 1, 10, wndProgress, out fDeltaKHZ);
-                    }
-
-                    if (Math.Abs(fDeltaKHZ) > 2.0f)
-                    {
-                    }
-                    else
-                    {
-                        if (m_eActiveModel == eModel.MODEL_WSUB3G && bOk)
-                        {
-                            if (DialogResult.OK == MessageBox.Show("Disconnect or power off the RF Source\nClick to continue only when ready...", "RF Signal Source",
-                                MessageBoxButtons.OKCancel, MessageBoxIcon.Information, MessageBoxDefaultButton.Button1))
-                            {
-                                wndProgress.textLine3.Text = string.Format("Calibrating - Step 4/{0}...", nTotalSteps);
-                                wndProgress.ProgressBar.Value = 3;
-                                Application.DoEvents();
-                                Cursor.Current = Cursors.WaitCursor;
-                                bOk = CalibrateMixer(300, 3, wndProgress);
-
-                                if (bOk)
-                                {
-                                    wndProgress.textLine3.Text = string.Format("Calibrating - Step 5/{0}...", nTotalSteps);
-                                    wndProgress.ProgressBar.Value = 4;
-                                    Application.DoEvents();
-                                    Cursor.Current = Cursors.WaitCursor;
-                                    bOk = CalibrateMixer(112, 10, wndProgress);
-                                }
-                            }
-                        }
-                    }
-
-                    if (bOk)
-                    {
-                        if (m_bExpansionBoardActive)
-                        {
-                            //Date-time : this is only available on expansion ROM at the moment
-                            DateTime CalibrationTime = DateTime.Now;
-                            string sCalibrationTime = "CR" + Convert.ToChar(0) + Convert.ToChar(FLASH_FILE_CALIBRATION_DATE) + "CD:" +
-                                (CalibrationTime.Year - 2000).ToString("D2") + CalibrationTime.Month.ToString("D2") + CalibrationTime.Day.ToString("D2") +
-                                CalibrationTime.Hour.ToString("D2") + CalibrationTime.Minute.ToString("D2") + CalibrationTime.Second.ToString("D2");
-                            SendCommand(sCalibrationTime);
-                        }
-
-                        Thread.Sleep(1000);
-                        SendCommand("CS"); //save calibration settings and reinit config
-                        Thread.Sleep(2000);
-                        AskConfigData();
-                    }
-                }
-            }
-            catch (Exception obEx)
-            {
-                ReportLog(obEx.Message);
-            }
-            finally
-            {
-                m_bCalibrating = false;
-                Cursor.Current = Cursors.Default;
-                wndProgress.Close();
-                wndProgress = null;
-                m_timer_receive.Enabled = true;
-
-                m_fStartFrequencyMHZ = fOldStart;
-                m_fStepFrequencyMHZ = fOldStep;
-                m_fAmplitudeTop = fOldTop;
-                m_fAmplitudeBottom = fOldBottom;
-                SetupSpectrumAnalyzerAxis();
-            }
-        }
-
-        private void m_edCalibrationFreq_Leave(object sender, EventArgs e)
-        {
-            double fExtraMargin=0.0;
-            if ((m_eActiveModel != eModel.MODEL_WSUB3G) && (m_eActiveModel != eModel.MODEL_WSUB1G))
-            {
-                fExtraMargin = 10.0;
-            }
-            double fCenterFreqMHZ = Convert.ToDouble(m_edCalibrationFreq.Text);
-            fCenterFreqMHZ = Math.Max(m_fMinFreqMHZ - fExtraMargin, fCenterFreqMHZ);
-            fCenterFreqMHZ = Math.Min(m_fMaxFreqMHZ + fExtraMargin, fCenterFreqMHZ);
-            m_edCalibrationFreq.Text = fCenterFreqMHZ.ToString("f3");
-        }
-    #endregion
-
-        private void btnSaveRemoteVideo_Click(object sender, EventArgs e)
-        {
-            MessageBox.Show("Sorry, this is still under development\nCheck in upcoming versions.");
-        }
     }
 }

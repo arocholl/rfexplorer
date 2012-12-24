@@ -240,5 +240,41 @@ namespace RFExplorerClient.Properties {
                 this["AutoLCDOff"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string DefaultDataFolder {
+            get {
+                return ((string)(this["DefaultDataFolder"]));
+            }
+            set {
+                this["DefaultDataFolder"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("0")]
+        public uint CSVDelimiter {
+            get {
+                return ((uint)(this["CSVDelimiter"]));
+            }
+            set {
+                this["CSVDelimiter"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ContinuousLog {
+            get {
+                return ((bool)(this["ContinuousLog"]));
+            }
+            set {
+                this["ContinuousLog"] = value;
+            }
+        }
     }
 }
