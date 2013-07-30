@@ -47,6 +47,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="RFModuleSelector.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="RFModuleSelector.Designer.cs">
+      <DependentUpon>RFModuleSelector.cs</DependentUpon>
+    </Compile>
     <Compile Include="WaterfallControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -63,6 +74,14 @@
     <Service Include="{94E38DFF-614B-4cbd-B67C-F211BB35CE8B}" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="RFModuleSelector.resx">
+      <DependentUpon>RFModuleSelector.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="WaterfallControl.resx">
       <DependentUpon>WaterfallControl.cs</DependentUpon>
     </EmbeddedResource>
@@ -72,6 +91,22 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Main.ico" />
+    <None Include="Resources\RFExplorer_WhipLeft.png" />
+    <None Include="Resources\RFExplorer_Nagoya.png" />
+    <None Include="Resources\RFExplorer_Combo.png" />
+    <None Include="Resources\RFE_2AWLWR_AR.png" />
+    <None Include="Resources\RFE_2AWLWR_AL.png" />
+    <None Include="Resources\RFE_2ANLWR_AR.png" />
+    <None Include="Resources\RFE_2ANLWR_AL.png" />
+    <None Include="Resources\RFE_1AWL.png" />
+    <None Include="Resources\RFE_1ANL.png" />
+    <None Include="Resources\RFExplorer_WhipLeft_Disconnected.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\RFExplorerCommunicator\RFExplorerCommunicator.csproj">
+      <Project>{CD17C64C-8825-41EA-8AAD-EB5B0F3E08A1}</Project>
+      <Name>RFExplorerCommunicator</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
