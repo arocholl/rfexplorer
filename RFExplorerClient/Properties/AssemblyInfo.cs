@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // General Information about an assembly is controlled through the following 
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
-[assembly: AssemblyTitle("RF Explorer Windows Client")]
-[assembly: AssemblyDescription("")]
+[assembly: AssemblyTitle("RF Explorer for Windows")]
+[assembly: AssemblyDescription("RF Explorer for Windows")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("Ariel Rocholl - micro.arocholl.com")]
-[assembly: AssemblyProduct("RF Explorer Client")]
+[assembly: AssemblyCompany("RF Explorer")]
+[assembly: AssemblyProduct("RF Explorer for Windows")]
 [assembly: AssemblyCopyright("License under GNU GPL v3")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -32,5 +32,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.0.6.8")]
-[assembly: AssemblyFileVersion("1.0.6.8")]
+[assembly: AssemblyVersion("1.11.1307.0")]
+[assembly: AssemblyFileVersion("1.11.1307.0")]
