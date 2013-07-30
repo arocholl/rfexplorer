@@ -1,6 +1,6 @@
 ﻿//============================================================================
-//RF Explorer PC Client - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-11 Ariel Rocholl, www.rf-explorer.com
+//RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
+//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -27,7 +27,7 @@ using System.Windows.Forms;
 
 namespace RFExplorerClient
 {
-    partial class About_RFExplorer : Form
+    public partial class About_RFExplorer : Form
     {
         public About_RFExplorer()
         {

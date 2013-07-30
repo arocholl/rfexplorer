@@ -1,4 +1,4 @@
-﻿//============================================================================
+//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
 //Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
 //
@@ -19,38 +19,28 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Drawing.Drawing2D;
+using System.Text;
 using System.Windows.Forms;
+using ZedGraph;
+using System.IO.Ports;
+using System.IO;
+using System.Reflection;
 using System.Threading;
+using System.Collections;
+using Microsoft.Win32;
+using System.Diagnostics;
+using RFExplorerCommunicator;
 
 namespace RFExplorerClient
 {
-    static class Program
+    public partial class MainForm : Form
     {
-        /// <summary>
-        /// The main entry point for the application.
-        /// </summary>
-        [STAThread]
-        static void Main(string[] args)
-        {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+        bool m_bCalibrating = false;        //True only when Calibration process is active
 
-            string sFile = "";
-            if (args.Length > 0)
-            {
-                sFile = args[0];
-            }
-
-            MainForm mainForm = new MainForm(sFile);
-            mainForm.m_winAboutModeless = new About_RFExplorer();
-            mainForm.m_winAboutModeless.UseWaitCursor = true;
-            mainForm.m_winAboutModeless.okButton.Visible = false;
-            mainForm.m_winAboutModeless.Show(mainForm);
-            Application.DoEvents();
-
-            Thread.Sleep(1000);
-
-            Application.Run(mainForm);
-        }
     }
 }

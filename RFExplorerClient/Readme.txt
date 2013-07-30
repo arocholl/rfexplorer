@@ -29,8 +29,8 @@ Requirements
 
 The requirements to run this software are:
 
-* Microsoft Windows XP SP3 or higher, including Windows Vista and Windows 7 
-    (both 32bits and 64bits are supported).
+* Microsoft Windows XP SP3 or higher, including Windows Vista, Windows 7 and Windows 8
+    (both 32bits and 64bits are supported). Windows Server 2003 and higher are also supported.
 * Pentium IV 1GHZ or higher processor.
 * 512MB RAM or higher
 * USB 2.0 compatible port

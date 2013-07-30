@@ -13,6 +13,7 @@
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
+    <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
@@ -25,7 +26,6 @@
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
-    <IsWebBootstrapper>false</IsWebBootstrapper>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
   </PropertyGroup>
@@ -145,11 +145,20 @@
     <Compile Include="CalibrationProgress.Designer.cs">
       <DependentUpon>CalibrationProgress.cs</DependentUpon>
     </Compile>
+    <Compile Include="Calibration.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Experimental.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="OldWaterfall.cs">
+      <SubType>Form</SubType>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -186,6 +195,9 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Main.ico" />
+    <None Include="Resources\LogoPlastic.png" />
+    <None Include="Resources\RFExplorer_logo.png" />
+    <None Include="Resources\2Antennas_large_white_Small_reflect_transparent.png" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">
@@ -210,6 +222,10 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\RFExplorerCommunicator\RFExplorerCommunicator.csproj">
+      <Project>{CD17C64C-8825-41EA-8AAD-EB5B0F3E08A1}</Project>
+      <Name>RFExplorerCommunicator</Name>
+    </ProjectReference>
     <ProjectReference Include="RFEClientControls\RFEClientControls.csproj">
       <Project>{293A33B6-DC0F-4B32-B32E-D5F5256F39DA}</Project>
       <Name>RFEClientControls</Name>
