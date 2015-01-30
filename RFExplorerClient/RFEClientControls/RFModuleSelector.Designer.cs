@@ -28,8 +28,12 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             this.pictureMain = new System.Windows.Forms.PictureBox();
+            this.menuContextDevice = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.menuCloseDeviceIcon = new System.Windows.Forms.ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.pictureMain)).BeginInit();
+            this.menuContextDevice.SuspendLayout();
             this.SuspendLayout();
             // 
             // pictureMain
@@ -44,10 +48,26 @@
             this.pictureMain.TabIndex = 0;
             this.pictureMain.TabStop = false;
             // 
+            // menuContextDevice
+            // 
+            this.menuContextDevice.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.menuCloseDeviceIcon});
+            this.menuContextDevice.Name = "menuContextDevice";
+            this.menuContextDevice.Size = new System.Drawing.Size(153, 48);
+            this.menuContextDevice.Text = "RF Explorer device";
+            // 
+            // menuCloseDeviceIcon
+            // 
+            this.menuCloseDeviceIcon.Name = "menuCloseDeviceIcon";
+            this.menuCloseDeviceIcon.Size = new System.Drawing.Size(152, 22);
+            this.menuCloseDeviceIcon.Text = "Hide device";
+            this.menuCloseDeviceIcon.Click += new System.EventHandler(this.menuHide_Click);
+            // 
             // RFModuleSelector
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.ContextMenuStrip = this.menuContextDevice;
             this.Controls.Add(this.pictureMain);
             this.Name = "RFModuleSelector";
             this.Size = new System.Drawing.Size(140, 285);
@@ -55,6 +75,7 @@
             this.SizeChanged += new System.EventHandler(this.RFModuleSelector_SizeChanged);
             this.Click += new System.EventHandler(this.RFModuleSelector_Click);
             ((System.ComponentModel.ISupportInitialize)(this.pictureMain)).EndInit();
+            this.menuContextDevice.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -62,5 +83,7 @@
         #endregion
 
         private System.Windows.Forms.PictureBox pictureMain;
+        private System.Windows.Forms.ContextMenuStrip menuContextDevice;
+        private System.Windows.Forms.ToolStripMenuItem menuCloseDeviceIcon;
     }
 }

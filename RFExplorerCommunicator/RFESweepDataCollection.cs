@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -39,6 +39,11 @@ namespace RFExplorerCommunicator
             get { return m_fStartFrequencyMHZ; }
         }
 
+        public double EndFrequencyMHZ
+        {
+            get { return GetFrequencyMHZ((ushort)(m_nTotalSteps - 1)); }
+        }
+
         /// <summary>
         /// Step frequency between each sweep step
         /// </summary>
@@ -46,6 +51,7 @@ namespace RFExplorerCommunicator
         public double StepFrequencyMHZ
         {
             get { return m_fStepFrequencyMHZ; }
+            set { m_fStepFrequencyMHZ = value; }
         }
 
         /// <summary>
@@ -79,14 +85,98 @@ namespace RFExplorerCommunicator
             m_fStartFrequencyMHZ = StartFreqMHZ;
             m_fStepFrequencyMHZ = StepFreqMHZ;
             m_arrAmplitude = new float[m_nTotalSteps];
-            for (int nInd=0; nInd<m_nTotalSteps; nInd++)
+            for (int nInd = 0; nInd < m_nTotalSteps; nInd++)
                 m_arrAmplitude[nInd] = RFECommunicator.MIN_AMPLITUDE_DBM;
         }
 
+        /// <summary>
+        /// This function will process a received, full consistent string received from remote device
+        /// and fill it in all data
+        /// </summary>
+        /// <param name="sLine">string received from device, previously parsed and validated</param>
+        /// <param name="fOffsetDB">currently specified offset in DB</param>
+        public bool ProcessReceivedString(string sLine, float fOffsetDB)
+        {
+            bool bOk = true;
+
+            try
+            {
+                if ((sLine.Length > 2) && (sLine.Substring(0, 2) == "$S"))
+                {
+                    RFESweepData objSweep = new RFESweepData((float)StartFrequencyMHZ, (float)StepFrequencyMHZ, TotalSteps);
+                    objSweep.CaptureTime = DateTime.Now;
+                    for (ushort nInd = 0; nInd < TotalSteps; nInd++)
+                    {
+                        byte nVal = Convert.ToByte(sLine[2 + nInd]);
+                        float fVal = nVal / -2.0f;
+
+                        SetAmplitudeDBM(nInd, fVal + fOffsetDB);
+                    }
+                }
+                else
+                    bOk = false;
+            }
+            catch (Exception)
+            {
+                bOk = false;
+            }
+
+            return bOk;
+        }
+
+        /// <summary>
+        /// Returns amplitude data in dBm. This is the value as it was read from the device or from a file
+        /// so it is not adjusted by offset or additionally compensated in any way. If the value was read from a device,
+        /// it may already be an adjusted value including device configured offset.
+        /// </summary>
+        /// <param name="nStep">Internal frequency step or bucket to read data from</param>
+        /// <returns>Value in dBm</returns>
         public float GetAmplitudeDBM(UInt16 nStep)
         {
+            return GetAmplitudeDBM(nStep, null, false);
+        }
+
+        /// <summary>
+        /// Internally adjust the sweep amplitude based on normalized amplitude objNormalizedAmplitudeReference provided
+        /// </summary>
+        /// <returns></returns>
+        public bool NormalizeAmplitude(RFESweepData objNormalizedAmplitudeReference)
+        {
+            if (!IsSameConfiguration(objNormalizedAmplitudeReference))
+                return false;
+
+            for (UInt16 nInd = 0; nInd < TotalSteps; nInd++)
+            {
+                //normal realtime
+                float dDB = GetAmplitudeDBM(nInd) - objNormalizedAmplitudeReference.GetAmplitudeDBM(nInd);
+                SetAmplitudeDBM(nInd, dDB);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Returns amplitude data in dBm. This is the value as it was read from the device or from a file
+        /// so it is not adjusted by offset or additionally compensated in any way. If the value was read from a device,
+        /// it may already be an adjusted value including device configured offset.
+        /// </summary>
+        /// <param name="nStep">Internal frequency step or bucket to read data from</param>
+        /// <param name="AmplitudeCorrection">Optional parameter, can be null. If different than null, use the amplitude correction table</param>
+        /// <param name="bUseCorrection">If the AmplitudeCorrection is not null, this boolean will tell whether to use it or not</param>
+        /// <returns>Value in dBm</returns>
+        public float GetAmplitudeDBM(UInt16 nStep, RFEAmplitudeTableData AmplitudeCorrection, bool bUseCorrection)
+        {
             if (nStep < m_nTotalSteps)
-                return m_arrAmplitude[nStep];
+            {
+                if ((AmplitudeCorrection != null) && bUseCorrection)
+                {
+                    return m_arrAmplitude[nStep] + AmplitudeCorrection.GetAmplitudeCalibration((int)GetFrequencyMHZ(nStep));
+                }
+                else
+                {
+                    return m_arrAmplitude[nStep];
+                }
+            }
             else
                 return RFECommunicator.MIN_AMPLITUDE_DBM;
         }
@@ -97,16 +187,6 @@ namespace RFExplorerCommunicator
                 m_arrAmplitude[nStep] = fDBM;
         }
 
-        /// <summary>
-        /// Returns the dBuV value assuming 50ohm
-        /// </summary>
-        /// <param name="nStep"></param>
-        /// <returns></returns>
-        public float GetAmplitudeDBUV(UInt16 nStep)
-        {
-            return GetAmplitudeDBM(nStep) + 107;
-        }
-
         public double GetFrequencyMHZ(UInt16 nStep)
         {
             if (nStep < m_nTotalSteps)
@@ -115,6 +195,35 @@ namespace RFExplorerCommunicator
                 return 0.0f;
         }
 
+        public double GetFrequencySpanMHZ()
+        {
+            return (m_fStepFrequencyMHZ * (m_nTotalSteps - 1));
+        }
+
+        /// <summary>
+        /// Returns the step of the lowest amplitude value found
+        /// </summary>
+        /// <returns></returns>
+        public UInt16 GetMinStep()
+        {
+            UInt16 nStep = 0;
+            float fMin = RFECommunicator.MAX_AMPLITUDE_DBM;
+
+            for (UInt16 nInd = 0; nInd < m_nTotalSteps; nInd++)
+            {
+                if (fMin > m_arrAmplitude[nInd])
+                {
+                    fMin = m_arrAmplitude[nInd];
+                    nStep = nInd;
+                }
+            }
+            return nStep;
+        }
+
+        /// <summary>
+        /// Returns the step of the highest amplitude value found
+        /// </summary>
+        /// <returns></returns>
         public UInt16 GetPeakStep()
         {
             UInt16 nStep = 0;
@@ -133,7 +242,59 @@ namespace RFExplorerCommunicator
 
         public bool IsSameConfiguration(RFESweepData objOther)
         {
-            return ((objOther.StartFrequencyMHZ == StartFrequencyMHZ) && (objOther.StepFrequencyMHZ == StepFrequencyMHZ) && (objOther.TotalSteps == TotalSteps));
+            return (Math.Abs(objOther.StartFrequencyMHZ - StartFrequencyMHZ) < 0.001 && Math.Abs(objOther.StepFrequencyMHZ - StepFrequencyMHZ) < 0.001 && (objOther.TotalSteps == TotalSteps));
+        }
+
+        public RFESweepData Duplicate()
+        {
+            RFESweepData objSweep = new RFESweepData(m_fStartFrequencyMHZ, m_fStepFrequencyMHZ, m_nTotalSteps);
+
+            Array.Copy(m_arrAmplitude, objSweep.m_arrAmplitude, m_nTotalSteps);
+
+            return objSweep;
+        }
+
+        /// <summary>
+        /// Returns power channel over the full span being captured. The power is instantaneous real time
+        /// For average power channel use the collection method GetAverageChannelPower().
+        /// </summary>
+        /// <returns>channel power in dBm/span</returns>
+        public double GetChannelPowerDBM()
+        {
+            double fChannelPower = RFECommunicator.MIN_AMPLITUDE_DBM;
+            double fPowerTemp=0.0f;
+
+            for (UInt16 nInd = 0; nInd < m_nTotalSteps; nInd++)
+            {
+                fPowerTemp += RFECommunicator.Convert_dBm_2_mW(m_arrAmplitude[nInd]);
+            }
+
+            if (fPowerTemp>0.0f)
+            {
+                //add here actual RBW calculation in the future - currently we are assuming frequency step is the same
+                //as RBW which is not 100% accurate.
+                fChannelPower = RFECommunicator.Convert_mW_2_dBm(fPowerTemp); 
+            }
+
+            return fChannelPower;
+        }
+
+        /// <summary>
+        /// Dump a CSV string line with sweep data
+        /// </summary>
+        /// <returns></returns>
+        public string Dump()
+        {
+            string sResult;
+            sResult= "Sweep data " + m_fStartFrequencyMHZ.ToString("f3") + "MHz " + m_fStepFrequencyMHZ.ToString("f3") + "MHz " + m_nTotalSteps + "Steps: ";
+
+            for (UInt16 nStep = 0; nStep < TotalSteps; nStep++)
+            {
+                if (nStep > 0)
+                    sResult += ",";
+                sResult += GetAmplitudeDBM(nStep).ToString("f1");
+            }
+            return sResult;
         }
     }
 
@@ -152,6 +313,8 @@ namespace RFExplorerCommunicator
         }
         int m_nUpperBound = -1;              //Max value for index with available data
         UInt32 m_nInitialCollectionSize = 0;
+
+        bool m_bAutogrow;                   //true if the array bounds may grow up to MAX_ELEMENTS, otherwise will be limited to initial collection size
 
         /// <summary>
         /// Returns the total of elements with actual data allocated.
@@ -173,15 +336,16 @@ namespace RFExplorerCommunicator
         /// Allocates up to nCollectionSize elements to start with the container.
         /// </summary>
         /// <param name="nCollectionSize">Upper limit is RFESweepDataCollection.MAX_ELEMENTS</param>
-        public RFESweepDataCollection(UInt32 nCollectionSize)
+        public RFESweepDataCollection(UInt32 nCollectionSize, bool bAutogrow)
         {
             if (nCollectionSize > MAX_ELEMENTS)
                 nCollectionSize = MAX_ELEMENTS;
 
+            m_bAutogrow = bAutogrow;
+
             m_nInitialCollectionSize = nCollectionSize;
 
-            m_arrData = new RFESweepData[nCollectionSize];
-            m_nUpperBound = -1;
+            CleanAll();
         }
 
         /// <summary>
@@ -208,36 +372,61 @@ namespace RFExplorerCommunicator
             return (m_nUpperBound >= MAX_ELEMENTS);
         }
 
-        public void Add(RFESweepData SweepData)
+        public bool Add(RFESweepData SweepData)
         {
-            if (IsFull())
-                return;
-
-            if (m_MaxHoldData == null)
+            try
             {
-                m_MaxHoldData = new RFESweepData(SweepData.StartFrequencyMHZ, SweepData.StepFrequencyMHZ, SweepData.TotalSteps);
-            }
+                if (IsFull())
+                    return false;
 
-            if (m_nUpperBound >= m_arrData.Length)
-            {
-                ResizeCollection(10 * 1000); //add 10K samples more
-            }
-
-            m_nUpperBound++;
-            m_arrData[m_nUpperBound] = SweepData;
-
-            for (UInt16 nInd = 0; nInd < SweepData.TotalSteps; nInd++)
-            {
-                if (SweepData.GetAmplitudeDBM(nInd)>m_MaxHoldData.GetAmplitudeDBM(nInd))
+                if (m_MaxHoldData == null)
                 {
-                    m_MaxHoldData.SetAmplitudeDBM(nInd, SweepData.GetAmplitudeDBM(nInd));
+                    m_MaxHoldData = new RFESweepData(SweepData.StartFrequencyMHZ, SweepData.StepFrequencyMHZ, SweepData.TotalSteps);
+                }
+
+                if (m_nUpperBound >= (m_arrData.Length - 1))
+                {
+                    if (m_bAutogrow)
+                    {
+                        ResizeCollection(10 * 1000); //add 10K samples more
+                    }
+                    else
+                    {
+                        //move all items one position down, lose the older one at position 0
+                        m_nUpperBound = m_arrData.Length - 2;
+                        m_arrData[0] = null;
+                        for (int nInd = 0; nInd <= m_nUpperBound; nInd++)
+                        {
+                            m_arrData[nInd] = m_arrData[nInd + 1];
+                        }
+                    }
+                }
+
+                m_nUpperBound++;
+                m_arrData[m_nUpperBound] = SweepData;
+
+                for (UInt16 nInd = 0; nInd < SweepData.TotalSteps; nInd++)
+                {
+                    if (SweepData.GetAmplitudeDBM(nInd,null,false) > m_MaxHoldData.GetAmplitudeDBM(nInd,null,false))
+                    {
+                        m_MaxHoldData.SetAmplitudeDBM(nInd, SweepData.GetAmplitudeDBM(nInd,null,false));
+                    }
                 }
             }
+            catch
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public void CleanAll()
         {
-            Array.Clear(m_arrData, 0, m_arrData.Length);
+            if (m_arrData != null)
+            {
+                Array.Clear(m_arrData, 0, m_arrData.Length);
+            }
             m_arrData = new RFESweepData[m_nInitialCollectionSize];
             m_MaxHoldData = null;
             m_nUpperBound = -1;
@@ -271,7 +460,7 @@ namespace RFExplorerCommunicator
                                 return null;
                         }
 
-                        fSweepValue += m_arrData[nIterationInd].GetAmplitudeDBM(nSweepInd);
+                        fSweepValue += m_arrData[nIterationInd].GetAmplitudeDBM(nSweepInd,null,false);
                         //sDebugText += m_arrData[nIterationInd].GetAmplitudeDBM(nSweepInd).ToString("f2") + ",";
                     }
                     fSweepValue = fSweepValue / (nEnd - nStart + 1);
@@ -301,7 +490,7 @@ namespace RFExplorerCommunicator
         /// </summary>
         /// <param name="sFilename"></param>
         /// <param name="cCSVDelimiter"></param>
-        public void SaveFileCSV(string sFilename, char cCSVDelimiter)
+        public void SaveFileCSV(string sFilename, char cCSVDelimiter, RFEAmplitudeTableData AmplitudeCorrection)
         {
             if (m_nUpperBound <= 0)
             {
@@ -315,7 +504,7 @@ namespace RFExplorerCommunicator
                 myFile.WriteLine("RF Explorer CSV data file: " + FileHeaderVersioned());
                 myFile.WriteLine("Start Frequency: " + objFirst.StartFrequencyMHZ.ToString() + "MHZ" + Environment.NewLine +
                     "Step Frequency: " + (objFirst.StepFrequencyMHZ * 1000).ToString() + "KHZ" + Environment.NewLine +
-                    "Total data entries: " + m_nUpperBound.ToString() + Environment.NewLine + 
+                    "Total data entries: " + m_nUpperBound.ToString() + Environment.NewLine +
                     "Steps per entry: " + objFirst.TotalSteps.ToString());
 
                 string sHeader = "Sweep" + cCSVDelimiter + "Date" + cCSVDelimiter + "Time" + cCSVDelimiter + "Milliseconds";
@@ -332,7 +521,7 @@ namespace RFExplorerCommunicator
                 {
                     myFile.Write(nSweepInd.ToString() + cCSVDelimiter);
 
-                    myFile.Write(m_arrData[nSweepInd].CaptureTime.ToShortDateString() + cCSVDelimiter + 
+                    myFile.Write(m_arrData[nSweepInd].CaptureTime.ToShortDateString() + cCSVDelimiter +
                         m_arrData[nSweepInd].CaptureTime.ToString("HH:mm:ss") + cCSVDelimiter +
                         m_arrData[nSweepInd].CaptureTime.ToString("\\.fff") + cCSVDelimiter);
 
@@ -341,7 +530,7 @@ namespace RFExplorerCommunicator
 
                     for (UInt16 nStep = 0; nStep < objFirst.TotalSteps; nStep++)
                     {
-                        myFile.Write(m_arrData[nSweepInd].GetAmplitudeDBM(nStep));
+                        myFile.Write(m_arrData[nSweepInd].GetAmplitudeDBM(nStep, AmplitudeCorrection, AmplitudeCorrection!=null));
                         if (nStep != (objFirst.TotalSteps - 1))
                             myFile.Write(cCSVDelimiter);
                     }
@@ -355,9 +544,9 @@ namespace RFExplorerCommunicator
         /// Note: if there are sweeps with different start/stop frequencies, only the first one will be saved to disk
         /// </summary>
         /// <param name="sFilename"></param>
-        public void SaveFile(string sFilename, string sModelText, string sConfigurationText)
+        public void SaveFile(string sFilename, string sModelText, string sConfigurationText, RFEAmplitudeTableData AmplitudeCorrection)
         {
-            if (m_nUpperBound<=0)
+            if (m_nUpperBound < 0)
             {
                 return;
             }
@@ -366,8 +555,12 @@ namespace RFExplorerCommunicator
             int nTotalSweepsActuallySaved = 0;
 
             //Save file
-            using (FileStream myFile = new FileStream(sFilename, FileMode.Create))
+            FileStream myFile = null;
+
+            try
             {
+                myFile = new FileStream(sFilename, FileMode.Create);
+
                 using (BinaryWriter binStream = new BinaryWriter(myFile))
                 {
                     binStream.Write((string)FileHeaderVersioned());
@@ -376,7 +569,7 @@ namespace RFExplorerCommunicator
                     //NOTE: if we have different values for start/stop, we are saying we have more than we actually saved
                     //This is why we will save these parameters later again with nTotalSweepsActuallySaved
                     binStream.Write((UInt32)m_nUpperBound);
-                                                                
+
                     binStream.Write((UInt16)objFirst.TotalSteps);
                     binStream.Write((string)sConfigurationText);
                     binStream.Write((string)sModelText);
@@ -394,7 +587,7 @@ namespace RFExplorerCommunicator
                         nTotalSweepsActuallySaved++;
                         for (UInt16 nStep = 0; nStep < objFirst.TotalSteps; nStep++)
                         {
-                            binStream.Write((double)m_arrData[nSweepInd].GetAmplitudeDBM(nStep));
+                            binStream.Write((double)m_arrData[nSweepInd].GetAmplitudeDBM(nStep,AmplitudeCorrection,AmplitudeCorrection!=null));
                         }
                     }
 
@@ -406,45 +599,79 @@ namespace RFExplorerCommunicator
                     binStream.Write((Int32)nTotalSweepsActuallySaved);
                 }
             }
-            using (FileStream myFile = new FileStream(sFilename, FileMode.Open))
+            finally
             {
+                if (myFile != null)
+                    myFile.Dispose();
+            }
+
+            try
+            {
+                myFile = new FileStream(sFilename, FileMode.Open);
+
                 using (BinaryWriter binStream = new BinaryWriter(myFile))
                 {
+                    myFile = null;
+
                     binStream.Write(FileHeaderVersioned());
                     binStream.Write(objFirst.StartFrequencyMHZ);
                     binStream.Write(objFirst.StepFrequencyMHZ);
                     binStream.Write(nTotalSweepsActuallySaved);
                 }
             }
+            finally
+            {
+                if (myFile != null)
+                    myFile.Dispose();
+            }
         }
+
+        /// <summary>
+        /// 
+        /// 
+        /// 
+        /// </summary>
+        /// <param name="sFile"></param>
+        /// <returns></returns>
+        //
 
         /// <summary>
         /// Will load a RFE standard file from disk. If the file format is incorrect (unknown) will return false but will not invalidate the internal container
         /// If there are file exceptions, will be received by the caller so should react with appropriate error control
         /// If file is successfully loaded, all previous container data is lost and replaced by data from file
         /// </summary>
-        /// <param name="sFile"></param>
+        /// <param name="sFile">File name to load</param>
+        /// <param name="sModelText">model data text. If it is a normal sweep file, then this comes from spectrum analyzer. If it is tracking or normalization 
+        /// then this is from both signal generator and spectrum analyzer</param>
+        /// <param name="sConfigurationText">configuration text. If it is a normal sweep file, then this comes from spectrum analyzer. If it is tracking or normalization 
+        /// then this is from Signal Generator and some required parameters from spectrum analyzer too.</param>
         /// <returns></returns>
         public bool LoadFile(string sFile, out string sModelText, out string sConfigurationText)
         {
             sConfigurationText = "Configuration info Unknown - Old file format";
             sModelText = "Model Unknown - Old file format";
 
-            using (FileStream myFile = new FileStream(sFile, FileMode.Open))
+            FileStream myFile = null;
+
+            try
             {
+                myFile = new FileStream(sFile, FileMode.Open);
+
                 using (BinaryReader binStream = new BinaryReader(myFile))
                 {
+                    myFile = null;
+
                     string sHeader = binStream.ReadString();
                     if ((sHeader != FileHeaderVersioned()) && (sHeader != FileHeaderVersioned_001()))
                     {
-                        //unknown fromat
+                        //unknown format
                         return false;
                     }
 
                     double fStartFrequencyMHZ = binStream.ReadDouble();
                     double fStepFrequencyMHZ = binStream.ReadDouble();
-                    UInt32 nMaxDataIndex=0;
-                    if (sHeader==FileHeaderVersioned_001())
+                    UInt32 nMaxDataIndex = 0;
+                    if (sHeader == FileHeaderVersioned_001())
                     {
                         //in version 001 we saved a 16 bits integer
                         nMaxDataIndex = binStream.ReadUInt16();
@@ -457,16 +684,13 @@ namespace RFExplorerCommunicator
 
                     if (sHeader != FileHeaderVersioned_001())
                     {
-                        sConfigurationText = binStream.ReadString();
-                        sConfigurationText = "From file: " + sConfigurationText;
-                        sModelText = binStream.ReadString();
-                        sModelText = "From file: " + sModelText;
+                        sConfigurationText = "From file: " + binStream.ReadString();
+                        sModelText = "From file: " + binStream.ReadString();
                     }
 
                     //We initialize internal data only if the file was ok and of the right format
                     CleanAll();
                     m_arrData = new RFESweepData[nMaxDataIndex];
-                    GC.Collect(); //This is the right time to force a GC, just because the file load is a comparatively slow operation and the container changed
 
                     for (UInt32 nSweepInd = 0; nSweepInd < nMaxDataIndex; nSweepInd++)
                     {
@@ -481,7 +705,7 @@ namespace RFExplorerCommunicator
                             //Starting in version 002, load sweep capture time too
                             int nLength = (int)binStream.ReadInt32();
                             string sTime = (string)binStream.ReadString();
-                            if ((sTime.Length == nLength) && (nLength>0))
+                            if ((sTime.Length == nLength) && (nLength > 0))
                             {
                                 objRead.CaptureTime = DateTime.Parse(sTime);
                             }
@@ -489,17 +713,22 @@ namespace RFExplorerCommunicator
 
                         for (UInt16 nStep = 0; nStep < nTotalSteps; nStep++)
                         {
-                            objRead.SetAmplitudeDBM(nStep,(float)binStream.ReadDouble());
+                            objRead.SetAmplitudeDBM(nStep, (float)binStream.ReadDouble());
                         }
                         Add(objRead);
                     }
                 }
             }
+            finally
+            {
+                if (myFile != null)
+                    myFile.Dispose();
+            }
 
             return true;
         }
 
-        public void GetTopBottomDataRange(out double dTopRangeDBM, out double dBottomRangeDBM)
+        public void GetTopBottomDataRange(out double dTopRangeDBM, out double dBottomRangeDBM, RFEAmplitudeTableData AmplitudeCorrection)
         {
             dTopRangeDBM = RFECommunicator.MIN_AMPLITUDE_DBM;
             dBottomRangeDBM = RFECommunicator.MAX_AMPLITUDE_DBM;
@@ -511,7 +740,7 @@ namespace RFExplorerCommunicator
             {
                 for (UInt16 nIndStep = 0; nIndStep < m_arrData[0].TotalSteps; nIndStep++)
                 {
-                    double dValueDBM = m_arrData[nIndSample].GetAmplitudeDBM(nIndStep);
+                    double dValueDBM = m_arrData[nIndSample].GetAmplitudeDBM(nIndStep,AmplitudeCorrection,AmplitudeCorrection!=null);
                     if (dTopRangeDBM < dValueDBM)
                         dTopRangeDBM = dValueDBM;
                     if (dBottomRangeDBM > dValueDBM)

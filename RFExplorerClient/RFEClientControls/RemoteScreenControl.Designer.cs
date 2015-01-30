@@ -1,6 +1,6 @@
 //============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -32,9 +32,57 @@ namespace RFEClientControls
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                if (components != null)
+                {
+                    components.Dispose();
+                }
+                if (m_BrushBlack != null)
+                {
+                    m_BrushBlack.Dispose();
+                    m_BrushBlack = null;
+                }
+                if (m_BrushDarkBlue!= null)
+                {
+                    m_BrushDarkBlue.Dispose();
+                    m_BrushDarkBlue = null;
+                }
+                if (m_BrushLightBlue!= null)
+                {
+                    m_BrushLightBlue.Dispose();
+                    m_BrushLightBlue = null;
+                }
+                if (m_BrushlinGrBrush!= null)
+                {
+                    m_BrushlinGrBrush.Dispose();
+                    m_BrushlinGrBrush = null;
+                }
+                if (m_BrushWhite!= null)
+                {
+                    m_BrushWhite.Dispose();
+                    m_BrushWhite = null;
+                }
+                if (m_ImageLogo!= null)
+                {
+                    m_ImageLogo.Dispose();
+                    m_ImageLogo = null;
+                }
+                if (m_PenDarkBlue!= null)
+                {
+                    m_PenDarkBlue.Dispose();
+                    m_PenDarkBlue = null;
+                }
+                if (m_PenBlack != null)
+                {
+                    m_PenBlack.Dispose();
+                    m_PenBlack = null;
+                }
+                if (m_TextFont!= null)
+                {
+                    m_TextFont.Dispose();
+                    m_TextFont = null;
+                }
             }
             base.Dispose(disposing);
         }

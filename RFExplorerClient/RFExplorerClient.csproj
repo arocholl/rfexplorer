@@ -12,7 +12,8 @@
     <AssemblyName>RF Explorer PC Windows Client</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile>Client</TargetFrameworkProfile>
+    <TargetFrameworkProfile>
+    </TargetFrameworkProfile>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
@@ -44,9 +45,11 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>
+    </DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <CodeAnalysisRuleSet>RFEAnalysisRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>Main.ico</ApplicationIcon>
@@ -54,72 +57,17 @@
   <PropertyGroup>
     <SignAssembly>false</SignAssembly>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Full_Release|x86'">
-    <OutputPath>bin\x86\Full_Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+  <PropertyGroup>
+    <StartupObject>RFExplorerClient.Program</StartupObject>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Full_Release_SeeedStudio|x86'">
+    <OutputPath>bin\x86\Full_Release_SeeedStudio\</OutputPath>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>x86</PlatformTarget>
-    <CodeAnalysisLogFile>bin\Release\RFExplorerClient.exe.CodeAnalysisLog.xml</CodeAnalysisLogFile>
-    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
-    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
     <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRuleSetDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
-    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
-    <CodeAnalysisRuleDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
-    <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <DebugSymbols>true</DebugSymbols>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <DebugType>full</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <CodeAnalysisLogFile>bin\Debug\RF Explorer PC Windows Client.exe.CodeAnalysisLog.xml</CodeAnalysisLogFile>
-    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
-    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRuleSetDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
-    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
-    <CodeAnalysisRuleDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
-    <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|AnyCPU'">
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <CodeAnalysisLogFile>bin\Release\RF Explorer PC Windows Client.exe.CodeAnalysisLog.xml</CodeAnalysisLogFile>
-    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
-    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRuleSetDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
-    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
-    <CodeAnalysisRuleDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
-    <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Full_Release|AnyCPU'">
-    <OutputPath>bin\Full_Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <Optimize>true</Optimize>
-    <DebugType>pdbonly</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <CodeAnalysisLogFile>bin\Release\RFExplorerClient.exe.CodeAnalysisLog.xml</CodeAnalysisLogFile>
-    <CodeAnalysisUseTypeNameInSuppression>true</CodeAnalysisUseTypeNameInSuppression>
-    <CodeAnalysisModuleSuppressionsFile>GlobalSuppressions.cs</CodeAnalysisModuleSuppressionsFile>
-    <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
-    <CodeAnalysisRuleSetDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\\Rule Sets</CodeAnalysisRuleSetDirectories>
-    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
-    <CodeAnalysisRuleDirectories>;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules;C:\Archivos de programa\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
-    <CodeAnalysisIgnoreBuiltInRules>false</CodeAnalysisIgnoreBuiltInRules>
-  </PropertyGroup>
-  <PropertyGroup>
-    <StartupObject>RFExplorerClient.Program</StartupObject>
+    <CodeAnalysisRuleSet>RFEAnalysisRules.ruleset</CodeAnalysisRuleSet>
+    <DefineConstants>SEEEDSTUDIO</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -128,11 +76,14 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
-    <Reference Include="ZedGraph">
-      <HintPath>.\ZedGraph.dll</HintPath>
-    </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\RFE_ProductAssemblyInfo.cs">
+      <Link>Properties\RFE_ProductAssemblyInfo.cs</Link>
+    </Compile>
+    <Compile Include="..\RFE_VersionAssemblyInfo.cs">
+      <Link>Properties\RFE_VersionAssemblyInfo.cs</Link>
+    </Compile>
     <Compile Include="AboutBox_rfexplorer.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -148,29 +99,63 @@
     <Compile Include="Calibration.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="CreateLimitLine.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CreateLimitLine.Designer.cs">
+      <DependentUpon>CreateLimitLine.cs</DependentUpon>
+    </Compile>
     <Compile Include="Experimental.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="FTP.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="GlobalSuppressions.cs" />
+    <Compile Include="LimitLine.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="MainForm.Designer.cs">
       <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="OldWaterfall.cs">
+    <Compile Include="MainFormEvents.cs">
       <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MainFormGenerator.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="MarkerCollection.cs" />
+    <Compile Include="ModelessNote.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="ModelessNote.designer.cs">
+      <DependentUpon>ModelessNote.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Settings.cs" />
+    <Compile Include="UserDefinedText.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UserDefinedText.Designer.cs">
+      <DependentUpon>UserDefinedText.cs</DependentUpon>
+    </Compile>
     <EmbeddedResource Include="AboutBox_rfexplorer.resx">
       <DependentUpon>AboutBox_rfexplorer.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="CalibrationProgress.resx">
       <DependentUpon>CalibrationProgress.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="CreateLimitLine.resx">
+      <DependentUpon>CreateLimitLine.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="ModelessNote.resx">
+      <DependentUpon>ModelessNote.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -182,6 +167,9 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
+    <EmbeddedResource Include="UserDefinedText.resx">
+      <DependentUpon>UserDefinedText.cs</DependentUpon>
+    </EmbeddedResource>
     <None Include="app.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
@@ -195,6 +183,10 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Main.ico" />
+    <None Include="Resources\logoblackshadow.png" />
+    <None Include="Resources\logoblueshadow.png" />
+    <None Include="Resources\ftp.jpg" />
+    <Content Include="Resources\notify.wav" />
     <None Include="Resources\LogoPlastic.png" />
     <None Include="Resources\RFExplorer_logo.png" />
     <None Include="Resources\2Antennas_large_white_Small_reflect_transparent.png" />
@@ -222,13 +214,33 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\RFEWaterfallGL\RFEWaterfallGL.csproj">
+      <Project>{BC979A1F-8AE7-4682-B9EF-DA4B9B9BD102}</Project>
+      <Name>RFEWaterfallGL</Name>
+    </ProjectReference>
     <ProjectReference Include="..\RFExplorerCommunicator\RFExplorerCommunicator.csproj">
       <Project>{CD17C64C-8825-41EA-8AAD-EB5B0F3E08A1}</Project>
       <Name>RFExplorerCommunicator</Name>
     </ProjectReference>
+    <ProjectReference Include="SharpGLRFE\Core\SharpGL.SceneGraph\SharpGL.SceneGraph.csproj">
+      <Project>{47BCAA39-EDAD-4404-B6BD-4742B0ABB523}</Project>
+      <Name>SharpGL.SceneGraph</Name>
+    </ProjectReference>
+    <ProjectReference Include="SharpGLRFE\Core\SharpGL.WinForms\SharpGL.WinForms.csproj">
+      <Project>{B2984A6D-AD1C-4BE9-94AB-BA002B338751}</Project>
+      <Name>SharpGL.WinForms</Name>
+    </ProjectReference>
+    <ProjectReference Include="SharpGLRFE\Core\SharpGL\SharpGL.csproj">
+      <Project>{5EF45533-E2C7-46F2-B4A3-B8F36CD406E0}</Project>
+      <Name>SharpGL</Name>
+    </ProjectReference>
     <ProjectReference Include="RFEClientControls\RFEClientControls.csproj">
       <Project>{293A33B6-DC0F-4B32-B32E-D5F5256F39DA}</Project>
       <Name>RFEClientControls</Name>
+    </ProjectReference>
+    <ProjectReference Include="ZedGraphRFE\ZedGraph.csproj">
+      <Project>{2541686B-1673-43BF-AF89-3163945DB009}</Project>
+      <Name>ZedGraph</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -148,4 +148,13 @@
   <data name="RFExplorer_WhipLeft" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\RFExplorer_WhipLeft.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="rfexplorer_logo" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\resources\rfexplorer_logo.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="LogoBlackShadow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\LogoBlackShadow.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="LogoBlueShadow" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\LogoBlueShadow.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
 </root>

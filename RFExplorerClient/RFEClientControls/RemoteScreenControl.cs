@@ -1,6 +1,6 @@
 //============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -34,7 +34,13 @@ namespace RFEClientControls
     public partial class RemoteScreenControl : UserControl
     {
         private int m_nZoom;                    //Zoom value 1-7
-        public RFECommunicator m_objRFE;        //Reference to the running communicator, it contains data and status
+        private RFECommunicator m_objRFE;        //Reference to the running communicator, it contains data and status
+        public RFECommunicator RFExplorer
+        {
+            set { m_objRFE = value; }
+            get { return m_objRFE; }
+        }
+        public PictureBox m_ImageLogo;
 
         //Graphis objects cached to reduce drawing overhead
         LinearGradientBrush m_BrushlinGrBrush;
@@ -45,7 +51,7 @@ namespace RFEClientControls
         Brush m_BrushWhite;
         Brush m_BrushLightBlue;
         Rectangle m_AdjustedClientRect;
-        Font m_TextFont, m_RFExplorerFont;
+        Font m_TextFont;
 
         bool m_bHeaderText;
         public bool HeaderText
@@ -53,7 +59,6 @@ namespace RFEClientControls
             get { return m_bHeaderText; }
             set { m_bHeaderText = value; }
         }
-
 
         bool m_bColor;    //true if the control draws color screen
         public bool LCDColor
@@ -95,11 +100,6 @@ namespace RFEClientControls
                 m_TextFont.Dispose();
 
             m_TextFont = new Font("Arial Bold", 3.0f * m_nZoom);
-
-            if (m_RFExplorerFont!=null)
-                m_RFExplorerFont.Dispose();
-
-            m_RFExplorerFont = new Font("Magneto", 7.0f * m_nZoom, FontStyle.Bold);
         }
 
         private void RemoteScreenControl_Load(object sender, EventArgs e)
@@ -110,6 +110,21 @@ namespace RFEClientControls
             m_BrushBlack = new SolidBrush(Color.Black);
             m_BrushWhite = new SolidBrush(Color.White);
             m_BrushLightBlue = new SolidBrush(Color.SteelBlue);
+
+            m_ImageLogo = new PictureBox();
+            m_ImageLogo.BackColor = System.Drawing.Color.Transparent;
+            m_ImageLogo.BackgroundImageLayout = System.Windows.Forms.ImageLayout.Center;
+            m_ImageLogo.Image = global::RFEClientControls.Properties.Resources.LogoBlueShadow;
+            m_ImageLogo.Location = new System.Drawing.Point(10, 10);
+            m_ImageLogo.Name = "RFExplorer_logo";
+            m_ImageLogo.Size = new System.Drawing.Size(m_ImageLogo.Image.Width, m_ImageLogo.Image.Height);
+            m_ImageLogo.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
+            m_ImageLogo.TabIndex = 0;
+            m_ImageLogo.TabStop = false;
+            m_ImageLogo.Visible = false;
+            m_ImageLogo.Enabled = true;
+            m_ImageLogo.BorderStyle = BorderStyle.None;
+            Controls.Add(m_ImageLogo);
         }
 
         private void RemoteScreenControl_Paint(object sender, PaintEventArgs e)
@@ -138,38 +153,35 @@ namespace RFEClientControls
             RFEScreenData objScreen = m_objRFE.ScreenData.GetData(m_objRFE.ScreenIndex); //this must come from an external counter from the mainform
             if ((m_objRFE.ScreenIndex == 0) || (objScreen == null))
             {
-                m_RFExplorerFont.Dispose();
-                m_RFExplorerFont = new Font("Magneto", 10.0f * m_nZoom, FontStyle.Bold);
-                string sTitleText = "RF Explorer";
-                SizeF objStringTitle = e.Graphics.MeasureString(sTitleText, m_RFExplorerFont);
-                e.Graphics.DrawString(sTitleText, m_RFExplorerFont, m_BrushDarkBlue,
-                    (m_AdjustedClientRect.Width - objStringTitle.Width) / 2 - (m_nZoom / 2),
-                    (m_AdjustedClientRect.Height - objStringTitle.Height) / 2 - (m_nZoom / 2));
-                e.Graphics.DrawString(sTitleText, m_RFExplorerFont, m_BrushLightBlue,
-                    (m_AdjustedClientRect.Width - objStringTitle.Width) / 2,
-                    (m_AdjustedClientRect.Height - objStringTitle.Height) / 2);
-                m_RFExplorerFont.Dispose();
-                m_RFExplorerFont = new Font("Magneto", 7.0f * m_nZoom, FontStyle.Bold);
-            }
+                m_ImageLogo.Visible = true;
 
-            if (objScreen == null)
+                m_ImageLogo.Width = (int)(0.8 * m_AdjustedClientRect.Width);
+                m_ImageLogo.Height = (int)(m_ImageLogo.Width * (double)m_ImageLogo.Image.Height / (double)m_ImageLogo.Image.Width);
+                m_ImageLogo.Location = new System.Drawing.Point((int)(0.1 * m_AdjustedClientRect.Width),
+                    (m_AdjustedClientRect.Height - m_ImageLogo.Height) / 2);
                 return;
+            }
 
             if ((m_objRFE.ScreenIndex > 0) && (HeaderText))
             {
-                string sTitleText = "RF Explorer";
-                SizeF objStringTitle = e.Graphics.MeasureString(sTitleText, m_RFExplorerFont);
+                m_ImageLogo.Visible = true;
+
+                m_ImageLogo.Width = (int)(0.6 * m_AdjustedClientRect.Width);
+                m_ImageLogo.Height = (int)(m_ImageLogo.Width * (double)m_ImageLogo.Image.Height / (double)m_ImageLogo.Image.Width);
+                m_ImageLogo.Location = new System.Drawing.Point((int)(0.2 * m_AdjustedClientRect.Width), 0);
 
                 if (objScreen.CaptureTime.Year > 2000)
                 {
                     //Draw time and model captured only if information available is current
                     string sText = "Screen captured " + objScreen.CaptureTime.ToString("yyyy-MM-dd HH:mm:ss\\.fff") + " - model " + objScreen.Model.ToString().Replace("MODEL_", "");
                     SizeF objStringSize = e.Graphics.MeasureString(sText, m_TextFont);
-                    e.Graphics.DrawString(sText, m_TextFont, m_BrushLightBlue, (m_AdjustedClientRect.Width - objStringSize.Width) / 2, objStringTitle.Height);
+                    e.Graphics.DrawString(sText, m_TextFont, m_BrushLightBlue, (m_AdjustedClientRect.Width - objStringSize.Width) / 2, m_ImageLogo.Bottom);
                 }
-                e.Graphics.DrawString(sTitleText, m_RFExplorerFont, m_BrushDarkBlue, (m_AdjustedClientRect.Width - objStringTitle.Width) / 2 - (m_nZoom / 2), -(m_nZoom / 2));
-                e.Graphics.DrawString(sTitleText, m_RFExplorerFont, m_BrushLightBlue, ((m_AdjustedClientRect.Width - objStringTitle.Width) / 2), 0);
-            } 
+            }
+            else
+            {
+                m_ImageLogo.Visible = false;
+            }
             
             int nGap = 1;
             if ((m_nZoom <= 4) || (LCDGrid==false))
@@ -185,7 +197,6 @@ namespace RFEClientControls
             {
                 nAdjustHeader = 0;
             }
-
 
             for (int nIndY = 0; nIndY < 8; nIndY++)
             {

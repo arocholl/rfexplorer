@@ -1,6 +1,6 @@
 //============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -41,6 +41,17 @@ namespace RFExplorerClient
     public partial class MainForm : Form
     {
         bool m_bCalibrating = false;        //True only when Calibration process is active
+
+        #region Calibration
+
+        private void btnCalibrate_Click(object sender, EventArgs e)
+        {
+        }
+
+        private void m_edCalibrationFreq_Leave(object sender, EventArgs e)
+        {
+        }
+        #endregion  //calibration
 
     }
 }

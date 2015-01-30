@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -49,9 +49,18 @@ namespace RFExplorerCommunicator
         public stFLASH_SweepStart(ref byte[] arrDataBlock, int nOffset)
         {
             m_eDataType = eExtFlashDataType.FLASH_DATA_TYPE_SWEEP_START;
-            m_nSizeBlock16 = arrDataBlock[nOffset + 1];
-            m_nRecordID = arrDataBlock[nOffset + 2];
-            m_nInterval = arrDataBlock[nOffset + 3];
+            if (nOffset < arrDataBlock.Length - 3)
+            {
+                m_nSizeBlock16 = arrDataBlock[nOffset + 1];
+                m_nRecordID = arrDataBlock[nOffset + 2];
+                m_nInterval = arrDataBlock[nOffset + 3];
+            }
+            else
+            {
+                m_nSizeBlock16 = 0;
+                m_nRecordID = 0;
+                m_nInterval = 0;
+            }
             m_sLabel = new char[9];
             for (int nInd = 0; nInd < 9; nInd++)
                 m_sLabel[nInd] = (char)arrDataBlock[nOffset + 4 + nInd];
@@ -81,7 +90,10 @@ namespace RFExplorerCommunicator
         public stFLASH_SweepData_v1(ref byte[] arrDataBlock, int nOffset)
         {
             m_eDataType = eExtFlashDataType.FLASH_DATA_TYPE_SWEEP_v1;
-            m_nSizeBlock16 = arrDataBlock[nOffset + 1];
+            if (nOffset < arrDataBlock.Length - 1)
+                m_nSizeBlock16 = arrDataBlock[nOffset + 1];
+            else
+                m_nSizeBlock16 = 0;
             m_nFreqStartKHZ = (UInt32)(arrDataBlock[nOffset + 2] + arrDataBlock[nOffset + 3] * 0x100 + arrDataBlock[nOffset + 4] * 0x10000 + arrDataBlock[nOffset + 5]*0x1000000);
             m_nFreqStepHZ = (UInt32)(arrDataBlock[nOffset + 6] + arrDataBlock[nOffset + 7] * 0x100 + arrDataBlock[nOffset + 8] * 0x10000 + arrDataBlock[nOffset + 9] * 0x1000000);
             m_nSweepPoints = arrDataBlock[nOffset + 10];
@@ -118,6 +130,7 @@ namespace RFExplorerCommunicator
         /// Memory container, values out of range are initialized to 0xFF
         /// </summary>
         byte[] m_arrBytes = new byte[MAX_BLOCK_SIZE];
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays")]
         public byte[] DataBytes
         {
             get { return m_arrBytes; }

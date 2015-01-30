@@ -1,6 +1,6 @@
-﻿//============================================================================
+//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -16,6 +16,8 @@
 //License along with this library; if not, write to the Free Software
 //Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //=============================================================================
+
+//#define BETA_VERSION
 
 using System;
 using System.Collections.Generic;
@@ -44,7 +46,7 @@ namespace RFExplorerClient
                 if (attributes.Length > 0)
                 {
                     AssemblyTitleAttribute titleAttribute = (AssemblyTitleAttribute)attributes[0];
-                    if (titleAttribute.Title != "")
+                    if (!String.IsNullOrEmpty(titleAttribute.Title))
                     {
                         return titleAttribute.Title;
                     }
@@ -126,7 +128,6 @@ namespace RFExplorerClient
 
             // Navigate to a URL.
             System.Diagnostics.Process.Start("http://www.rf-explorer.com");
-
         }
 
         private void About_RFExplorer_Load(object sender, EventArgs e)
@@ -134,6 +135,9 @@ namespace RFExplorerClient
             Text = String.Format("About {0}", AssemblyTitle);
             labelProductName.Text = AssemblyProduct;
             labelVersion.Text = String.Format("Version {0}", AssemblyVersion);
+    #if BETA_VERSION
+            labelVersion.Text += " BETA";
+    #endif
             labelCopyright.Text = AssemblyCopyright;
         }
     }

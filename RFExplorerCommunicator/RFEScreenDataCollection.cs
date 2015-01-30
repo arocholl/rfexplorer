@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -70,23 +70,34 @@ namespace RFExplorerCommunicator
         }
 
         /// <summary>
-        /// Initialize a monochrome LCD of the size pointed by the sLine text
+        /// Initialize a monochrome 128x64 LCD of the size pointed by the sLine text received
         /// </summary>
         /// <param name="sLine">Text as received from the device realtime data</param>
-        public RFEScreenData(string sLine)
+        public bool ProcessReceivedString(string sLine)
         {
-            m_Time = DateTime.Now;
-            Model = RFECommunicator.eModel.MODEL_NONE;
-            //Capture only if we are inside bounds
-            int nTotalSize = sLine.Length - 2; //we discard the first two chars as they are $D
-            if (nTotalSize>=128 * 8)
+            bool bOk = true;
+
+            try
             {
-                CreateScreen(128, 8);
-                for (int nInd = 0; nInd < nTotalSize; nInd++)
+                m_Time = DateTime.Now;
+                Model = RFECommunicator.eModel.MODEL_NONE;
+                //Capture only if we are inside bounds
+                int nTotalSize = sLine.Length - 2; //we discard the first two chars as they are $D
+                if (nTotalSize >= 128 * 8)
                 {
-                    m_arrRemoteScreenData[nInd] = Convert.ToByte(sLine[nInd + 2]);
+                    CreateScreen(128, 8);
+                    for (int nInd = 0; nInd < nTotalSize; nInd++)
+                    {
+                        m_arrRemoteScreenData[nInd] = Convert.ToByte(sLine[nInd + 2]);
+                    }
                 }
             }
+            catch (Exception)
+            {
+                bOk = false;
+            }
+
+            return bOk;
         }
 
         /// <summary>
@@ -97,6 +108,15 @@ namespace RFExplorerCommunicator
             m_Time = DateTime.Now;
             Model = RFECommunicator.eModel.MODEL_NONE;
             CreateScreen(nBytesX, nBytesY);
+        }
+
+        /// <summary>
+        /// Default constructor
+        /// </summary>
+        public RFEScreenData()
+        {
+            m_Time = DateTime.Now;
+            Model = RFECommunicator.eModel.MODEL_NONE;
         }
     }
 
@@ -180,6 +200,7 @@ namespace RFExplorerCommunicator
             m_arrScreenContainer[m_nUpperBound] = ScreenData;
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2001:AvoidCallingProblematicMethods", MessageId = "System.GC.Collect")]
         public void CleanAll()
         {
             Array.Clear(m_arrScreenContainer, 0, m_arrScreenContainer.Length);
@@ -206,10 +227,16 @@ namespace RFExplorerCommunicator
         /// <returns></returns>
         public bool LoadFile(string sFile)
         {
-            using (FileStream myFile = new FileStream(sFile, FileMode.Open))
+            FileStream myFile = null;
+
+            try
             {
+                myFile = new FileStream(sFile, FileMode.Open);
+
                 using (BinaryReader binStream = new BinaryReader(myFile))
                 {
+                    myFile = null;
+
                     string sHeader = binStream.ReadString();
                     if ((sHeader != FileHeaderVersioned()) && (sHeader != FileHeaderVersioned_001()))
                     {
@@ -217,8 +244,6 @@ namespace RFExplorerCommunicator
                     }
 
                     CleanAll();
-                    InitializeCollection();
-                    GC.Collect();
                     m_nUpperBound = binStream.ReadUInt16();
 
                     //We start at page 1, page 0 is always null
@@ -255,6 +280,11 @@ namespace RFExplorerCommunicator
                     }
                 }
             }
+            finally
+            {
+                if (myFile != null)
+                    myFile.Dispose();
+            }
 
             return true;
         }
@@ -270,11 +300,16 @@ namespace RFExplorerCommunicator
                 return false;
             }
 
-            //Save file
-            using (FileStream myFile = new FileStream(sFilename, FileMode.Create))
+            FileStream myFile = null;
+
+            try
             {
+                myFile = new FileStream(sFilename, FileMode.Create);
+
                 using (BinaryWriter binStream = new BinaryWriter(myFile))
                 {
+                    myFile = null;
+
                     binStream.Write(FileHeaderVersioned());
                     binStream.Write(m_nUpperBound);
 
@@ -302,6 +337,11 @@ namespace RFExplorerCommunicator
                         }
                     }
                 }
+            }
+            finally
+            {
+                if (myFile != null)
+                    myFile.Dispose();
             }
 
             return true;

@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -47,7 +47,26 @@ namespace RFEClientControls
             set { m_nActualPictureHeight = value; }
         }
 
-        public RFExplorerCommunicator.RFECommunicator m_objRFE=null;
+        public bool AllowHideControl
+        {
+            set
+            {
+                if (value == true)
+                {
+                    this.ContextMenuStrip = menuContextDevice;
+                }
+                else
+                {
+                    this.ContextMenuStrip = null;
+                }
+            }
+        }
+
+        private RFExplorerCommunicator.RFECommunicator m_objRFE = null;
+        public RFExplorerCommunicator.RFECommunicator RFExplorer
+        {
+            set { m_objRFE = value; }
+        }
 
         public RFModuleSelector()
         {
@@ -184,7 +203,22 @@ namespace RFEClientControls
             if (m_objRFE == null)
                 return;
 
-            MessageBox.Show(m_objRFE.ModelText);
+            MessageBox.Show(m_objRFE.FullModelText);
+        }
+
+        //Notify the container the control wants to hide
+        private void menuHide_Click(object sender, EventArgs e)
+        {
+            OnHideControl(new EventArgs());
+        }
+
+        public event EventHandler HideControl;
+        private void OnHideControl(EventArgs eventArgs)
+        {
+            if (HideControl != null)
+            {
+                HideControl(this, eventArgs);
+            }
         }
     }
 }

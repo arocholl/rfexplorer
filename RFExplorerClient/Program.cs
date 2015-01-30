@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-13 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
 using System.Threading;
+using System.IO;
 
 namespace RFExplorerClient
 {
@@ -42,13 +43,28 @@ namespace RFExplorerClient
             }
 
             MainForm mainForm = new MainForm(sFile);
-            mainForm.m_winAboutModeless = new About_RFExplorer();
-            mainForm.m_winAboutModeless.UseWaitCursor = true;
-            mainForm.m_winAboutModeless.okButton.Visible = false;
-            mainForm.m_winAboutModeless.Show(mainForm);
-            Application.DoEvents();
+            try
+            {
+                mainForm.m_winAboutModeless = new About_RFExplorer();
+                mainForm.m_winAboutModeless.UseWaitCursor = true;
+                mainForm.m_winAboutModeless.okButton.Visible = false;
+                mainForm.m_winAboutModeless.Show(mainForm);
+                Application.DoEvents();
+                Thread.Sleep(1000);
+            }
+            catch (Exception obEx)
+            {
+                string sReportFile = Environment.GetEnvironmentVariable("APPDATA") + "\\rfexplorer_crash.log";
 
-            Thread.Sleep(1000);
+                using (StreamWriter sr = new StreamWriter(sReportFile, true))
+                {
+                    sr.WriteLine(Environment.NewLine + Environment.NewLine +
+                        "------------------------------------------------------------" + Environment.NewLine +
+                        "Report log date " + DateTime.Now.ToString() + Environment.NewLine);
+                    sr.WriteLine("Exception: " + obEx.ToString());
+                    sr.Flush();
+                }
+            }
 
             Application.Run(mainForm);
         }
