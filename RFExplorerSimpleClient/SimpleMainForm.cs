@@ -44,10 +44,10 @@ namespace RFExplorerSimpleClient
             InitializeComponent();
 
             m_objRFE = new RFECommunicator();
-            m_objRFE.PortClosed += new EventHandler(OnRFE_PortClosed);
-            m_objRFE.ReportInfoAdded += new EventHandler(OnRFE_ReportLog);
-            m_objRFE.ReceivedConfigurationData += new EventHandler(OnRFE_ReceivedConfigData);
-            m_objRFE.UpdateData += new EventHandler(OnRFE_UpdateData);
+            m_objRFE.PortClosedEvent += new EventHandler(OnRFE_PortClosed);
+            m_objRFE.ReportInfoAddedEvent += new EventHandler(OnRFE_ReportLog);
+            m_objRFE.ReceivedConfigurationDataEvent += new EventHandler(OnRFE_ReceivedConfigData);
+            m_objRFE.UpdateDataEvent += new EventHandler(OnRFE_UpdateData);
         }
 
         private void SimpleMainForm_FormClosing(object sender, FormClosingEventArgs e)
