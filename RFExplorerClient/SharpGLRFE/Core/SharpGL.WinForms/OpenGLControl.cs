@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Diagnostics;
+using SharpGL.Version;
 
 namespace SharpGL
 {
@@ -76,7 +77,7 @@ namespace SharpGL
 
             //  Create the render context.
             RenderContextType eRender = this.RenderContextType;
-            gl.Create(ref eRender, Width, Height, 32, parameter);
+            gl.Create(openGLVersion, ref eRender, Width, Height, 32, parameter);
             this.RenderContextType = eRender;
 
             //  Set the most basic OpenGL styles.
@@ -358,6 +359,24 @@ namespace SharpGL
             get { return renderContextType; }
             set { renderContextType = value; }
         }
+
+        /// <summary>
+        /// Gets or sets the desired OpenGL version.
+        /// </summary>
+        /// <value>
+        /// The desired OpenGL version.
+        /// </value>
+        [Description("The desired OpenGL version for the control."), Category("SharpGL")]
+   	    public OpenGLVersion OpenGLVersion
+   	    {
+            get { return openGLVersion; }
+            set { openGLVersion = value; }
+   	    }
+
+        /// <summary>
+        /// The default desired OpenGL version.
+        /// </summary>
+        private OpenGLVersion openGLVersion = OpenGLVersion.OpenGL2_1;
 
         /// <summary>
         /// Gets or sets the render trigger.

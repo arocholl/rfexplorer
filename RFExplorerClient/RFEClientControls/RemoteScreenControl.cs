@@ -1,6 +1,6 @@
 //============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-16 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -150,7 +150,7 @@ namespace RFEClientControls
             if (m_objRFE == null)
                 return;
 
-            RFEScreenData objScreen = m_objRFE.ScreenData.GetData(m_objRFE.ScreenIndex); //this must come from an external counter from the mainform
+            RFEScreenData objScreen = m_objRFE.ScreenData.GetData(m_objRFE.ScreenIndex);
             if ((m_objRFE.ScreenIndex == 0) || (objScreen == null))
             {
                 m_ImageLogo.Visible = true;

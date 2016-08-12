@@ -186,7 +186,7 @@ namespace ZedGraph
                             pd.PrinterSettings = setupDlg.PrinterSettings;
                             pd.DefaultPageSettings = setupDlg.PageSettings;
 
-                            // BUG in PrintDocument!!!  Converts in/mm repeatedly
+                            // _BUG in PrintDocument!!!  Converts in/mm repeatedly
                             // http://support.microsoft.com/?id=814355
                             // from http://www.vbinfozine.com/tpagesetupdialog.shtml, by Palo Mraz
                             //if ( System.Globalization.RegionInfo.CurrentRegion.IsMetric )

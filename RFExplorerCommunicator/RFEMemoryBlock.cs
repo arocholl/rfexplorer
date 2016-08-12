@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-16 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -137,6 +137,26 @@ namespace RFExplorerCommunicator
         }
         
         /// <summary>
+        /// Memory type available in RFE devices
+        /// </summary>
+        public enum eMemoryType
+        {
+            MEM_FLASH=0,
+            MEM_RAM1,
+            MEM_RAM2
+        }
+
+        private eMemoryType m_eType;
+        /// <summary>
+        /// Memory type available in RFE devices
+        /// </summary>
+        public eMemoryType MemoryType
+        {
+            get { return m_eType; }
+            set { m_eType = value; }
+        }
+
+        /// <summary>
         /// Valid address within the memory space this object is defined. For instance the external FLASH has a range of 2MB
         /// </summary>
         UInt32 m_nAddress = 0;
@@ -158,6 +178,7 @@ namespace RFExplorerCommunicator
 
         public RFEMemoryBlock()
         {
+            m_eType = eMemoryType.MEM_FLASH;
             for (int nInd = 0; nInd < MAX_BLOCK_SIZE; nInd++)
             {
                 m_arrBytes[nInd] = 0xff; //initialize with same values to imitate internal memory status

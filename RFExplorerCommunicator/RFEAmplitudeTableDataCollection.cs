@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-16 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -70,7 +70,7 @@ namespace RFExplorerCommunicator
         /// Amplitude correction data for each MHZ entry
         /// </summary>
         public float[] m_arrAmplitudeCalibrationDataDB;
-        public float GetAmplitudeCalibration(int nIndexMHz)
+        internal float GetAmplitudeCalibration(int nIndexMHz)
         {
             if ((nIndexMHz<MAX_ENTRY_DATA) && (m_arrAmplitudeCalibrationDataDB!=null)
                 && (m_arrAmplitudeCalibrationDataDB.Length > nIndexMHz) && (m_arrAmplitudeCalibrationDataDB[nIndexMHz] != INVALID_DATA))
@@ -79,10 +79,11 @@ namespace RFExplorerCommunicator
                 return DEFAULT_AMPLITUDE_CORRECTION;
         }
 
+
+        public float[] m_arrCompressionDataDBM;
         /// <summary>
         /// Amplitude compression data for each MHZ entry
         /// </summary>
-        public float[] m_arrCompressionDataDBM;
         public float GetCompressionAmplitude(int nIndexMHz)
         {
             if ((nIndexMHz < MAX_ENTRY_DATA) && (m_arrCompressionDataDBM != null)

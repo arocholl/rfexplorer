@@ -73,7 +73,7 @@
             // 
             this.okButton.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.okButton.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-            this.okButton.Location = new System.Drawing.Point(494, 302);
+            this.okButton.Location = new System.Drawing.Point(494, 291);
             this.okButton.Name = "okButton";
             this.okButton.Size = new System.Drawing.Size(107, 37);
             this.okButton.TabIndex = 0;
@@ -123,7 +123,7 @@
             this.pictureBox2.Image = global::RFExplorerClient.Properties.Resources._2Antennas_large_white_Small_reflect_transparent;
             this.pictureBox2.Location = new System.Drawing.Point(12, 12);
             this.pictureBox2.Name = "pictureBox2";
-            this.pictureBox2.Size = new System.Drawing.Size(83, 344);
+            this.pictureBox2.Size = new System.Drawing.Size(83, 350);
             this.pictureBox2.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.pictureBox2.TabIndex = 6;
             this.pictureBox2.TabStop = false;
@@ -153,11 +153,12 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(624, 351);
+            this.AutoSize = true;
+            this.ClientSize = new System.Drawing.Size(624, 347);
             this.ControlBox = false;
+            this.Controls.Add(this.okButton);
             this.Controls.Add(this.tableLayoutPanel1);
             this.Controls.Add(this.pictureBox2);
-            this.Controls.Add(this.okButton);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;

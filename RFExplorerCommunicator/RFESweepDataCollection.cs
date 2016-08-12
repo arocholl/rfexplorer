@@ -1,6 +1,6 @@
 ﻿//============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-16 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -89,13 +89,20 @@ namespace RFExplorerCommunicator
                 m_arrAmplitude[nInd] = RFECommunicator.MIN_AMPLITUDE_DBM;
         }
 
+        //variable used to internall store byte array received if is used externally
+        byte[] m_arrBLOB=null;
+        //variable used to internall store byte array in string format received if is used externally
+        string m_sBLOBString = "";
+
         /// <summary>
         /// This function will process a received, full consistent string received from remote device
         /// and fill it in all data
         /// </summary>
         /// <param name="sLine">string received from device, previously parsed and validated</param>
         /// <param name="fOffsetDB">currently specified offset in DB</param>
-        public bool ProcessReceivedString(string sLine, float fOffsetDB)
+        /// <param name="bBLOB">if true the internal BLOB object will be filled in for later use in GetBLOB</param>
+        /// <param name="bString">if true the internal string object will be filled in for later use in GetBLOBString</param>
+        public bool ProcessReceivedString(string sLine, float fOffsetDB, bool bBLOB=false, bool bString=false)
         {
             bool bOk = true;
 
@@ -103,13 +110,18 @@ namespace RFExplorerCommunicator
             {
                 if ((sLine.Length > 2) && (sLine.Substring(0, 2) == "$S"))
                 {
+                    if (bBLOB)
+                        m_arrBLOB = new byte[TotalSteps];
                     RFESweepData objSweep = new RFESweepData((float)StartFrequencyMHZ, (float)StepFrequencyMHZ, TotalSteps);
                     objSweep.CaptureTime = DateTime.Now;
+                    if (bString)
+                        m_sBLOBString = sLine.Substring(2, TotalSteps);
                     for (ushort nInd = 0; nInd < TotalSteps; nInd++)
                     {
                         byte nVal = Convert.ToByte(sLine[2 + nInd]);
                         float fVal = nVal / -2.0f;
-
+                        if (bBLOB)
+                            m_arrBLOB[nInd] = nVal;
                         SetAmplitudeDBM(nInd, fVal + fOffsetDB);
                     }
                 }
@@ -134,6 +146,41 @@ namespace RFExplorerCommunicator
         public float GetAmplitudeDBM(UInt16 nStep)
         {
             return GetAmplitudeDBM(nStep, null, false);
+        }
+
+        /// <summary>
+        /// If selected bBLOB in ProcessReceivedString() then raw scan data is available here in byte array format
+        /// </summary>
+        /// <param name="arrBLOB">
+        /// Returns a byte array compatibly with BLOB on a DB or other byte array uses.
+        /// Expected to come as NULL, will initialize memory and fill in with data bytes. Will be null if no data available
+        /// </param>
+        /// <returns>Returns false if no data available</returns>
+        public bool GetBLOB(ref byte[] arrBLOB)
+        {            
+            if (m_arrBLOB == null || m_arrBLOB.Length == 0)
+                return false;
+
+            try
+            {
+                arrBLOB = new byte[TotalSteps];
+                m_arrBLOB.CopyTo(arrBLOB, 0);
+            }
+            catch (Exception obEx)
+            {
+                Console.WriteLine(obEx.ToString());
+                return false;
+            }
+
+            return true;
+        }
+        /// <summary>
+        /// If selected bString in ProcessReceivedString() then raw scan data is available here in string format
+        /// </summary>
+        /// <returns>BLOB string in if available or empty string if not</returns>
+        public string GetBLOBString()
+        {
+            return m_sBLOBString;
         }
 
         /// <summary>
@@ -291,8 +338,14 @@ namespace RFExplorerCommunicator
             for (UInt16 nStep = 0; nStep < TotalSteps; nStep++)
             {
                 if (nStep > 0)
+                {
                     sResult += ",";
-                sResult += GetAmplitudeDBM(nStep).ToString("f1");
+                }
+                if ((nStep % 16) == 0)
+                {
+                    sResult += Environment.NewLine;
+                }
+                sResult += GetAmplitudeDBM(nStep).ToString("00.0");
             }
             return sResult;
         }
@@ -432,6 +485,71 @@ namespace RFExplorerCommunicator
             m_nUpperBound = -1;
         }
 
+        public string Dump()
+        {
+            string sDump = "";
+            foreach(RFESweepData objSweep in m_arrData)
+            {
+                if (!String.IsNullOrEmpty(sDump))
+                {
+                    sDump += Environment.NewLine;
+                }
+                if (objSweep != null)
+                {
+                    sDump += objSweep.Dump();
+                }
+                else
+                    sDump += "Sweep {null}";
+            }
+            return sDump;
+        }
+
+        public RFESweepData GetMedianAverage(UInt32 nStart, UInt32 nEnd)
+        {
+            RFESweepData objReturn = null;
+
+            //string sDebugText = "";
+
+            if (nStart > m_nUpperBound || nEnd > m_nUpperBound || nStart > nEnd)
+            {
+                return null;
+            }
+
+            UInt32 nTotalIterations = nEnd - nStart + 1;
+            try
+            {
+                objReturn = new RFESweepData(m_arrData[nEnd].StartFrequencyMHZ, m_arrData[nEnd].StepFrequencyMHZ, m_arrData[nEnd].TotalSteps);
+
+                for (UInt16 nSweepInd = 0; nSweepInd < objReturn.TotalSteps; nSweepInd++)
+                {
+                    //sDebugText += "[" + nSweepInd + "]:";
+                    float fSweepValue = 0f;
+                    float[] arrSweepValues = new float[nTotalIterations];
+
+                    for (UInt32 nIterationInd = nStart; nIterationInd <= nEnd; nIterationInd++)
+                    {
+                        if (nSweepInd == 0)
+                        {
+                            //check all the sweeps use the same configuration, but only in first loop to reduce overhead
+                            if (!m_arrData[nIterationInd].IsSameConfiguration(objReturn))
+                                return null;
+                        }
+                        arrSweepValues[nIterationInd- nStart]= m_arrData[nIterationInd].GetAmplitudeDBM(nSweepInd, null, false);
+                        //sDebugText += m_arrData[nIterationInd].GetAmplitudeDBM(nSweepInd).ToString("f2") + ",";
+                    }
+                    Array.Sort(arrSweepValues);
+                    fSweepValue = arrSweepValues[nTotalIterations / 2];
+                    //sDebugText += "(" + fSweepValue.ToString("f2") + ")";
+                    objReturn.SetAmplitudeDBM(nSweepInd, fSweepValue);
+                }
+            }
+            catch
+            {
+                objReturn = null;
+            }
+            return objReturn;
+        }
+
         public RFESweepData GetAverage(UInt32 nStart, UInt32 nEnd)
         {
             RFESweepData objReturn = null;
@@ -499,7 +617,7 @@ namespace RFExplorerCommunicator
 
             RFESweepData objFirst = m_arrData[0];
 
-            using (StreamWriter myFile = new StreamWriter(sFilename, true))
+            using (StreamWriter myFile = new StreamWriter(sFilename, false))
             {
                 myFile.WriteLine("RF Explorer CSV data file: " + FileHeaderVersioned());
                 myFile.WriteLine("Start Frequency: " + objFirst.StartFrequencyMHZ.ToString() + "MHZ" + Environment.NewLine +
