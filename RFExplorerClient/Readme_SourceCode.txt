@@ -6,7 +6,7 @@ to cover all workflows you may need to successfully design, finetune and diagnos
 your RF link projects.
 
 Included source code is available under GPL v3 license, and can be modified and compiled
-with C#, it has been developed with Microsoft VisualStudio 2010 using .NET Framework 4.0.
+with C#, it has been developed with Microsoft VisualStudio 2015 using .NET Framework 4.0.
 
 Please refer to License-GPL.txt in this package to clarify any licensing details.
 

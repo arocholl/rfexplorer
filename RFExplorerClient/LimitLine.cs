@@ -1,4 +1,23 @@
-﻿using System;
+﻿//============================================================================
+//RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
+//Copyright © 2010-16 Ariel Rocholl, www.rf-explorer.com
+//
+//This application is free software; you can redistribute it and/or
+//modify it under the terms of the GNU Lesser General Public
+//License as published by the Free Software Foundation; either
+//version 3.0 of the License, or (at your option) any later version.
+//
+//This software is distributed in the hope that it will be useful,
+//but WITHOUT ANY WARRANTY; without even the implied warranty of
+//MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+//General Public License for more details.
+//
+//You should have received a copy of the GNU General Public
+//License along with this library; if not, write to the Free Software
+//Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//=============================================================================
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -51,7 +70,6 @@ namespace RFExplorerClient
                 m_eUnits = value; 
             }
         }
-
 
         /// <summary>
         /// This variable stores offset used last time. Thanks to it, you can remove an old offset and add a new one
@@ -193,7 +211,7 @@ namespace RFExplorerClient
         }
 
         /// <summary>
-        /// Save limit line data to a RFL file, substracting the offset if defined
+        /// Save limit line data to a RFL file, subtracting the offset if defined
         /// </summary>
         /// <param name="sFilename"></param>
         public void SaveFile(string sFilename)
@@ -203,7 +221,7 @@ namespace RFExplorerClient
                 return;
             }
 
-            using (StreamWriter myFile = new StreamWriter(sFilename, true))
+            using (StreamWriter myFile = new StreamWriter(sFilename, false))
             {
                 myFile.WriteLine(FileHeaderVersioned());
                 myFile.WriteLine("--RF Explorer Limit Lines data file version 01");
@@ -218,6 +236,24 @@ namespace RFExplorerClient
 
                 myFile.WriteLine("--EOF");
             }
+        }
+
+        public string Dump()
+        {
+            string sResult = "";
+
+            if (Count < 2)
+            {
+                return sResult;
+            }
+
+            sResult = "Limit line " + Count + " steps: ";
+            foreach (PointPair objPoint in this)
+            {
+                sResult += "[" + objPoint.X.ToString("f3") + "," + objPoint.Y.ToString("f1") + "] ";
+            }
+
+            return sResult;
         }
     }
 }

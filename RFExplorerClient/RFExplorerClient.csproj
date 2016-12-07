@@ -69,6 +69,15 @@
     <CodeAnalysisRuleSet>RFEAnalysisRules.ruleset</CodeAnalysisRuleSet>
     <DefineConstants>SEEEDSTUDIO</DefineConstants>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug_SeeedStudio|x86'">
+    <OutputPath>bin\x86\Debug_SeeedStudio\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;SEEEDSTUDIO</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>RFEAnalysisRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Data" />
@@ -105,13 +114,10 @@
     <Compile Include="CreateLimitLine.Designer.cs">
       <DependentUpon>CreateLimitLine.cs</DependentUpon>
     </Compile>
-    <Compile Include="Experimental.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FTP.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <Compile Include="Experimental.cs" />
+    <Compile Include="FTP.cs" />
     <Compile Include="GlobalSuppressions.cs" />
+    <Compile Include="GroupControl_Layout.cs" />
     <Compile Include="LimitLine.cs" />
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
@@ -125,12 +131,14 @@
     <Compile Include="MainFormGenerator.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="MarkerCollection.cs" />
-    <Compile Include="ModelessNote.cs">
+    <Compile Include="MainForm_LimitLines.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="ModelessNote.designer.cs">
-      <DependentUpon>ModelessNote.cs</DependentUpon>
+    <Compile Include="FTPConnectionModeless.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FTPConnectionModeless.designer.cs">
+      <DependentUpon>FTPConnectionModeless.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -154,8 +162,8 @@
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="ModelessNote.resx">
-      <DependentUpon>ModelessNote.cs</DependentUpon>
+    <EmbeddedResource Include="FTPConnectionModeless.resx">
+      <DependentUpon>FTPConnectionModeless.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -182,6 +190,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="FileRead.ico" />
     <Content Include="Main.ico" />
     <None Include="Resources\logoblackshadow.png" />
     <None Include="Resources\logoblueshadow.png" />
@@ -214,13 +223,13 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\RFEWaterfallGL\RFEWaterfallGL.csproj">
-      <Project>{BC979A1F-8AE7-4682-B9EF-DA4B9B9BD102}</Project>
-      <Name>RFEWaterfallGL</Name>
-    </ProjectReference>
     <ProjectReference Include="..\RFExplorerCommunicator\RFExplorerCommunicator.csproj">
       <Project>{CD17C64C-8825-41EA-8AAD-EB5B0F3E08A1}</Project>
       <Name>RFExplorerCommunicator</Name>
+    </ProjectReference>
+    <ProjectReference Include="RFEWaterfallGL\RFEWaterfallGL.csproj">
+      <Project>{bc979a1f-8ae7-4682-b9ef-da4b9b9bd102}</Project>
+      <Name>RFEWaterfallGL</Name>
     </ProjectReference>
     <ProjectReference Include="SharpGLRFE\Core\SharpGL.SceneGraph\SharpGL.SceneGraph.csproj">
       <Project>{47BCAA39-EDAD-4404-B6BD-4742B0ABB523}</Project>

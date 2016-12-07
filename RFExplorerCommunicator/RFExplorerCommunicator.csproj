@@ -15,24 +15,6 @@
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <PlatformTarget>x86</PlatformTarget>
-  </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon>Main.ico</ApplicationIcon>
   </PropertyGroup>
@@ -68,17 +50,28 @@
     <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
     <CodeAnalysisRuleDirectories>;C:\Program Files (x86)\Microsoft Visual Studio 10.0\Team Tools\Static Analysis Tools\FxCop\\Rules</CodeAnalysisRuleDirectories>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Full_Release_SeeedStudio|AnyCPU'">
-    <OutputPath>bin\Full_Release_SeeedStudio\</OutputPath>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Full_Release_SeeedStudio|x86'">
+    <OutputPath>bin\x86\Full_Release_SeeedStudio\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>x86</PlatformTarget>
     <ErrorReport>prompt</ErrorReport>
-    <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisRuleSet>..\RFExplorerClient\RFEAnalysisRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Full_Release_SeeedStudio|x86'">
-    <OutputPath>bin\x86\Full_Release_SeeedStudio\</OutputPath>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release_Full|x86'">
+    <OutputPath>bin\x86\Release_Full\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <CodeAnalysisRuleSet>..\RFExplorerClient\RFEAnalysisRules.ruleset</CodeAnalysisRuleSet>
+    <CodeAnalysisIgnoreBuiltInRuleSets>false</CodeAnalysisIgnoreBuiltInRuleSets>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug_SeeedStudio|x86'">
+    <OutputPath>bin\x86\Debug_SeeedStudio\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
@@ -105,7 +98,9 @@
     <Compile Include="..\RFE_VersionAssemblyInfo.cs">
       <Link>Properties\RFE_VersionAssemblyInfo.cs</Link>
     </Compile>
+    <Compile Include="CollapsibleGroupBox.cs" />
     <Compile Include="GlobalSuppressions.cs" />
+    <Compile Include="RFE6GENCalibrationData.cs" />
     <Compile Include="RFEAmplitudeTableDataCollection.cs" />
     <Compile Include="RFEConfiguration.cs" />
     <Compile Include="RFEScreenDataCollection.cs" />

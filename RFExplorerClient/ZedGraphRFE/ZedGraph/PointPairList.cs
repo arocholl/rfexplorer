@@ -1,6 +1,7 @@
 //============================================================================
 //PointPairList Class
 //Copyright © 2004  Jerry Vos
+//Updated for RF Explorer by Ariel Rocholl
 //
 //This library is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -76,6 +77,7 @@ namespace ZedGraph
         public PointPairList()
         {
             _sorted = false;
+            m_bVSWRValues = false;
         }
 
         /// <summary>
@@ -87,6 +89,7 @@ namespace ZedGraph
             Add( x, y );
 
             _sorted = false;
+            m_bVSWRValues = false;
         }
 
         /// <summary>
@@ -94,6 +97,7 @@ namespace ZedGraph
         /// </summary>
         public PointPairList( IPointList list )
         {
+            m_bVSWRValues = false;
             int count = list.Count;
             for ( int i = 0; i < count; i++ )
                 Add( list[i] );
@@ -107,7 +111,8 @@ namespace ZedGraph
         /// </summary>
         public PointPairList( double[] x, double[] y, double[] baseVal )
         {
-            Add( x, y, baseVal );
+            m_bVSWRValues = false;
+            Add(x, y, baseVal);
             
             _sorted = false;
         }
@@ -119,7 +124,7 @@ namespace ZedGraph
         public PointPairList( PointPairList rhs )
         {
             Add( rhs );
-
+            m_bVSWRValues = rhs.m_bVSWRValues;
             _sorted = false;
         }
 
@@ -156,6 +161,51 @@ namespace ZedGraph
             _sorted = false;
             //base.Add( new PointPair( point ) );
             base.Add( point.Clone() );
+        }
+
+        bool m_bVSWRValues = false;
+        /// <summary>
+        /// True if ConvertToVSWR was called already and internal values are VSWR
+        /// </summary>
+        public bool IsVSWR
+        {
+            get { return m_bVSWRValues; }
+        }
+        /// <summary>
+        /// Specific code for RF Explorer. It converts all current values expected to be in dB into VSWR
+        /// </summary>
+        /// <param name="fMaxVal">if different than zero, it is used as the top limit to clamp all values</param>
+        public void ConvertToVSWR(double fMaxVal=0.0)
+        {
+            if (m_bVSWRValues)
+                return; //already converted, cannot do again
+            try
+            {
+                m_bVSWRValues = true;
+                for (int nInd = 0; nInd < Count; nInd++)
+                {
+                    double fDB = this[nInd].Y;
+                    if (fDB > -0.01)
+                        fDB = -0.01; //clamp to real values that are not really caused by noise
+                    double fVSWR = (Math.Pow(10, (-fDB / 20)) + 1) / (Math.Pow(10, (-fDB / 20)) - 1);
+                    if (fMaxVal > 1.0)
+                    {
+                        if (fVSWR > fMaxVal)
+                            fVSWR = fMaxVal;
+                    }
+                    this[nInd].Y = fVSWR;
+                }
+            }
+            catch { };
+        }
+
+        /// <summary>
+        /// Clears all contents and set VSWR to false
+        /// </summary>
+        public new void Clear()
+        {
+            m_bVSWRValues = false;
+            base.Clear();
         }
 
         /// <summary>
@@ -687,6 +737,30 @@ namespace ZedGraph
         }
 
         /// <summary>
+        /// Returns the index of the lowest value in the point pair list
+        /// </summary>
+        /// <returns></returns>
+        public int GetIndexMin()
+        {
+            int nResult = -1;
+
+            if (Count > 0)
+            {
+                nResult = 0;
+                PointPair objRef = this[0];
+                for (int nInd = 1; nInd < Count; nInd++)
+                {
+                    if (this[nInd].Y < objRef.Y)
+                    {
+                        nResult = nInd;
+                        objRef = this[nInd];
+                    }
+                }
+            }
+            return nResult;
+        }
+
+        /// <summary>
         /// it will search all elements and will return the ones that are higher and lower in the list, when compared to dMin and dMax entry values
         /// </summary>
         /// <param name="dMin">Entry value will be considered Min, and if any is found to be lower this will be updated to that value</param>
@@ -980,8 +1054,6 @@ namespace ZedGraph
 
             return newPoints;
         } 
-
-
     #endregion
     }
 }

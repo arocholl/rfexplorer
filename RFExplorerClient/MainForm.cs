@@ -1,6 +1,6 @@
 //============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-16 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -15,6 +15,11 @@
 //You should have received a copy of the GNU General Public
 //License along with this library; if not, write to the Free Software
 //Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//Contributed by:
+//       Manuel Ballesteros
+//       Julian Calderon
+//       David Cortes
+//       Josef Jahn
 //=============================================================================
 
 //#define CALLSTACK_REALTIME
@@ -23,39 +28,22 @@
 //#define DEBUG
 
 using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Drawing.Drawing2D;
-using System.Text;
 using System.Windows.Forms;
 using ZedGraph;
-using System.IO.Ports;
 using System.IO;
 using System.Reflection;
 using System.Threading;
-using System.Collections;
-using Microsoft.Win32;
 using System.Diagnostics;
 using RFExplorerCommunicator;
-using SharpGL;
-using SharpGL.Enumerations;
-using System.Media;
+using RFEClientControls;
+using System.Collections;
 
 namespace RFExplorerClient
 {
-    enum RFExplorerSignalType
-    {
-        Realtime,
-        Average,
-        MaxPeak,
-        Min,
-        MaxHold,
-        TOTAL_ITEMS
-    };
-
     enum RFExplorerFileType             //Different file types supported by the application
     {
         SweepDataFile,
@@ -68,8 +56,10 @@ namespace RFExplorerClient
         LimitLineDataFile,
         PowerChannelScreenshotFile,
         SNANormalizedDataFile,
-        S1PDataFile,
+        SNATrackingS1PFile,
         SNATrackingDataFile,
+        SNATrackingCSVFile,
+        SNATrackingScreenshotFile,
         None
     };
 
@@ -81,10 +71,13 @@ namespace RFExplorerClient
         private const float m_fSizeX = 130;         //Size of the dump screen in pixels (128x64 + 2 border) + 20 height for text header
         private const float m_fSizeY = 66;
 
-        private const string _MarkerEnabled = "MarkerEnabled";
+        private const string _MarkerEnabledSA = "MarkerEnabled";
+        private const string _MarkerEnabledSNA = "MarkerEnabledSNA";
         private const string _Common_Settings = "Common_Settings";
-        private const string _MarkerFrequency = "MarkerFrequency";
-        private const string _MarkerTrackSignal = "MarkerTrackSignal";
+        private const string _MarkerFrequencySA = "MarkerFrequency";
+        private const string _MarkerTrackSignalSA = "MarkerTrackSignal";
+        private const string _MarkerFrequencySNA = "MarkerFrequencySNA";
+        private const string _MarkerTrackSignalSNA = "MarkerTrackSignalSNA";
         private const string _ViewMaxHold = "ViewMaxHold";
         private const string _ViewMax = "ViewMax";
         private const string _ViewMin = "ViewMin";
@@ -98,12 +91,13 @@ namespace RFExplorerClient
         private const string _RFGenSteps = "RFGenSteps";
         private const string _RFGenStartFreq = "RFGenStartFreq";
         private const string _RFGenStopFreq = "RFGenStopFreq";
-        private const string _RFGenPower= "RFGenPower";
+        private const string _RFGenPower = "RFGenPower";
         private const string _RFGenStepTime = "RFGenStepTime";
         private const string _Default = "Default";
         private const string _Name = "Name";
         private const string _OnlyIfConnected = "OnlyIfConnected"; //used for resources that should be displayed or enabled only if connected
 
+        private const string _S1P_File_Selector = "RF Explorer S1P files (*.s1p)|*.s1p|All files (*.*)|*.*";
         private const string _CSV_File_Selector = "RF Explorer CSV files (*.csv)|*.csv|All files (*.*)|*.*";
         private const string _Filename_RFExplorer_Settings = "RFExplorer_Settings.xml";
         private const string _RFE_File_Selector = "RF Explorer Data files (*.rfe)|*.rfe|All files (*.*)|*.*";
@@ -124,30 +118,26 @@ namespace RFExplorerClient
         private const string _RBW = "RBW";
         private const string _MainBoard = "MainBoard";
         private const string _ExpansionBoard = "ExpansionBoard";
-        private const string _RFEGEN_TRACKING_TITLE="RF Explorer SNA Tracking";
-
+        private const string _RFEGEN_TRACKING_TITLE = "RF Explorer SNA Tracking";
         #endregion
 
-#if SUPPORT_EXPERIMENTAL
-        enum eModulation
-        {
-            MODULATION_OOK,         //0
-            MODULATION_PSK,         //1
-            MODULATION_NONE = 0xFF  //0xFF
-        };
-        eModulation m_eModulation;          //Modulation being used
-
-        UInt16 m_nRAWSnifferIndex=0;        //Index pointing to current RAW data value shown
-        UInt16 m_nMaxRAWSnifferIndex=0;     //Index pointing to the last RAW data value available
-        string[] m_arrRAWSnifferData;       //Array of strings for sniffer data
-#endif
-
         #region Data Members
-        RFECommunicator m_objRFEAnalyzer;       //The one and only RFE connected object
-        RFECommunicator m_objRFEGenerator;    //Optional RFEGen object for generator
+        RFECommunicator m_objRFEAnalyzer;     //The one and only RFE analyzer connected object
+        RFECommunicator m_objRFEGenerator;    //The one and only RFE generator connected object
 
-        ToolGroupCOMPort m_groupCOMPortAnalyzer;
-        ToolGroupCOMPort m_groupCOMPortGenerator; 
+        ToolGroupCOMPort m_ToolGroup_COMPortAnalyzer;
+        ToolGroupCOMPort m_ToolGroup_COMPortGenerator;
+        ToolGroupRFGenCW m_ToolGroup_RFGenCW = new ToolGroupRFGenCW();
+        ToolGroupTraces m_ToolGroup_AnalyzerTraces = new ToolGroupTraces();
+        ToolGroupAnalyzerMode m_ToolGroup_AnalyzerDataFeed = new ToolGroupAnalyzerMode();
+        ToolGroupMarkers m_ToolGroup_Markers_SNA;
+        ToolGroupMarkers m_ToolGroup_Markers_SA;
+        ToolGroupRemoteScreen m_ToolGroup_RemoteScreen = new ToolGroupRemoteScreen();
+        internal ToolGroupAnalyzerFreqSettings m_ToolGroup_AnalyzerFreqSettings = new ToolGroupAnalyzerFreqSettings();
+        ToolGroupRFEGenTracking m_ToolGroup_RFEGenTracking = new ToolGroupRFEGenTracking();
+        ToolGroupCommands m_ToolGroup_Commands = new ToolGroupCommands();
+        ToolGroupRFEGenFreqSweep m_ToolGroupRFEGenFreqSweep = new ToolGroupRFEGenFreqSweep();
+        ToolGroupRFEGenAmpSweep m_ToolGroupRFEGenAmplSweep = new ToolGroupRFEGenAmpSweep();
 
         string m_sLastSettingsLoaded = _Default;
         int m_nDrawingIteration = 0;        //Iteration counter to do regular updates on GUI
@@ -157,7 +147,7 @@ namespace RFExplorerClient
         //as it may indicate some type of crash and damage default settings
         bool m_bPropertiesReadOk = false;
         //Used to alert about firmware version popup only once per session
-        bool m_bVersionAlerted = false;     
+        bool m_bVersionAlerted = false;
 
         public About_RFExplorer m_winAboutModeless; //About box modeless dialog
 
@@ -169,17 +159,20 @@ namespace RFExplorerClient
         bool m_bFirstTick = true;           //Used to put some text and guarantee action done once after mainform load
         bool m_bFirstText = true;           //First report text printed
 
-        //Graphis objects cached to reduce drawing overhead
-        Pen m_PenDarkBlue;                  
+        //Graphics objects cached to reduce drawing overhead
+        Pen m_PenDarkBlue;
         Pen m_PenRed;
         Brush m_BrushDarkBlue;
 
         //Colors used in configuration and marker panels
-        Color m_ColorPanelText = Color.DarkBlue;
-        Color m_ColorPanelTextHighlight = Color.DarkRed;
-        Color m_ColorPanelBackground = Color.White;
-        Panel m_panelSAMarkers;             //panel to display marker values
+        Color m_ColorPanelText;
+        Color m_ColorPanelTextDisabled;
+        Color m_ColorPanelTextHighlight;
+        Color m_ColorPanelBackground;
+        Panel m_panelSAMarkers;             //panel to display marker values in Spectrum analyzer
         Panel m_panelSAConfiguration;       //panel to display RF Explorer configuration settings
+        Panel m_panelSNAMarkers;            //panel to display marker values in SNA
+        Panel m_panelSNAConfiguration;      //panel to display RF Explorer configuration settings
 
         TextObj[] m_arrWiFiBarText;         //Text for the 13 Wifi channels
         TextObj m_StatusGraphText_Analyzer; //Configuration data text received from RF Explorer to show on graph
@@ -197,28 +190,31 @@ namespace RFExplorerClient
         //pair list used by the line curve items
         PointPairList m_PointList_Realtime, m_PointList_Max, m_PointList_Min, m_PointList_Avg, m_PointList_MaxHold;
         PointPairList m_PointList_Tracking_Normal, m_PointList_Tracking_Avg;
-        //Bar curve used by the wifi analyzer
-        BarItem m_MaxBar;                   
+        //Bar curve used by the Wifi analyzer
+        BarItem m_MaxBar;
 
         //Support for limit lines
-        LineItem m_GraphLimitLineMax, m_GraphLimitLineMin, m_GraphLimitLineOverload;
-        LimitLine m_LimitLineMax, m_LimitLineMin, m_LimitLineOverload;
+        LineItem m_GraphLimitLineAnalyzer_Max, m_GraphLimitLineAnalyzer_Min, m_GraphLimitLineAnalyzer_Overload;
+        LimitLine m_LimitLineAnalyzer_Max, m_LimitLineAnalyzer_Min, m_LimitLineAnalyzer_Overload;
+        LineItem m_GraphLimitLineGenerator_Max, m_GraphLimitLineGenerator_Min;
+        LimitLine m_LimitLineGenerator_Max, m_LimitLineGenerator_Min;
 
         //Button group list for easy handling
         Button[] m_arrAnalyzerButtonList = new Button[15];
 
         string m_sAppDataFolder = "";       //Default folder based on %APPDATA% to store log and report files
         string m_sDefaultDataFolder = "";   //Default folder to store CSV and RFE or other data files
+        string m_sDefaultUserFolder = "";   //User defined folder to store CSV and RFE or other data files
         string m_sSettingsFile = "";        //Filename and path of the named settings file
 
         bool m_bPrintModeEnabled = false;   //Will be true when the painting is being done for printing, mainly used to remove black background
         RFESweepDataCollection m_WaterfallSweepMaxHold = null;
         bool m_bLayoutInitialized = false;  //True after Load Frame is completed
 
-        MarkerCollection m_Markers;         //Marker collection
+        MarkerCollection m_MarkersSA;         //Marker collection for Spectrum analyzer
+        MarkerCollection m_MarkersSNA;        //marker collection for tracking SNA
         ToolStripMenuItem[] m_arrMarkersEnabledMenu;  //Menu items with "Enabled" marker entry
         ToolStripTextBox[] m_arrMarkersFrequencyMenu; //Menu items with frequency MHZ editable, note marker 0 entry is empty (not used)
-        RFExplorerSignalType m_eTrackSignalPeak = RFExplorerSignalType.Realtime;
 
         ZedGraphControl m_graphPowerChannel = null;
         GasGaugeRegion m_PowerChannelRegion_Low = null;
@@ -226,8 +222,6 @@ namespace RFExplorerClient
         GasGaugeRegion m_PowerChannelRegion_High = null;
         GasGaugeNeedle m_PowerChannelNeedle = null;
         TextObj m_PowerChannelText;
-
-        RFExplorerSignalType m_eWaterfallSignal = RFExplorerSignalType.Realtime;
 
         Bitmap m_ClipboardBitmap = null; //bitmap object used to copy into clipboard
 
@@ -244,30 +238,20 @@ namespace RFExplorerClient
 
         //Dialog used to define a custom text
         UserDefinedText m_dlgUserDefinedText = new UserDefinedText();
-        #endregion
 
-        #region Static utilities
+        //Counter to store the method calls of AnalyzerReceivedDeviceModel
+        int m_CounterAnalyzerReceivedDeviceModel = 0;
 
         /// <summary>
-        /// Used to set a visible text box when is disabled, used for all blueish numeric edit boxes
+        /// Spectrum analyzer shared waterfall view
         /// </summary>
-        /// <param name="objTextBox"></param>
-        public static void ChangeTextBoxColor(TextBox objTextBox)
-        {
-            if (objTextBox != null && !objTextBox.IsDisposed)
-            {
-                if (objTextBox.Enabled)
-                {
-                    objTextBox.BackColor = Color.RoyalBlue;
-                    objTextBox.ForeColor = Color.White;
-                }
-                else
-                {
-                    objTextBox.BackColor = Color.LightBlue;
-                    objTextBox.ForeColor = Color.DarkBlue;
-                }
-            }
-        }
+        RFEWaterfallGL.SharpGLForm m_objSAWaterfall=null;
+        Panel m_objPanelSAWaterfall;
+        /// <summary>
+        /// Dedicated specific waterfall tab view control
+        /// </summary>
+        RFEWaterfallGL.SharpGLForm m_objMainWaterfall=null;
+        Panel m_objPanelMainWaterfall;
         #endregion
 
         #region Main Window
@@ -276,6 +260,8 @@ namespace RFExplorerClient
 #if CALLSTACK
             Console.WriteLine("CALLSTACK:MainForm");
 #endif
+            //Trace.Listeners.Add(new TextWriterTraceListener(Console.Out));
+            Trace.AutoFlush = true;
 
             try
             {
@@ -286,16 +272,21 @@ namespace RFExplorerClient
                 SetStyle(ControlStyles.AllPaintingInWmPaint, true);
                 SetStyle(ControlStyles.UserPaint, true);
                 InitializeComponent();
-
-                InitializeRFGenTab();
+                CreateWaterfallControl();
 
                 m_GraphSpectrumAnalyzer = new ZedGraph.ZedGraphControl();
+                CreateRFGenTab();
+
                 m_WaterfallSweepMaxHold = new RFESweepDataCollection(100, false);
-                m_Markers = new MarkerCollection();
-                m_Markers.Initialize();
+                m_MarkersSA = new MarkerCollection();
+                m_MarkersSA.Initialize();
+                m_MarkersSNA = new MarkerCollection();
+                m_MarkersSNA.Initialize();
+                this.m_ToolGroup_Markers_SA = new ToolGroupMarkers(m_MarkersSA);
+                this.m_ToolGroup_Markers_SNA = new ToolGroupMarkers(m_MarkersSNA);
                 CreateMarkerMenu();
 
-                m_objRFEAnalyzer = new RFECommunicator();
+                m_objRFEAnalyzer = new RFECommunicator(true);
                 m_objRFEAnalyzer.PortClosedEvent += new EventHandler(OnAnalyzerPortClosed);
                 m_objRFEAnalyzer.PortConnectedEvent += new EventHandler(OnAnalyzerPortConnected);
                 m_objRFEAnalyzer.ReportInfoAddedEvent += new EventHandler(OnAnalyzerReportLog);
@@ -307,13 +298,13 @@ namespace RFExplorerClient
                 m_objRFEAnalyzer.UpdateDataTrakingEvent += new EventHandler(OnAnalyzerUpdateTrackingData);
                 m_objRFEAnalyzer.ShowDetailedCOMPortInfo = false;
 
-                m_groupCOMPortAnalyzer = new ToolGroupCOMPort();
-                m_groupCOMPortAnalyzer.RFExplorer = m_objRFEAnalyzer;
-                m_groupCOMPortAnalyzer.PortClosed += new EventHandler(OnAnalyzerButtons_PortClosed);
-                m_groupCOMPortAnalyzer.PortConnected += new EventHandler(OnAnalyzerButtons_PortConnected);
-                m_groupCOMPortAnalyzer.GroupBoxTitle = "COM Port Spectrum Analyzer";
+                m_ToolGroup_COMPortAnalyzer = new ToolGroupCOMPort();
+                m_ToolGroup_COMPortAnalyzer.RFExplorer = m_objRFEAnalyzer;
+                m_ToolGroup_COMPortAnalyzer.PortClosed += new EventHandler(OnAnalyzerButtons_PortClosed);
+                m_ToolGroup_COMPortAnalyzer.PortConnected += new EventHandler(OnAnalyzerButtons_PortConnected);
+                m_ToolGroup_COMPortAnalyzer.GroupBoxTitle = "COM Port Spectrum Analyzer";
 
-                m_objRFEGenerator = new RFECommunicator();
+                m_objRFEGenerator = new RFECommunicator(false);
                 m_objRFEGenerator.PortClosedEvent += new EventHandler(OnGeneratorPortClosed);
                 m_objRFEGenerator.PortConnectedEvent += new EventHandler(OnGeneratorPortConnected);
                 m_objRFEGenerator.ReportInfoAddedEvent += new EventHandler(OnGeneratorReportLog);
@@ -322,15 +313,16 @@ namespace RFExplorerClient
                 m_objRFEGenerator.UpdateRemoteScreenEvent += new EventHandler(OnAnalyzerUpdateRemoteScreen);
                 m_objRFEGenerator.ReceivedDeviceModelEvent += new EventHandler(OnGeneratorReceivedDeviceModel);
                 m_objRFEGenerator.ShowDetailedCOMPortInfo = false;
-
-                m_groupCOMPortGenerator = new ToolGroupCOMPort();
-                m_groupCOMPortGenerator.RFExplorer = m_objRFEGenerator;
-                //m_groupCOMPortGenerator.PortClosed += new EventHandler(OnGeneratorButtons_PortClosed);
-                //m_groupCOMPortGenerator.PortConnected += new EventHandler(OnGeneratorButtons_PortConnected);
-                m_groupCOMPortGenerator.GroupBoxTitle = "COM Port Signal Generator";
+                m_ToolGroup_COMPortGenerator = new ToolGroupCOMPort();
+                m_ToolGroup_COMPortGenerator.RFExplorer = m_objRFEGenerator;
+                m_ToolGroup_COMPortGenerator.PortClosed += new EventHandler(OnGeneratorButtons_PortClosed);
+                m_ToolGroup_COMPortGenerator.PortConnected += new EventHandler(OnGeneratorButtons_PortConnected);
+                m_ToolGroup_COMPortGenerator.GroupBoxTitle = "COM Port Signal Generator";
 
                 printMainDocument.PrintPage += new System.Drawing.Printing.PrintPageEventHandler(this.printDocument_PrintPage);
                 printMainDocument.DocumentName = "RF Explorer";
+
+                CreateToolgroups();
             }
             catch (Exception obEx)
             {
@@ -345,7 +337,202 @@ namespace RFExplorerClient
                 }
             }
         }
-        
+
+        void CreateWaterfallControl()
+        {
+            // 
+            // m_objMainWaterfall
+            // 
+            m_objMainWaterfall = new RFEWaterfallGL.SharpGLForm();
+            m_objMainWaterfall.Analyzer = null;
+            m_objMainWaterfall.AutoSize = true;
+            m_objMainWaterfall.ContextMenuStrip = menuContextWaterfall;
+            m_objMainWaterfall.DrawFloor = true;
+            m_objMainWaterfall.DrawFPS = true;
+            m_objMainWaterfall.DrawTitle = false;
+            m_objMainWaterfall.Location = new System.Drawing.Point(0, 0);
+            m_objMainWaterfall.Margin = new System.Windows.Forms.Padding(4);
+            m_objMainWaterfall.Name = "m_objMainWaterfall";
+            m_objMainWaterfall.PerspectiveModeView = RFEWaterfallGL.SharpGLForm.WaterfallPerspectives.Perspective1;
+            m_objMainWaterfall.Size = new System.Drawing.Size(50, 50);
+            m_objMainWaterfall.TabIndex = 0;
+            m_objMainWaterfall.Transparent = true;
+            // 
+            // m_objPanelMainWaterfall
+            // 
+            m_objPanelMainWaterfall = new Panel();
+            m_objPanelMainWaterfall.Controls.Add(this.m_objMainWaterfall);
+            m_objPanelMainWaterfall.Location = new System.Drawing.Point(12, 140);
+            m_objPanelMainWaterfall.Name = "m_objPanelMainWaterfall";
+            m_objPanelMainWaterfall.Size = new System.Drawing.Size(912, 363);
+            m_objPanelMainWaterfall.TabIndex = 1;
+            m_objPanelMainWaterfall.BorderStyle = BorderStyle.None;
+            m_tabWaterfall.Controls.Add(this.m_objPanelMainWaterfall);
+            m_objMainWaterfall.Dock = DockStyle.Fill;
+
+            // 
+            // m_objSAWaterfall
+            // 
+            m_objSAWaterfall = new RFEWaterfallGL.SharpGLForm();
+            m_objSAWaterfall.Analyzer = null;
+            m_objSAWaterfall.AutoSize = true;
+            m_objSAWaterfall.ContextMenuStrip = menuContextWaterfall;
+            m_objSAWaterfall.DrawFloor = false;
+            m_objSAWaterfall.DrawFPS = false;
+            m_objSAWaterfall.DrawTitle = false;
+            m_objSAWaterfall.Location = new Point(0, 0);
+            m_objSAWaterfall.Margin = new Padding(0);
+            m_objSAWaterfall.Padding = new Padding(0, 0, 10, 0);
+            m_objSAWaterfall.Name = "m_objSAWaterfall";
+            m_objSAWaterfall.PerspectiveModeView = RFEWaterfallGL.SharpGLForm.WaterfallPerspectives.Perspective2D;
+            m_objSAWaterfall.Size = new Size(50, 50);
+            m_objSAWaterfall.TabIndex = 0;
+            m_objSAWaterfall.Transparent = false;
+            // 
+            // m_objPanelSAWaterfall
+            //
+            m_objPanelSAWaterfall = new Panel();
+            m_objPanelSAWaterfall.Controls.Add(this.m_objSAWaterfall);
+            m_objPanelSAWaterfall.Location = new System.Drawing.Point(12, 140);
+            m_objPanelSAWaterfall.Name = "m_objPanelSAWaterfall";
+            m_objPanelSAWaterfall.Size = new System.Drawing.Size(912, 363);
+            m_objPanelSAWaterfall.TabIndex = 1;
+            m_objPanelSAWaterfall.BorderStyle = BorderStyle.FixedSingle;
+            m_objPanelSAWaterfall.Visible = false;
+            m_tabSpectrumAnalyzer.Controls.Add(m_objPanelSAWaterfall);
+            m_objSAWaterfall.Dock = DockStyle.Fill;
+        }
+
+        /// <summary>
+        /// Create here all toolgroups except those for COM serial control
+        /// </summary>
+        void CreateToolgroups()
+        {
+            // 
+            // m_ToolGroup_Markers_SA
+            // 
+            this.m_ToolGroup_Markers_SA.AutoSize = true;
+            this.m_ToolGroup_Markers_SA.Location = new System.Drawing.Point(0, 0);
+            this.m_ToolGroup_Markers_SA.Name = "m_ToolGroup_Markers_SA";
+            this.m_ToolGroup_Markers_SA.MarkerChangedEvent += new System.EventHandler(this.OnMarkerChanged_SA);
+            this.m_ToolGroup_Markers_SA.MarkerValueChangedEvent += new System.EventHandler(this.OnMarkerValueChanged_SA);
+
+            // 
+            // m_ToolGroup_Markers_SNA
+            // 
+            this.m_ToolGroup_Markers_SNA.AutoSize = true;
+            this.m_ToolGroup_Markers_SNA.Location = new System.Drawing.Point(0, 0);
+            this.m_ToolGroup_Markers_SNA.Name = "m_ToolGroup_Markers_SNA";
+            this.m_ToolGroup_Markers_SNA.MarkerChangedEvent += new System.EventHandler(this.OnMarkerChanged_SNA);
+            this.m_ToolGroup_Markers_SNA.MarkerValueChangedEvent += new System.EventHandler(this.OnMarkerValueChanged_SNA);
+
+            // 
+            // m_ToolGroup_RFGenCW
+            // 
+            this.m_ToolGroup_RFGenCW.AutoSize = true;
+            this.m_ToolGroup_RFGenCW.Location = new System.Drawing.Point(0, 0);
+            this.m_ToolGroup_RFGenCW.Name = "m_ToolGroup_RFGenCW";
+            this.m_ToolGroup_RFGenCW.FrequencyChangeEvent += new System.EventHandler(this.OnGeneratorFrequencyChanged);
+            this.m_ToolGroup_RFGenCW.PowerChangeEvent += new System.EventHandler(this.OnGeneratorPowerChange);
+            this.m_ToolGroup_RFGenCW.StartStopEvent += new System.EventHandler(this.OnGeneratorStartStopClick);
+            this.m_ToolGroup_RFGenCW.ReportInfoEvent += new System.EventHandler(this.OnToolGroupRFGenReportInfoChanged);
+            // 
+            // m_ToolGroup_AnalyzerTraces
+            // 
+            this.m_ToolGroup_AnalyzerTraces.AutoSize = true;
+            this.m_ToolGroup_AnalyzerTraces.Average = false;
+            this.m_ToolGroup_AnalyzerTraces.AxisLabels = false;
+            this.m_ToolGroup_AnalyzerTraces.FillTrace = false;
+            this.m_ToolGroup_AnalyzerTraces.Location = new Point(0, 0);
+            this.m_ToolGroup_AnalyzerTraces.MaxHold = false;
+            this.m_ToolGroup_AnalyzerTraces.MaxPeak = false;
+            this.m_ToolGroup_AnalyzerTraces.Minimum = false;
+            this.m_ToolGroup_AnalyzerTraces.Name = "m_ToolGroup_AnalyzerTraces";
+            this.m_ToolGroup_AnalyzerTraces.Realtime = false;
+            this.m_ToolGroup_AnalyzerTraces.ShowGrid = false;
+            this.m_ToolGroup_AnalyzerTraces.Smooth = false;
+            this.m_ToolGroup_AnalyzerTraces.ThickTrace = false;
+            this.m_ToolGroup_AnalyzerTraces.ConfigurationChangeEvent += new System.EventHandler(this.OnTraceConfigurationChangeEvent);
+            //
+            //m_ToolGroup_AnalyzerDataFeed
+            //
+            this.m_ToolGroup_AnalyzerDataFeed.AutoSize = true;
+            this.m_ToolGroup_AnalyzerDataFeed.Location = new Point(0, 0);
+            this.m_ToolGroup_AnalyzerDataFeed.Name = "m_ToolGroup_AnalyzerDataFeed";
+            this.m_ToolGroup_AnalyzerDataFeed.RunModeChangeEvent += new EventHandler(this.OnRunModeChanged);
+            this.m_ToolGroup_AnalyzerDataFeed.HoldModeChangeEvent += new EventHandler(this.OnHoldModeChanged);
+            this.m_ToolGroup_AnalyzerDataFeed.NumericSampleSAChangeEvent += new EventHandler(this.OnSweepIndexChanged);
+            // 
+            // m_ToolGroup_AnalyzerFreqSettings
+            // 
+            this.m_ToolGroup_AnalyzerFreqSettings.AutoSize = true;
+            this.m_ToolGroup_AnalyzerFreqSettings.FreqCenter = 2435D;
+            this.m_ToolGroup_AnalyzerFreqSettings.FreqSpan = 0D;
+            this.m_ToolGroup_AnalyzerFreqSettings.FreqStart = 2433D;
+            this.m_ToolGroup_AnalyzerFreqSettings.Margin = new Padding(4, 0, 0, 0);
+            this.m_ToolGroup_AnalyzerFreqSettings.Location = new Point(0, 0);
+            //this.m_ToolGroup_AnalyzerFreqSettings.MinimumSize = new Size(400, 116); //this toolgroup is the only one we size, all others will refer to this one
+            this.m_ToolGroup_AnalyzerFreqSettings.Name = "m_ToolGroup_AnalyzerFreqSettings";
+            this.m_ToolGroup_AnalyzerFreqSettings.SendAnalyzerConfigurationEvent += new System.EventHandler(this.OnSendAnalyzerConfiguration);
+            this.m_ToolGroup_AnalyzerFreqSettings.ReportInfoEvent += new System.EventHandler(this.OnToolGroupReport);
+            // 
+            // m_ToolGroup_RFEGenTracking
+            // 
+            this.m_ToolGroup_RFEGenTracking.AutoSize = true;
+            this.m_ToolGroup_RFEGenTracking.Location = new Point(0, 0);
+            this.m_ToolGroup_RFEGenTracking.Margin = new Padding(4, 0, 0, 0);
+            this.m_ToolGroup_RFEGenTracking.Name = "m_ToolGroup_RFEGenTracking";
+            this.m_ToolGroup_RFEGenTracking.TabIndex = 63;
+            this.m_ToolGroup_RFEGenTracking.NormalizeTrackingStartEvent += new EventHandler(this.OnNormalizeTrackingStartChanged);
+            this.m_ToolGroup_RFEGenTracking.TrackingStopEvent += new EventHandler(this.OnTrackingStopChanged);
+            this.m_ToolGroup_RFEGenTracking.TrackingStartEvent += new EventHandler(this.OnTrackingStartChanged);
+            this.m_ToolGroup_RFEGenTracking.SNAOptionsChangeEvent += new EventHandler(this.m_ListSNAOptions_SelectedIndexChanged);
+            // 
+            // m_ToolGroup_Commands
+            // 
+            this.m_ToolGroup_Commands.AutoSize = true;
+            this.m_ToolGroup_Commands.Location = new System.Drawing.Point(0, 0);
+            this.m_ToolGroup_Commands.Name = "m_ToolGroup_Commands";
+            this.m_ToolGroup_Commands.TabIndex = 51;
+            this.m_ToolGroup_Commands.DebugChangeEvent += new EventHandler(this.OnDebug_CheckedChanged);
+            this.m_ToolGroup_Commands.ReportInfoEvent += new System.EventHandler(this.OnToolGroupReport);
+            this.m_ToolGroup_Commands.CustomCommandEvent += new System.EventHandler(this.OnCustomCommandProperties);
+            // 
+            // m_ToolGroupRFEGenFreqSweep
+            // 
+            this.m_ToolGroupRFEGenFreqSweep.AutoSize = true;
+            this.m_ToolGroupRFEGenFreqSweep.Location = new System.Drawing.Point(0, 0);
+            this.m_ToolGroupRFEGenFreqSweep.Name = "m_ToolGroupRFEGenFreqSweep";
+            this.m_ToolGroupRFEGenFreqSweep.TabIndex = 63;
+            this.m_ToolGroupRFEGenFreqSweep.StartFreqSweepEvent += new System.EventHandler(this.OnStartFreqSweep_Click);
+            this.m_ToolGroupRFEGenFreqSweep.StopFreqSweepEvent += new System.EventHandler(this.OnStopSweep_Click);
+            this.m_ToolGroupRFEGenFreqSweep.RFGenFreqSweepStepsLeaveEvent += new System.EventHandler(this.OnRFGenFreqSweepSteps_Leave);
+            this.m_ToolGroupRFEGenFreqSweep.RFGenFreqSweepStepsLeaveEvent += new System.EventHandler(this.OnRFGenFreqSweepStart_Leave);
+            this.m_ToolGroupRFEGenFreqSweep.RFGenFreqSweepStepsLeaveEvent += new System.EventHandler(this.OnRFGenFreqSweepStop_Leave);
+            this.m_ToolGroupRFEGenFreqSweep.ReportInfoEvent += new System.EventHandler(this.OnToolGroupRFGenReportInfoChanged);
+            // 
+            // m_ToolGroupRFEGenAmplSweep
+            // 
+            this.m_ToolGroupRFEGenAmplSweep.AutoSize = true;
+            this.m_ToolGroupRFEGenAmplSweep.Location = new System.Drawing.Point(0, 0);
+            this.m_ToolGroupRFEGenAmplSweep.Name = "m_ToolGroupRFEGenFreqSweep";
+            this.m_ToolGroupRFEGenAmplSweep.TabIndex = 64;
+            this.m_ToolGroupRFEGenAmplSweep.StartAmplSweepEvent += new System.EventHandler(this.OnStartAmpSweep_Click);
+            this.m_ToolGroupRFEGenAmplSweep.StopAmplSweepEvent += new System.EventHandler(this.OnStopSweep_Click);
+            this.m_ToolGroupRFEGenAmplSweep.ReportInfoEvent += new System.EventHandler(this.OnToolGroupRFGenReportInfoChanged);
+            //
+            // m_ToolGroup_RemoteScreen
+            //
+            this.m_ToolGroup_RemoteScreen.Location = new System.Drawing.Point(400, 0);
+            this.m_ToolGroup_RemoteScreen.Name = "m_ToolGroup_RemoteScreen";
+            this.m_ToolGroup_RemoteScreen.Size = new System.Drawing.Size(387, 116);
+            this.m_ToolGroup_RemoteScreen.TabIndex = 57;
+            this.m_ToolGroup_RemoteScreen.NumeriZoomChangeEvent += new EventHandler(this.OnRemoteScreen_ZoomChanged);
+            this.m_ToolGroup_RemoteScreen.ChkDumpScreenChangeEvent += new EventHandler(this.OnRemoteScreen_EnabledChanged);
+            this.m_ToolGroup_RemoteScreen.ChkDumpHeaderChangeEvent += new EventHandler(this.OnRemoteScreen_HeaderChanged);
+            this.m_ToolGroup_RemoteScreen.SaveImageChangeEvent += new EventHandler(this.OnSaveImage_Click);
+        }
+
         private void OnUserDefinedText_Click(object sender, EventArgs e)
         {
             if (DialogResult.OK == m_dlgUserDefinedText.ShowDialog(this))
@@ -353,6 +540,8 @@ namespace RFExplorerClient
                 m_sUserDefinedText = m_dlgUserDefinedText.m_comboText.Text;
                 UpdateTitleText_Analyzer();
                 m_GraphSpectrumAnalyzer.Refresh();
+                if (m_MainTab.SelectedTab == m_tabRFGen)
+                    m_GraphTrackingGenerator.Refresh();
                 if (m_dlgUserDefinedText.m_comboText.Items.Count > 0)
                 {
                     if (!m_dlgUserDefinedText.m_comboText.Items.Contains(m_sUserDefinedText))
@@ -397,14 +586,17 @@ namespace RFExplorerClient
                 objTableCommon.Columns.Add(new DataColumn(_ViewMaxHold, System.Type.GetType("System.Boolean")));
                 for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
                 {
-                    objTableCommon.Columns.Add(new DataColumn(_MarkerEnabled + nInd.ToString(), System.Type.GetType("System.Boolean")));
+                    objTableCommon.Columns.Add(new DataColumn(_MarkerEnabledSA + nInd.ToString(), System.Type.GetType("System.Boolean")));
+                    objTableCommon.Columns.Add(new DataColumn(_MarkerEnabledSNA + nInd.ToString(), System.Type.GetType("System.Boolean")));
                     if (nInd != 1)
                     {
-                        objTableCommon.Columns.Add(new DataColumn(_MarkerFrequency + nInd.ToString(), System.Type.GetType("System.Double")));
+                        objTableCommon.Columns.Add(new DataColumn(_MarkerFrequencySA + nInd.ToString(), System.Type.GetType("System.Double")));
+                        objTableCommon.Columns.Add(new DataColumn(_MarkerFrequencySNA + nInd.ToString(), System.Type.GetType("System.Double")));
                     }
                     else
                     {
-                        objTableCommon.Columns.Add(new DataColumn(_MarkerTrackSignal, System.Type.GetType("System.UInt16")));
+                        objTableCommon.Columns.Add(new DataColumn(_MarkerTrackSignalSA, System.Type.GetType("System.UInt16")));
+                        objTableCommon.Columns.Add(new DataColumn(_MarkerTrackSignalSNA, System.Type.GetType("System.UInt16")));
                     }
                 }
 
@@ -422,16 +614,19 @@ namespace RFExplorerClient
                 objRow[_ViewMaxHold] = false;
                 for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
                 {
-                    objRow[_MarkerEnabled + nInd.ToString()] = false;
+                    objRow[_MarkerEnabledSA + nInd.ToString()] = true;
+                    objRow[_MarkerEnabledSNA + nInd.ToString()] = true;
                     if (nInd != 1)
                     {
-                        objRow[_MarkerFrequency + nInd.ToString()] = 1000.0;
+                        objRow[_MarkerFrequencySA + nInd.ToString()] = 1000.0;
+                        objRow[_MarkerFrequencySNA + nInd.ToString()] = 1000.0;
                     }
                     else
                     {
-                        objRow[_MarkerTrackSignal] = 0;
+                        objRow[_MarkerTrackSignalSA] = 0;
+                        objRow[_MarkerTrackSignalSNA] = 0;
                     }
-                } 
+                }
                 objTableCommon.Rows.Add(objRow);
 
                 m_DataSettings.WriteXml(m_sSettingsFile, XmlWriteMode.WriteSchema);
@@ -460,10 +655,10 @@ namespace RFExplorerClient
             //    menuItem.Dispose();
             //}
             menuMRU.DropDownItems.Clear();
-            string[] arrMRU=null;
+            string[] arrMRU = null;
             string sUsedMRU = ""; //helper string to limit stored files to MAX_MRU_FILES
 
-            GetStringArrayFromStringList(RFExplorerClient.Properties.Settings.Default.MRUList, out arrMRU);
+            GetStringArrayFromStringList(Properties.Settings.Default.MRUList, out arrMRU);
 
             foreach (string sFile in arrMRU)
             {
@@ -484,7 +679,7 @@ namespace RFExplorerClient
                 if (nCounter > MAX_MRU_FILES)
                 {
                     //too many files, we limit them to MAX_MRU_FILES
-                    RFExplorerClient.Properties.Settings.Default.MRUList = sUsedMRU;
+                    Properties.Settings.Default.MRUList = sUsedMRU;
                     break;
                 }
             }
@@ -500,12 +695,14 @@ namespace RFExplorerClient
         {
             if (m_objRFEAnalyzer.HoldMode)
                 DisplaySpectrumAnalyzerData();
+            UpdateButtonStatus();
         }
 
         private void OnSignalFill_Click(object sender, EventArgs e)
         {
             if (m_objRFEAnalyzer.HoldMode)
                 DisplaySpectrumAnalyzerData();
+            UpdateButtonStatus();
         }
 
         private void OnLoadSettings_Click(object sender, EventArgs e)
@@ -513,14 +710,11 @@ namespace RFExplorerClient
             RestoreSettingsXML(menuComboSavedOptions.Text);
         }
 
+        DateTime m_StartDebugTime = DateTime.Now;
         private void OnDebug_CheckedChanged(object sender, EventArgs e)
         {
-            m_controlWaterfall.DrawFPS = m_chkDebugTraces.Checked;
-            if (m_objRFEAnalyzer != null)
-            {
-                m_objRFEAnalyzer.EnableDebugTraces = m_chkDebugTraces.Checked;
-                m_objRFEAnalyzer.ShowDetailedCOMPortInfo = m_chkDebugTraces.Checked;
-            }
+            m_StartDebugTime = DateTime.Now;
+            m_objMainWaterfall.DrawFPS = m_ToolGroup_Commands.DebugTraces;
         }
 
         private void menuComboSavedOptions_SelectedIndexChanged(object sender, EventArgs e)
@@ -546,25 +740,58 @@ namespace RFExplorerClient
 
         private void DefineGraphColors()
         {
-            GraphPane myPane = m_GraphSpectrumAnalyzer.GraphPane;
-
-            m_controlWaterfall.DarkMode = menuDarkMode.Checked;
-
-            if (menuDarkMode.Checked)
+            try
             {
-                Color DarkColor = Color.Black;
-                Color FontColor = Color.White;
-                Color BackgroundColor = Color.DarkGray;
+                GraphPane myPaneAnalyzer = m_GraphSpectrumAnalyzer.GraphPane;
+                GraphPane myPaneTracking = m_GraphTrackingGenerator.GraphPane;
 
-                m_ColorPanelText = Color.White;
-                m_ColorPanelTextHighlight = Color.LightSalmon;
-                m_ColorPanelBackground = Color.Black;
+                myPaneTracking.Chart.Border.Color = Color.Gray;
+                myPaneTracking.Chart.Border.IsAntiAlias = true;
+                myPaneAnalyzer.Chart.Border.Color = Color.Gray;
+                myPaneAnalyzer.Chart.Border.IsAntiAlias = true;
+
+                // Enable scrollbars if needed
+                m_GraphSpectrumAnalyzer.IsAutoScrollRange = true;
+
+                m_objMainWaterfall.DarkMode = menuDarkMode.Checked;
+                m_objSAWaterfall.DarkMode = menuDarkMode.Checked;
+
+                Fill FillColorAnalyzer = new Fill(Color.White, Color.LightYellow, 90.0f);
+                Fill FillColorTracking = new Fill(Color.White, Color.LightYellow, 90.0f);
+
+                Color FontColor = Color.Black;
+                Color BackgroundColor = Color.LightYellow;
+                Color ShadowColor = Color.LightGray;
+                Color StatusTextColor = Color.DarkBlue;
+                Color WarningTextColor = Color.DarkRed;
+
+                m_ColorPanelText = Color.DarkBlue;
+                m_ColorPanelTextDisabled = Color.DarkGray;
+                m_ColorPanelTextHighlight = Color.DarkRed;
+                m_ColorPanelBackground = Color.White;
 
                 if (m_bPrintModeEnabled)
                 {
-                    DarkColor = Color.White;
+                    FillColorAnalyzer = new Fill(Color.White);
+                    FillColorTracking = new Fill(Color.White);
                     FontColor = Color.Black;
                     BackgroundColor = Color.White;
+                    WarningTextColor = Color.DarkRed;
+                }
+                else if (menuDarkMode.Checked)
+                {
+                    FillColorAnalyzer = new Fill(Color.Black);
+                    FillColorTracking = new Fill(Color.Black);
+                    FontColor = Color.White;
+                    BackgroundColor = Color.DarkGray;
+                    ShadowColor = Color.DarkRed;
+                    StatusTextColor = Color.LightGray;
+                    WarningTextColor = Color.Red;
+
+                    m_ColorPanelText = Color.White;
+                    m_ColorPanelTextDisabled = Color.LightGray;
+                    m_ColorPanelTextHighlight = Color.LightSalmon;
+                    m_ColorPanelBackground = Color.Black;
                 }
 
                 this.BackColor = BackgroundColor;
@@ -573,96 +800,178 @@ namespace RFExplorerClient
                 m_tabRemoteScreen.BackColor = BackgroundColor;
                 m_tabConfiguration.BackColor = BackgroundColor;
                 m_tabWaterfall.BackColor = BackgroundColor;
-                if (m_tabRFGen != null)
-                {
-                    m_tabRFGen.BackColor = BackgroundColor;
-                }
+                m_tabRFGen.BackColor = BackgroundColor;
+                m_tabPowerChannel.BackColor = BackgroundColor;
 
-                myPane.Fill = new Fill(DarkColor);
-                myPane.Chart.Fill = new Fill(DarkColor);
-                myPane.Title.FontSpec.FontColor = FontColor;
+                myPaneTracking.Fill = FillColorTracking;
+                myPaneTracking.Chart.Fill = FillColorTracking;
+                myPaneTracking.Title.FontSpec.FontColor = FontColor;
+                myPaneTracking.YAxis.Title.FontSpec.FontColor = FontColor;
+                myPaneTracking.XAxis.Title.FontSpec.FontColor = FontColor;
+                myPaneTracking.YAxis.Scale.FontSpec.FontColor = FontColor;
+                myPaneTracking.XAxis.Scale.FontSpec.FontColor = FontColor;
+                myPaneTracking.Legend.FontSpec.FontColor = FontColor;
+                myPaneTracking.Legend.Fill = FillColorTracking;
 
-                m_StatusGraphText_Analyzer.FontSpec.FontColor = Color.LightGray;
-                m_StatusGraphText_Analyzer.FontSpec.DropShadowColor = Color.DarkRed;
-                m_OverloadText.FontSpec.FontColor = Color.LightSalmon;
+                myPaneAnalyzer.Fill = FillColorAnalyzer;
+                myPaneAnalyzer.Chart.Fill = FillColorAnalyzer;
+                myPaneAnalyzer.Title.FontSpec.FontColor = FontColor;
+                myPaneAnalyzer.YAxis.Title.FontSpec.FontColor = FontColor;
+                myPaneAnalyzer.XAxis.Title.FontSpec.FontColor = FontColor;
+                myPaneAnalyzer.YAxis.Scale.FontSpec.FontColor = FontColor;
+                myPaneAnalyzer.XAxis.Scale.FontSpec.FontColor = FontColor;
+                myPaneAnalyzer.Legend.FontSpec.FontColor = FontColor;
+                myPaneAnalyzer.Legend.Fill = FillColorAnalyzer;
 
-                myPane.YAxis.Title.FontSpec.FontColor = FontColor;
-                myPane.XAxis.Title.FontSpec.FontColor = FontColor;
-                myPane.YAxis.Scale.FontSpec.FontColor = FontColor;
-                myPane.XAxis.Scale.FontSpec.FontColor = FontColor;
+                m_StatusGraphText_Analyzer.FontSpec.FontColor = StatusTextColor;
+                m_StatusGraphText_Analyzer.FontSpec.DropShadowColor = ShadowColor;
+                m_OverloadText.FontSpec.FontColor = WarningTextColor;
+                m_TrackingStatus.FontSpec.Fill.Color = m_ColorPanelBackground;
 
-                myPane.Chart.Border.Color = Color.Gray;
-                myPane.Chart.Border.IsAntiAlias = true;
+                myPaneAnalyzer.YAxis.MajorGrid.Color = Color.Gray;
+                myPaneAnalyzer.YAxis.MinorGrid.Color = Color.Gray;
+                myPaneAnalyzer.XAxis.MajorGrid.Color = Color.Gray;
+                myPaneAnalyzer.XAxis.MinorGrid.Color = Color.Gray;
 
-                myPane.Legend.FontSpec.FontColor = FontColor;
-                myPane.Legend.Fill.Color = DarkColor;
-                myPane.Legend.Fill.SecondaryValueGradientColor = DarkColor;
-                myPane.Legend.Fill = new Fill(DarkColor);
+                myPaneAnalyzer.YAxis.MajorTic.Color = Color.Gray;
+                myPaneAnalyzer.YAxis.MinorTic.Color = Color.Gray;
+                myPaneAnalyzer.XAxis.MajorTic.Color = Color.Gray;
+                myPaneAnalyzer.XAxis.MinorTic.Color = Color.Gray;
+
+                myPaneTracking.YAxis.MajorGrid.Color = Color.Gray;
+                myPaneTracking.YAxis.MinorGrid.Color = Color.Gray;
+                myPaneTracking.XAxis.MajorGrid.Color = Color.Gray;
+                myPaneTracking.XAxis.MinorGrid.Color = Color.Gray;
+
+                myPaneTracking.YAxis.MajorTic.Color = Color.Gray;
+                myPaneTracking.YAxis.MinorTic.Color = Color.Gray;
+                myPaneTracking.XAxis.MajorTic.Color = Color.Gray;
+                myPaneTracking.XAxis.MinorTic.Color = Color.Gray;
+
+                m_objPanelSAWaterfall.BackColor = m_ColorPanelBackground;
+
+                // Update config and marker panels
+                UpdateSAMarkerControlValues();
+                UpdateSNAMarkerControlValues();
+                UpdateConfigControlContents(m_panelSAConfiguration, m_objRFEAnalyzer);
+                UpdateConfigControlContents(m_panelSNAConfiguration, m_objRFEGenerator);
             }
-            else
+            catch (Exception obEx)
             {
-                m_ColorPanelText = Color.DarkBlue;
-                m_ColorPanelTextHighlight = Color.DarkRed;
-                m_ColorPanelBackground = Color.White;
-
-                this.BackColor = Color.LightYellow;
-                m_tabSpectrumAnalyzer.BackColor = Color.LightYellow;
-                m_tabReport.BackColor = Color.LightYellow;
-                m_tabRemoteScreen.BackColor = Color.LightYellow;
-                m_tabConfiguration.BackColor = Color.LightYellow;
-                m_tabWaterfall.BackColor = Color.LightYellow;
-                if (m_tabRFGen!=null)
-                {
-                    m_tabRFGen.BackColor = this.BackColor;
-                }
-
-                myPane.Fill = new Fill(Color.White, Color.LightYellow, 90.0f);
-                myPane.Chart.Fill = new Fill(Color.White, Color.LightYellow, 90.0f);
-
-                m_StatusGraphText_Analyzer.FontSpec.FontColor = Color.DarkBlue;
-                m_StatusGraphText_Analyzer.FontSpec.DropShadowColor = Color.LightGray;
-                m_OverloadText.FontSpec.FontColor = Color.DarkRed;
-
-                myPane.Title.FontSpec.FontColor = Color.Black;
-
-                myPane.YAxis.Title.FontSpec.FontColor = Color.Black;
-                myPane.XAxis.Title.FontSpec.FontColor = Color.Black;
-                myPane.YAxis.Scale.FontSpec.FontColor = Color.Black;
-                myPane.XAxis.Scale.FontSpec.FontColor = Color.Black;
-
-                myPane.Chart.Border.Color = Color.Gray;
-                myPane.Chart.Border.IsAntiAlias = true;
-
-                myPane.Legend.FontSpec.FontColor = Color.Black;
-                myPane.Legend.Fill.Color = Color.LightYellow;
-                myPane.Legend.Fill = new Fill(Color.LightYellow);
+                ReportLog(obEx.ToString(), true);
             }
+        }
 
-            myPane.YAxis.MajorGrid.Color = Color.Gray;
-            myPane.YAxis.MinorGrid.Color = Color.Gray;
-            myPane.XAxis.MajorGrid.Color = Color.Gray;
-            myPane.XAxis.MinorGrid.Color = Color.Gray;
+        private void InitializeControlArea()
+        {
+            //Define control bar
+            m_tableLayoutControlArea.SuspendLayout();
+            m_tableLayoutControlArea.AutoSize = true;
+            m_tableLayoutControlArea.Font = new System.Drawing.Font("Tahoma", 8.25F);
+            m_tableLayoutControlArea.ColumnCount = 15;
+            for (int nIndCol = 0; nIndCol < m_tableLayoutControlArea.ColumnCount - 1; nIndCol++)
+            {
+                m_tableLayoutControlArea.ColumnStyles.Add(new ColumnStyle());
+            }
+            m_tableLayoutControlArea.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 10F)); //required to avoid wrong behavior of table layout when all columns are autosize
+            m_tableLayoutControlArea.Location = new Point(6, 3);
+            m_tableLayoutControlArea.Name = "m_tableLayoutControlArea";
+            m_tableLayoutControlArea.RowCount = 1;
+            m_tableLayoutControlArea.MinimumSize = new Size(10, 100);
+            m_tableLayoutControlArea.Visible = true;
 
-            myPane.YAxis.MajorTic.Color = Color.Gray;
-            myPane.YAxis.MinorTic.Color = Color.Gray;
-            myPane.XAxis.MajorTic.Color = Color.Gray;
-            myPane.XAxis.MinorTic.Color = Color.Gray;
+            m_tableLayoutControlArea.Controls.Clear();
 
-            myPane.YAxis.Title.FontSpec.Size = 13;
-            myPane.XAxis.Title.FontSpec.Size = 13;
-            myPane.YAxis.Scale.FontSpec.Size = 10;
-            myPane.XAxis.Scale.FontSpec.Size = 10;
+            int nRowCount = 0;
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_COMPortAnalyzer, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_COMPortGenerator, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_AnalyzerDataFeed, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_AnalyzerTraces, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_AnalyzerFreqSettings, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_Markers_SA, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_RemoteScreen, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_Commands, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_RFGenCW, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroupRFEGenFreqSweep, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroupRFEGenAmplSweep, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_RFEGenTracking, nRowCount++, 0);
+            m_tableLayoutControlArea.Controls.Add(m_ToolGroup_Markers_SNA, nRowCount++, 0);
+            //m_tableLayoutControlArea.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
 
-            // Fill the axis background with a gradient
-            myPane.Legend.IsHStack = true;
-            myPane.Legend.FontSpec.Size = 12;
+            m_ToolGroup_AnalyzerFreqSettings.RFCommunicator = m_objRFEAnalyzer;
+            m_ToolGroup_AnalyzerFreqSettings.UpdateUniversalLayout();
 
-            // Enable scrollbars if needed
-            m_GraphSpectrumAnalyzer.IsAutoScrollRange = true;
+            m_ToolGroup_AnalyzerDataFeed.RFEAnalyzer = m_objRFEAnalyzer;
+            UpdateMinimumSize(m_ToolGroup_AnalyzerDataFeed);
+            m_ToolGroup_AnalyzerDataFeed.UpdateUniversalLayout();
 
-            // Update config and marker panels
-            UpdateMarkerControlValues();
-            UpdateConfigControlContents();
+            m_ToolGroup_RFGenCW.RFEGenerator = m_objRFEGenerator;
+            m_ToolGroup_RFGenCW.RFEAnalyzer = m_objRFEAnalyzer;
+            UpdateMinimumSize(m_ToolGroup_RFGenCW);
+            m_ToolGroup_RFGenCW.UpdateUniversalLayout();
+
+            UpdateMinimumSize(m_ToolGroup_COMPortAnalyzer);
+            m_ToolGroup_COMPortAnalyzer.UpdateUniversalLayout();
+
+            UpdateMinimumSize(m_ToolGroup_COMPortGenerator);
+            m_ToolGroup_COMPortGenerator.UpdateUniversalLayout();
+
+            m_ToolGroup_RemoteScreen.ControlRemoteScreen = controlRemoteScreen;
+            m_ToolGroup_RemoteScreen.Analyzer = m_objRFEAnalyzer;
+            m_ToolGroup_RemoteScreen.Generator = m_objRFEGenerator;
+            UpdateMinimumSize(m_ToolGroup_RemoteScreen);
+            m_ToolGroup_RemoteScreen.UpdateUniversalLayout(m_ToolGroup_AnalyzerDataFeed.SweepIndexSize);
+
+            UpdateMinimumSize(m_ToolGroup_AnalyzerTraces);
+            m_ToolGroup_AnalyzerTraces.UpdateUniversalLayout();
+
+            m_ToolGroup_Markers_SA.RFCommunicator = m_objRFEAnalyzer;
+            UpdateMinimumSize(m_ToolGroup_Markers_SA);
+            m_ToolGroup_Markers_SA.UpdateUniversalLayout();
+
+            m_ToolGroup_Markers_SNA.RFCommunicator = m_objRFEGenerator;
+            UpdateMinimumSize(m_ToolGroup_Markers_SNA);
+            m_ToolGroup_Markers_SNA.UpdateUniversalLayout();
+
+            m_ToolGroup_RFEGenTracking.RFEAnalyzer = m_objRFEAnalyzer;
+            m_ToolGroup_RFEGenTracking.RFEGenerator = m_objRFEGenerator;
+            UpdateMinimumSize(m_ToolGroup_RFEGenTracking);
+            m_ToolGroup_RFEGenTracking.UpdateUniversalLayout();
+
+            m_ToolGroup_Commands.RFEAnalyzer = m_objRFEAnalyzer;
+            m_ToolGroup_Commands.RFEGenerator = m_objRFEGenerator;
+            UpdateMinimumSize(m_ToolGroup_Commands);
+            m_ToolGroup_Commands.UpdateUniversalLayout();
+
+            m_ToolGroupRFEGenFreqSweep.RFEAnalyzer = m_objRFEAnalyzer;
+            m_ToolGroupRFEGenFreqSweep.RFEGenerator = m_objRFEGenerator;
+            UpdateMinimumSize(m_ToolGroupRFEGenFreqSweep);
+            m_ToolGroupRFEGenFreqSweep.UpdateUniversalLayout();
+
+            m_ToolGroupRFEGenAmplSweep.RFEGenerator = m_objRFEGenerator;
+            UpdateMinimumSize(m_ToolGroupRFEGenAmplSweep);
+            m_ToolGroupRFEGenAmplSweep.UpdateUniversalLayout();
+
+
+            m_tableLayoutControlArea.ResumeLayout();
+        }
+
+        /// <summary>
+        /// Define what minimum height would be based on reference size adjusted by m_ToolGroup_AnalyzerFreqSettings
+        /// </summary>
+        /// <param name="objToolGroup">ToolGroup to update</param>
+        void UpdateMinimumSize(UserControl objToolGroup)
+        {
+#if TRACE
+            string sReport = "UpdateMinimumSize (" + m_ToolGroup_AnalyzerFreqSettings.Height + "): " + objToolGroup.GetType().Name + " " + objToolGroup.Height;
+#endif
+            objToolGroup.Margin = m_ToolGroup_AnalyzerFreqSettings.Margin;
+            //objToolGroup.BorderStyle = BorderStyle.FixedSingle; //only for debug
+            objToolGroup.MinimumSize = new Size(objToolGroup.Width, m_ToolGroup_AnalyzerFreqSettings.Height);
+            objToolGroup.Size = objToolGroup.MinimumSize;
+#if TRACE
+            Trace.WriteLine(sReport + " -> " + objToolGroup.Height);
+#endif
         }
 
         private void InitializeSpectrumAnalyzerGraph()
@@ -700,37 +1009,37 @@ namespace RFExplorerClient
             m_PointList_MaxHold = new PointPairList();
             m_PointList_Min = new PointPairList();
             m_PointList_Avg = new PointPairList();
-            m_LimitLineMax = new LimitLine();
-            m_LimitLineMin = new LimitLine();
-            m_LimitLineOverload = new LimitLine();
+            m_LimitLineAnalyzer_Max = new LimitLine();
+            m_LimitLineAnalyzer_Min = new LimitLine();
+            m_LimitLineAnalyzer_Overload = new LimitLine();
 
-            m_GraphLimitLineMax = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Limit Max", m_LimitLineMax, Color.Magenta, SymbolType.Circle);
-            m_GraphLimitLineMax.Line.Width = 1;
-            m_GraphLimitLineMin = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Limit Min", m_LimitLineMin, Color.DarkMagenta, SymbolType.Circle);
-            m_GraphLimitLineMin.Line.Width = 1;
-            m_GraphLimitLineOverload = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Overload", m_LimitLineOverload, Color.DarkRed, SymbolType.None);
-            m_GraphLimitLineOverload.Line.Style=DashStyle.DashDot;
-            m_GraphLimitLineOverload.Line.Width = 1;
+            m_GraphLimitLineAnalyzer_Max = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Limit Max", m_LimitLineAnalyzer_Max, Color.Magenta, SymbolType.Circle);
+            m_GraphLimitLineAnalyzer_Max.Line.Width = 1;
+            m_GraphLimitLineAnalyzer_Min = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Limit Min", m_LimitLineAnalyzer_Min, Color.DarkMagenta, SymbolType.Circle);
+            m_GraphLimitLineAnalyzer_Min.Line.Width = 1;
+            m_GraphLimitLineAnalyzer_Overload = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Overload", m_LimitLineAnalyzer_Overload, Color.DarkRed, SymbolType.None);
+            m_GraphLimitLineAnalyzer_Overload.Line.Style = DashStyle.DashDot;
+            m_GraphLimitLineAnalyzer_Overload.Line.Width = 1;
 
             m_MaxBar = m_GraphSpectrumAnalyzer.GraphPane.AddHiLowBar("Max", m_PointList_Max, Color.Red);
             m_MaxBar.Bar.Border.Color = Color.DarkRed;
             m_MaxBar.Bar.Border.Width = 3;
-            m_GraphLine_Realtime = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Realtime", m_PointList_Realtime, m_Markers.m_arrCurveColors[(int)RFExplorerSignalType.Realtime], SymbolType.None);
+            m_GraphLine_Realtime = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Realtime", m_PointList_Realtime, m_MarkersSA.m_arrCurveColors[(int)RFECommunicator.RFExplorerSignalType.Realtime], SymbolType.None);
             m_GraphLine_Realtime.Line.Width = 4;
             m_GraphLine_Realtime.Line.SmoothTension = 0.2F;
-            m_GraphLine_Min = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Min", m_PointList_Min, m_Markers.m_arrCurveColors[(int)RFExplorerSignalType.Min], SymbolType.None);
+            m_GraphLine_Min = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Min", m_PointList_Min, m_MarkersSA.m_arrCurveColors[(int)RFECommunicator.RFExplorerSignalType.Min], SymbolType.None);
             m_GraphLine_Min.Line.Width = 3;
             m_GraphLine_Min.Line.SmoothTension = 0.3F;
             m_GraphLine_Min.Line.Fill = new Fill(Color.DarkGreen, Color.LightGreen, 90);
-            m_GraphLine_Avg = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Avg", m_PointList_Avg, m_Markers.m_arrCurveColors[(int)RFExplorerSignalType.Average], SymbolType.None);
+            m_GraphLine_Avg = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Avg", m_PointList_Avg, m_MarkersSA.m_arrCurveColors[(int)RFECommunicator.RFExplorerSignalType.Average], SymbolType.None);
             m_GraphLine_Avg.Line.Width = 3;
             m_GraphLine_Avg.Line.SmoothTension = 0.3F;
             m_GraphLine_Avg.Line.Fill = new Fill(Color.Brown, Color.Salmon, 90);
-            m_GraphLine_Max = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Max", m_PointList_Max, m_Markers.m_arrCurveColors[(int)RFExplorerSignalType.MaxPeak], SymbolType.None);
+            m_GraphLine_Max = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Max", m_PointList_Max, m_MarkersSA.m_arrCurveColors[(int)RFECommunicator.RFExplorerSignalType.MaxPeak], SymbolType.None);
             m_GraphLine_Max.Line.Width = 3;
             m_GraphLine_Max.Line.SmoothTension = 0.3F;
             m_GraphLine_Max.Line.Fill = new Fill(Color.Red, Color.Salmon, 90);
-            m_GraphLine_MaxHold = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Max Hold", m_PointList_MaxHold, m_Markers.m_arrCurveColors[(int)RFExplorerSignalType.MaxHold], SymbolType.None);
+            m_GraphLine_MaxHold = m_GraphSpectrumAnalyzer.GraphPane.AddCurve("Max Hold", m_PointList_MaxHold, m_MarkersSA.m_arrCurveColors[(int)RFECommunicator.RFExplorerSignalType.MaxHold], SymbolType.None);
             m_GraphLine_MaxHold.Line.Width = 6;
             m_GraphLine_MaxHold.Line.SmoothTension = 0.3F;
             m_GraphLine_MaxHold.Line.Fill = new Fill(Color.Salmon, Color.LightSalmon, 90);
@@ -781,72 +1090,6 @@ namespace RFExplorerClient
 
             //MessageBox.Show(btnSend.Width.ToString());
 
-            //Define control bar
-            m_tableLayoutControlArea.SuspendLayout();
-            m_tableLayoutControlArea.AutoSize = true;
-            m_tableLayoutControlArea.ColumnCount = 10;
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle());
-            m_tableLayoutControlArea.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Absolute, 10F));
-            m_tableLayoutControlArea.Location = new System.Drawing.Point(6, 3);
-            m_tableLayoutControlArea.Name = "m_tableLayoutControlArea";
-            m_tableLayoutControlArea.RowCount = 1;
-            m_tableLayoutControlArea.RowStyles.Add(new System.Windows.Forms.RowStyle(System.Windows.Forms.SizeType.Absolute, m_groupControl_FreqSettings.Height));
-            m_tableLayoutControlArea.Size = new System.Drawing.Size(10, 122);
-            m_tableLayoutControlArea.MaximumSize = new System.Drawing.Size(Width, 122);
-            m_tableLayoutControlArea.TabIndex = 61;
-            m_tableLayoutControlArea.Visible = false;
-            int nSaveBtnWidth = btnAnalyzerSend.Width;
-            btnAnalyzerSend.AutoSize = false;
-            btnAnalyzerSend.Dock = DockStyle.None;
-            btnAnalyzerFreqSettingsReset.Dock = DockStyle.None;
-            btnAnalyzerFreqSettingsReset.AutoSize = false;
-            m_sAnalyzerCenterFreq.Width = (int)(label_sCenter.Width * 1.4);
-            m_sAnalyzerStartFreq.Width = (int)(label_sCenter.Width * 1.4);
-            m_sAnalyzerEndFreq.Width = (int)(label_sCenter.Width * 1.4);
-            m_sAnalyzerBottomAmplitude.Width = (int)(label_sCenter.Width * 1.4);
-            m_sAnalyzerTopAmplitude.Width = (int)(label_sCenter.Width * 1.4);
-            m_sAnalyzerFreqSpan.Width = (int)(label_sCenter.Width * 1.4);
-            btnAnalyzerSend.Width = nSaveBtnWidth;
-            btnAnalyzerFreqSettingsReset.Width = nSaveBtnWidth;
-
-            m_groupControl_DataFeed.Height = m_groupControl_FreqSettings.Height;
-            m_groupControl_RemoteScreen.Height = m_groupControl_FreqSettings.Height;
-            m_groupControl_Commands.Height = m_groupControl_FreqSettings.Height;
-            m_groupControl_RFEGen_CW.Height = m_groupControl_FreqSettings.Height;
-            m_groupControl_RFEGen_FrequencySweep.Height = m_groupControl_FreqSettings.Height;
-            m_groupCOMPortAnalyzer.Height = m_groupControl_FreqSettings.Height;
-            m_groupCOMPortGenerator.Height = m_groupControl_FreqSettings.Height;
-            m_groupControl_RFEGen_Tracking.Height = m_groupControl_FreqSettings.Height;
-            m_tableLayoutControlArea.Controls.Clear();
-            Controls.Remove(m_groupControl_DataFeed);
-            Controls.Remove(m_groupControl_FreqSettings);
-            Controls.Remove(m_groupControl_RemoteScreen);
-            Controls.Remove(m_groupControl_Commands);
-            Controls.Remove(m_groupControl_RFEGen_CW);
-            Controls.Remove(m_groupControl_RFEGen_FrequencySweep);
-            Controls.Remove(m_groupControl_RFEGen_Tracking);
-            m_tableLayoutControlArea.Controls.Add(m_groupCOMPortAnalyzer, 0, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupCOMPortGenerator, 1, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupControl_DataFeed, 2, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupControl_FreqSettings, 3, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupControl_RemoteScreen, 4, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupControl_Commands, 5, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupControl_RFEGen_CW, 6, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupControl_RFEGen_FrequencySweep, 7, 0);
-            m_tableLayoutControlArea.Controls.Add(m_groupControl_RFEGen_Tracking, 8, 0);
-            m_groupControl_FreqSettings.Dock = DockStyle.Fill;
-            m_groupControl_RemoteScreen.Dock = DockStyle.Fill;
-            //m_tableLayoutControlArea.CellBorderStyle = TableLayoutPanelCellBorderStyle.Single;
-            m_tableLayoutControlArea.ResumeLayout();
-
             // Set the titles and axis labels
             //myPane.Title.FontSpec.Size = 10;
             myPane.XAxis.Title.IsVisible = menuShowAxisLabels.Checked;
@@ -870,6 +1113,16 @@ namespace RFExplorerClient
             myPane.YAxis.MajorGrid.IsZeroLine = false;
             // Align the Y axis labels so they are flush to the axis
             myPane.YAxis.Scale.Align = AlignP.Inside;
+
+
+            myPane.YAxis.Title.FontSpec.Size = 13;
+            myPane.XAxis.Title.FontSpec.Size = 13;
+            myPane.YAxis.Scale.FontSpec.Size = 10;
+            myPane.XAxis.Scale.FontSpec.Size = 10;
+
+            // Fill the axis background with a gradient
+            myPane.Legend.IsHStack = true;
+            myPane.Legend.FontSpec.Size = 12;
 
             m_GraphSpectrumAnalyzer.IsShowPointValues = true;
             m_GraphSpectrumAnalyzer.PointValueEvent += new ZedGraphControl.PointValueHandler(GraphPointValueHandler);
@@ -896,11 +1149,11 @@ namespace RFExplorerClient
             m_StatusGraphText_Analyzer.FontSpec.Family = "Tahoma";
             myPane.GraphObjList.Add(m_StatusGraphText_Analyzer);
 
-            m_OverloadText = new TextObj("RF LEVEL OVERLOAD - COMPRESSION", 0.5, 0.05, CoordType.ChartFraction);
+            m_OverloadText = new TextObj("RF LEVEL OVERLOAD - COMPRESSION", 0.99, 0.01, CoordType.ChartFraction);
             m_OverloadText.IsClippedToChartRect = true;
             //m_RFEConfig.ZOrder = 0;
-            m_OverloadText.FontSpec.FontColor = Color.DarkRed;
-            m_OverloadText.Location.AlignH = AlignH.Center;
+            m_OverloadText.FontSpec.FontColor = Color.Red;
+            m_OverloadText.Location.AlignH = AlignH.Right;
             m_OverloadText.Location.AlignV = AlignV.Top;
             m_OverloadText.FontSpec.IsBold = true;
             m_OverloadText.FontSpec.Size = 12f;
@@ -928,9 +1181,7 @@ namespace RFExplorerClient
                 myPane.GraphObjList.Add(m_arrWiFiBarText[nInd]);
             }
 
-            m_Markers.ConnectToGraph(myPane);
-
-            DefineGraphColors();
+            m_MarkersSA.ConnectToGraph(myPane);
         }
 
         private void OnAutoLCDOff_Click(object sender, EventArgs e)
@@ -938,7 +1189,7 @@ namespace RFExplorerClient
             if (menuAutoLCDOff.Checked)
             {
                 m_objRFEAnalyzer.SendCommand_ScreenOFF();
-                chkDumpScreen.Checked = false;
+                m_ToolGroup_RemoteScreen.CaptureDumpScreen = false;
             }
             else
             {
@@ -957,6 +1208,11 @@ namespace RFExplorerClient
                     DefineGraphColors();
                     //zedSpectrumAnalyzer.DoPrintPreview() - not usable, it makes the dialog modeless and cannot set white color
                     printPreviewDialog.Document = m_GraphSpectrumAnalyzer.PrintDocument;
+                }
+                else if (m_MainTab.SelectedTab == m_tabRFGen)
+                {
+                    DefineGraphColors();
+                    printPreviewDialog.Document = m_GraphTrackingGenerator.PrintDocument;
                 }
                 else
                 {
@@ -1005,8 +1261,17 @@ namespace RFExplorerClient
             m_bPrintModeEnabled = true;
             try
             {
-                DefineGraphColors();
-                m_GraphSpectrumAnalyzer.DoPrint();
+                if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                {
+                    DefineGraphColors();
+                    //zedSpectrumAnalyzer.DoPrintPreview() - not usable, it makes the dialog modeless and cannot set white color
+                    m_GraphSpectrumAnalyzer.DoPrint();
+                }
+                else if (m_MainTab.SelectedTab == m_tabRFGen)
+                {
+                    DefineGraphColors();
+                    m_GraphTrackingGenerator.DoPrint();
+                }
             }
             catch (Exception obEx)
             {
@@ -1064,15 +1329,52 @@ namespace RFExplorerClient
                 case RFExplorerFileType.SNANormalizedDataFile:
                     sResult = "RFExplorer_SNANorm_" + sDate + RFECommunicator._SNANORM_File_Extension;
                     break;
+                case RFExplorerFileType.SNATrackingCSVFile:
+                    sResult = "RFExplorer_SNA_" + sDate + RFECommunicator._CSV_File_Extension;
+                    break;
                 case RFExplorerFileType.SNATrackingDataFile:
                     sResult = "RFExplorer_SNA_" + sDate + RFECommunicator._SNA_File_Extension;
                     break;
-                case RFExplorerFileType.S1PDataFile:
+                case RFExplorerFileType.SNATrackingScreenshotFile:
+                    sResult = "RFExplorer_SNA_" + sDate + RFECommunicator._PNG_File_Extension;
+                    break;
+                case RFExplorerFileType.SNATrackingS1PFile:
                     sResult = "RFExplorer_S1Port_" + sDate + RFECommunicator._S1P_File_Extension;
                     break;
             }
 
             return sResult;
+        }
+
+        private void InitializeOpenGL()
+        {
+            //Check OpenGL and disable Waterfall if not supported
+            if (m_objMainWaterfall.OpenGL_Supported == false)
+            {
+                ReportLog(m_objMainWaterfall.InitializationError, true);
+                ReportLog("ERROR: OpenGL 3D graphics are not supported in this system. Please check with your Graphics Card vendor. " + Environment.NewLine +
+                    "Waterfall graphics require OpenGL. Waterfall graphics are disabled", false);
+                m_objPanelMainWaterfall.Visible = false;
+                m_objPanelMainWaterfall.Enabled = false;
+                m_objPanelSAWaterfall.Visible = false;
+                m_objPanelSAWaterfall.Enabled = false;
+                System.Windows.Forms.Label warningLabel = new System.Windows.Forms.Label();
+                warningLabel.Text = "Invalid graphics mode - 3D OpenGL not supported - check your video card";
+                warningLabel.Location = m_objPanelMainWaterfall.Location;
+                warningLabel.AutoSize = true;
+                m_tabWaterfall.Controls.Add(warningLabel);
+            }
+            else
+            {
+                ReportLog("OpenGL 3D mode: " + m_objMainWaterfall.InternalOpenGLControl.RenderContextType +
+                              " - version: " + m_objMainWaterfall.InternalOpenGLControl.OpenGL.Version +
+                              " - vendor:" + m_objMainWaterfall.InternalOpenGLControl.OpenGL.Vendor +
+                              " - renderer:" + m_objMainWaterfall.InternalOpenGLControl.OpenGL.Renderer
+                         , false);
+                //ReportLog("OpenGL supported extensions: " + controlWaterfall.InternalOpenGLControl.OpenGL.Extensions, true);
+            }
+            m_objMainWaterfall.Analyzer = m_objRFEAnalyzer;
+            m_objSAWaterfall.Analyzer = m_objRFEAnalyzer;
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
@@ -1084,53 +1386,10 @@ namespace RFExplorerClient
             Cursor.Current = Cursors.WaitCursor;
             try
             {
-                //Check OpenGL and disable Waterfall if not supported
-                if (m_controlWaterfall.OpenGL_Supported == false)
-                {
-                    ReportLog(m_controlWaterfall.InitializationError, true);
-                    ReportLog("ERROR: OpenGL 3D graphics are not supported in this system. Please check with your Graphics Card vendor. " + Environment.NewLine +
-                        "Waterfall graphics require OpenGL. Waterfall graphics are disabled", false);
-                    m_panelWaterfall.Visible = false;
-                    m_panelWaterfall.Enabled = false;
-                    System.Windows.Forms.Label warningLabel = new System.Windows.Forms.Label();
-                    warningLabel.Text = "Invalid graphics mode - 3D OpenGL not supported - check your video card";
-                    warningLabel.Location = m_panelWaterfall.Location;
-                    warningLabel.AutoSize = true;
-                    m_tabWaterfall.Controls.Add(warningLabel);
-                }
-                else
-                {
-                    ReportLog("OpenGL 3D mode: " + m_controlWaterfall.InternalOpenGLControl.RenderContextType +
-                                  " - version: " + m_controlWaterfall.InternalOpenGLControl.OpenGL.Version +
-                                  " - vendor:" + m_controlWaterfall.InternalOpenGLControl.OpenGL.Vendor +
-                                  " - renderer:" + m_controlWaterfall.InternalOpenGLControl.OpenGL.Renderer
-                             , false);
-                    //ReportLog("OpenGL supported extensions: " + controlWaterfall.InternalOpenGLControl.OpenGL.Extensions, true);
-                }
-
                 menuUseAmplitudeCorrection.Enabled = false; //disable this boy till a valid file is loaded
 
-#if SUPPORT_EXPERIMENTAL
-            m_arrRAWSnifferData     = new string[m_nTotalBufferSize];
-            m_nRAWSnifferIndex      = 0;
-            m_nMaxRAWSnifferIndex   = 0;
-            numSampleDecoder.Maximum = m_nTotalBufferSize;
-            numSampleDecoder.Minimum = 0;
-            numSampleDecoder.Value  = 0;
-#endif
                 toolStripMemory.Maximum = RFESweepDataCollection.MAX_ELEMENTS;
                 toolStripMemory.Step = RFESweepDataCollection.MAX_ELEMENTS / 25;
-
-                numericSampleSA.Minimum = 0;
-                numericSampleSA.Value = 0;
-                UpdateSweepNumericControls();
-
-                numScreenIndex.Minimum = 0;
-                numScreenIndex.Maximum = 0;
-                numScreenIndex.Value = 0;
-
-                numericIterations.Maximum = 10000;
-                numericIterations.Value = 10;
 
                 m_PenDarkBlue = new Pen(Color.DarkBlue, 1);
                 m_PenRed = new Pen(Color.Red, 1);
@@ -1142,22 +1401,15 @@ namespace RFExplorerClient
                 btnSaveSettings.Left = btnLoadSettings.Right + 5;
                 btnDelSettings.Left = btnSaveSettings.Right + 5;
 
-                m_groupCOMPortAnalyzer.GetConnectedPorts();
-                m_groupCOMPortGenerator.GetConnectedPorts();
                 LoadProperties();
+                m_ToolGroup_COMPortAnalyzer.GetConnectedPorts();
+                m_ToolGroup_COMPortGenerator.GetConnectedPorts();
 
+                InitializeOpenGL();
+                InitializeControlArea();
                 InitializeSpectrumAnalyzerGraph();
+                InitializeTrackingGeneratorGraph();
                 DefineGraphColors();
-                //make sure vertical size is limited as otherwise sometimes the editor may screw up things
-                m_groupControl_DataFeed.MaximumSize = new Size(m_groupControl_DataFeed.Width, 116);
-                m_groupControl_Commands.MaximumSize = new Size(m_groupControl_Commands.Width, 116);
-                m_groupControl_FreqSettings.MaximumSize = new Size(m_groupControl_FreqSettings.Width, 116);
-                m_groupControl_RemoteScreen.MaximumSize = new Size(m_groupControl_RemoteScreen.Width, 116);
-                m_groupCOMPortGenerator.MaximumSize = new Size(m_groupCOMPortGenerator.Width, 116);
-                m_groupControl_RFEGen_CW.MaximumSize = new Size(m_groupControl_RFEGen_CW.Width, 116);
-                m_groupControl_RFEGen_FrequencySweep.MaximumSize = new Size(m_groupControl_RFEGen_FrequencySweep.Width, 116);
-                m_groupCOMPortAnalyzer.MaximumSize = new Size(m_groupCOMPortAnalyzer.Width, 116);
-                m_groupControl_RFEGen_Tracking.MaximumSize = new Size(m_groupControl_RFEGen_Tracking.Width, 116);
 
                 SetupSpectrumAnalyzerAxis();
 
@@ -1179,7 +1431,6 @@ namespace RFExplorerClient
                     ReportLog(obSoundException.ToString(), true);
                 }
 
-                chkHoldMode.Checked = !chkRunMode.Checked;
                 chkHoldDecoder.Checked = !chkRunDecoder.Checked;
 #if DEBUG
                 menuDebug.Visible = true;
@@ -1203,7 +1454,8 @@ namespace RFExplorerClient
                 else
                 {
                     //try to reconnect analyzer
-                    m_groupCOMPortAnalyzer.ConnectPort();
+                    m_ToolGroup_COMPortAnalyzer.ConnectPort();
+                    m_ToolGroup_COMPortGenerator.ConnectPort();
                     if (!m_objRFEAnalyzer.PortConnected)
                     {
                         //To guarantee all markers are properly hidden when first load with no connection or data
@@ -1235,37 +1487,32 @@ namespace RFExplorerClient
 #endif
             try
             {
-                m_groupCOMPortAnalyzer.UpdateButtonStatus();
-                m_groupCOMPortGenerator.UpdateButtonStatus();
-                chkDumpScreen.Checked = chkDumpScreen.Checked && !menuAutoLCDOff.Checked && (m_objRFEAnalyzer.PortConnected || m_objRFEGenerator.PortConnected);
-                chkDumpScreen.Enabled = !menuAutoLCDOff.Checked && (m_objRFEAnalyzer.PortConnected || m_objRFEGenerator.PortConnected);
+                m_ToolGroup_COMPortAnalyzer.UpdateButtonStatus();
+                m_ToolGroup_COMPortGenerator.UpdateButtonStatus();
+                m_ToolGroup_Markers_SA.UpdateButtonStatus();
+                m_ToolGroup_Markers_SNA.UpdateButtonStatus();
 
-                btnSendCmd.Enabled = m_objRFEAnalyzer.PortConnected;
+                m_ToolGroup_Commands.UpdateButtonStatus();
 
-                m_groupControl_FreqSettings.Enabled = m_objRFEAnalyzer.PortConnected;
+                m_ToolGroup_RemoteScreen.UpdateButtonStatus(menuAutoLCDOff.Checked);
+
+                m_ToolGroup_AnalyzerFreqSettings.UpdateButtonStatus(false);
                 groupDemodulator.Enabled = m_objRFEAnalyzer.PortConnected;
-                chkHoldMode.Enabled = m_objRFEAnalyzer.PortConnected;
-                chkRunMode.Enabled = m_objRFEAnalyzer.PortConnected;
+
+                m_ToolGroup_AnalyzerDataFeed.UpdateButtonStatus();
                 chkRunDecoder.Enabled = m_objRFEAnalyzer.PortConnected;
                 chkHoldDecoder.Enabled = m_objRFEAnalyzer.PortConnected;
 
-                chkCalcRealtime.Checked = menuRealtimeTrace.Checked;
-                chkCalcAverage.Checked = menuAveragedTrace.Checked;
-                chkCalcMax.Checked = menuMaxTrace.Checked;
-                chkCalcMin.Checked = menuMinTrace.Checked;
-
-                btnSaveRemoteBitmap.Enabled = m_objRFEAnalyzer.ScreenData.Count > 1;
-                btnSaveRemoteVideo.Enabled = m_objRFEAnalyzer.ScreenData.Count > 1;
-                chkDumpColorScreen.Enabled = chkDumpScreen.Enabled;
-                chkDumpLCDGrid.Enabled = chkDumpScreen.Enabled;
-                chkDumpHeader.Enabled = chkDumpScreen.Enabled;
-
-                ChangeTextBoxColor(m_sAnalyzerBottomAmplitude);
-                ChangeTextBoxColor(m_sAnalyzerCenterFreq);
-                ChangeTextBoxColor(m_sAnalyzerEndFreq);
-                ChangeTextBoxColor(m_sAnalyzerFreqSpan);
-                ChangeTextBoxColor(m_sAnalyzerTopAmplitude);
-                ChangeTextBoxColor(m_sAnalyzerStartFreq);
+                m_ToolGroup_AnalyzerTraces.Realtime = menuRealtimeTrace.Checked;
+                m_ToolGroup_AnalyzerTraces.Average = menuAveragedTrace.Checked;
+                m_ToolGroup_AnalyzerTraces.MaxPeak = menuMaxTrace.Checked;
+                m_ToolGroup_AnalyzerTraces.MaxHold = menuMaxHoldTrace.Checked;
+                m_ToolGroup_AnalyzerTraces.Minimum = menuMinTrace.Checked;
+                m_ToolGroup_AnalyzerTraces.FillTrace = menuSignalFill.Checked;
+                m_ToolGroup_AnalyzerTraces.Smooth = menuSmoothSignals.Checked;
+                m_ToolGroup_AnalyzerTraces.ThickTrace = menuThickTrace.Checked;
+                m_ToolGroup_AnalyzerTraces.ShowGrid = menuShowGrid.Checked;
+                m_ToolGroup_AnalyzerTraces.AxisLabels = menuShowAxisLabels.Checked;
 
                 //m_panelSAConfiguration.Enabled = true;
                 //calibration is available for all models but 2.4G
@@ -1295,7 +1542,6 @@ namespace RFExplorerClient
             {
                 ReportLog("ERROR UpdateButtonStatus: " + obEx.ToString(), true);
             }
-
         }
 
         private void DefineCommonFiles()
@@ -1305,12 +1551,6 @@ namespace RFExplorerClient
                 //Configuring and loading default folders
                 m_sAppDataFolder = Environment.GetEnvironmentVariable("APPDATA") + "\\RFExplorer";
                 m_sAppDataFolder = m_sAppDataFolder.Replace("\\\\", "\\");
-                if (String.IsNullOrEmpty(m_sDefaultDataFolder))
-                {
-                    m_sDefaultDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "\\RFExplorer";
-                    m_sDefaultDataFolder = m_sDefaultDataFolder.Replace("\\\\", "\\");
-                    edDefaultFilePath.Text = m_sDefaultDataFolder;
-                }
 
                 if (Directory.Exists(m_sAppDataFolder) == false)
                 {
@@ -1318,12 +1558,32 @@ namespace RFExplorerClient
                     try
                     {
                         Directory.CreateDirectory(m_sAppDataFolder);
-                        Directory.CreateDirectory(m_sDefaultDataFolder);
                     }
                     catch (Exception obEx)
                     {
                         MessageBox.Show(obEx.Message);
                     }
+                }
+            }
+
+            if (String.IsNullOrEmpty(m_sDefaultDataFolder) || m_sDefaultDataFolder == "<new>")
+            {
+                m_sDefaultDataFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + "\\RFExplorer";
+                m_sDefaultDataFolder = m_sDefaultDataFolder.Replace("\\\\", "\\");
+                edDefaultFilePath.Text = m_sDefaultDataFolder;
+                m_sDefaultUserFolder = m_sDefaultDataFolder;
+            }
+
+            if (Directory.Exists(m_sDefaultDataFolder) == false)
+            {
+                //Create specific RF Explorer folders if they don't exist, alert with a message box if that fails
+                try
+                {
+                    Directory.CreateDirectory(m_sDefaultDataFolder);
+                }
+                catch (Exception obEx)
+                {
+                    MessageBox.Show(obEx.Message);
                 }
             }
         }
@@ -1336,47 +1596,55 @@ namespace RFExplorerClient
             try
             {
                 //Load standard WinForm .NET properties
-                m_groupCOMPortAnalyzer.DefaultCOMSpeed = RFExplorerClient.Properties.Settings.Default.COMSpeed;
-                m_groupCOMPortAnalyzer.DefaultCOMPort = RFExplorerClient.Properties.Settings.Default.COMPort;
-                m_groupCOMPortGenerator.DefaultCOMSpeed = RFExplorerClient.Properties.Settings.Default.COMSpeedRFGen;
-                m_groupCOMPortGenerator.DefaultCOMPort = RFExplorerClient.Properties.Settings.Default.COMPortRFGen;
-                
-                menuSaveOnClose.Checked = RFExplorerClient.Properties.Settings.Default.SaveOnClose;
-                numericZoom.Value = RFExplorerClient.Properties.Settings.Default.ScreenZoom;
-                menuShowPeak.Checked = RFExplorerClient.Properties.Settings.Default.ViewPeaks;
-                menuShowControlArea.Checked = RFExplorerClient.Properties.Settings.Default.ShowControlArea;
-                menuDarkMode.Checked = RFExplorerClient.Properties.Settings.Default.DarkMode;
-                menuAutoLCDOff.Checked = RFExplorerClient.Properties.Settings.Default.AutoLCDOff;
-                menuContinuousLog.Checked = RFExplorerClient.Properties.Settings.Default.ContinuousLog;
-                string sTemp = RFExplorerClient.Properties.Settings.Default.DefaultDataFolder;
-                comboCSVFieldSeparator.SelectedIndex = (int)RFExplorerClient.Properties.Settings.Default.CSVDelimiter;
-                menuRFConnections.Checked = RFExplorerClient.Properties.Settings.Default.ShowRFConnections;
-                menuSmoothSignals.Checked = RFExplorerClient.Properties.Settings.Default.SignalSmooth;
-                menuThickTrace.Checked = RFExplorerClient.Properties.Settings.Default.ThickTrace;
-                menuShowGrid.Checked = RFExplorerClient.Properties.Settings.Default.ShowGrid;
-                menuSignalFill.Checked = RFExplorerClient.Properties.Settings.Default.SignalFill;
-                m_eWaterfallSignal = (RFExplorerSignalType)RFExplorerClient.Properties.Settings.Default.WaterfallSignalType;
-                menuShowAxisLabels.Checked = RFExplorerClient.Properties.Settings.Default.ShowAxisTitle;
-                menuItemSoundAlarmLimitLine.Checked = RFExplorerClient.Properties.Settings.Default.LimitLinesSoundAlarm;
-                menuAutoLoadAmplitudeData.Checked = RFExplorerClient.Properties.Settings.Default.AutoLoadCorrectionModel;
-                menuRemoteAmplitudeUpdate.Checked = RFExplorerClient.Properties.Settings.Default.AutoAmplitudeRemoteUpdate;
-                menuRemoteMaxHold.Checked = RFExplorerClient.Properties.Settings.Default.AutoMaxHold;
+                m_ToolGroup_COMPortAnalyzer.DefaultCOMSpeed = Properties.Settings.Default.COMSpeed;
+                m_ToolGroup_COMPortAnalyzer.DefaultCOMPort = Properties.Settings.Default.COMPort;
+                m_ToolGroup_COMPortGenerator.DefaultCOMSpeed = Properties.Settings.Default.COMSpeedRFGen;
+                m_ToolGroup_COMPortGenerator.DefaultCOMPort = Properties.Settings.Default.COMPortRFGen;
+
+                menuSaveOnClose.Checked = Properties.Settings.Default.SaveOnClose;
+                m_ToolGroup_RemoteScreen.ScreenZoom = Properties.Settings.Default.ScreenZoom;
+                menuShowPeak.Checked = Properties.Settings.Default.ViewPeaks;
+                menuShowControlArea.Checked = Properties.Settings.Default.ShowControlArea;
+                menuDarkMode.Checked = Properties.Settings.Default.DarkMode;
+                menuAutoLCDOff.Checked = Properties.Settings.Default.AutoLCDOff;
+                menuContinuousLog.Checked = Properties.Settings.Default.ContinuousLog;
+                string sTemp = Properties.Settings.Default.DefaultDataFolder;
+                comboCSVFieldSeparator.SelectedIndex = (int)Properties.Settings.Default.CSVDelimiter;
+                menuRFConnections.Checked = Properties.Settings.Default.ShowRFConnections;
+                menuSmoothSignals.Checked = Properties.Settings.Default.SignalSmooth;
+                menuThickTrace.Checked = Properties.Settings.Default.ThickTrace;
+                menuShowGrid.Checked = Properties.Settings.Default.ShowGrid;
+                menuSignalFill.Checked = Properties.Settings.Default.SignalFill;
+                menuShowAxisLabels.Checked = Properties.Settings.Default.ShowAxisTitle;
+                menuItemSoundAlarmLimitLine.Checked = Properties.Settings.Default.LimitLinesSoundAlarm;
+                menuAutoLoadAmplitudeData.Checked = Properties.Settings.Default.AutoLoadCorrectionModel;
+                menuRemoteAmplitudeUpdate.Checked = Properties.Settings.Default.AutoAmplitudeRemoteUpdate;
+                menuRemoteMaxHold.Checked = Properties.Settings.Default.AutoMaxHold;
                 if (m_objRFEAnalyzer != null)
                 {
                     m_objRFEAnalyzer.UseMaxHold = menuRemoteMaxHold.Checked;
                 }
 
-                m_controlWaterfall.DrawFloor = RFExplorerClient.Properties.Settings.Default.WaterfallFloor;
-                m_controlWaterfall.Transparent = RFExplorerClient.Properties.Settings.Default.TransparentWaterfall;
-                m_controlWaterfall.PerspectiveView = (RFEWaterfallGL.SharpGLForm.WaterfallPerspectives)RFExplorerClient.Properties.Settings.Default.WaterfallView;
+                m_objMainWaterfall.SignalType = (RFECommunicator.RFExplorerSignalType)Properties.Settings.Default.WaterfallSignalType;
+                m_objMainWaterfall.DrawFloor = Properties.Settings.Default.WaterfallFloor;
+                m_objMainWaterfall.Transparent = Properties.Settings.Default.TransparentWaterfall;
+                m_objMainWaterfall.PerspectiveModeView = (RFEWaterfallGL.SharpGLForm.WaterfallPerspectives)Properties.Settings.Default.WaterfallView;
+
+                m_objSAWaterfall.SignalType = (RFECommunicator.RFExplorerSignalType)Properties.Settings.Default.WaterfallSignalTypeSA;
+                m_objSAWaterfall.DrawFloor = Properties.Settings.Default.WaterfallFloorSA;
+                m_objSAWaterfall.Transparent = Properties.Settings.Default.TransparentWaterfallSA;
+                m_objSAWaterfall.PerspectiveModeView = (RFEWaterfallGL.SharpGLForm.WaterfallPerspectives)Properties.Settings.Default.WaterfallViewSA;
                 UpdateAllWaterfallMenuItems();
 
-                menuPlaceWaterfallAtBottom.Checked = RFExplorerClient.Properties.Settings.Default.WaterfallBottom;
-                menuPlaceWaterfallOnTheRight.Checked = RFExplorerClient.Properties.Settings.Default.WaterfallRight;
-                menuPlaceWaterfallNone.Checked = RFExplorerClient.Properties.Settings.Default.WaterfallNoSA;
-                m_nRFGENIterationAverage.Value = RFExplorerClient.Properties.Settings.Default.TrackingAverage;
+                menuPlaceWaterfallAtBottom.Checked = Properties.Settings.Default.WaterfallBottom;
+                menuPlaceWaterfallOnTheRight.Checked = Properties.Settings.Default.WaterfallRight;
+                menuPlaceWaterfallNone.Checked = Properties.Settings.Default.WaterfallNoSA;
+                m_ToolGroup_RFEGenTracking.Average = (UInt16)Properties.Settings.Default.TrackingAverage;
 
-
+                if (!String.IsNullOrEmpty(sTemp))
+                {
+                    m_sDefaultUserFolder = sTemp;
+                }
                 DefineCommonFiles();
 
                 m_sSettingsFile = m_sAppDataFolder + "\\" + _Filename_RFExplorer_Settings;
@@ -1411,26 +1679,22 @@ namespace RFExplorerClient
                 PopulateReadedSettings();
                 RestoreSettingsXML(_Default);
 
-                if (!String.IsNullOrEmpty(sTemp))
-                {
-                    m_sDefaultDataFolder = sTemp;
-                }
-                edDefaultFilePath.Text = m_sDefaultDataFolder;
+                edDefaultFilePath.Text = m_sDefaultUserFolder;
 
-                if (RFExplorerClient.Properties.Settings.Default.CustomCommandList.Length > 0)
+                if (Properties.Settings.Default.CustomCommandList.Length > 0)
                 {
                     string[] arrCustomCommands = null;
-                    GetStringArrayFromStringList(RFExplorerClient.Properties.Settings.Default.CustomCommandList, out arrCustomCommands);
+                    GetStringArrayFromStringList(Properties.Settings.Default.CustomCommandList, out arrCustomCommands);
                     foreach (string sCmd in arrCustomCommands)
                     {
-                        comboCustomCommand.Items.Add(sCmd);
+                        m_ToolGroup_Commands.CustomCommandAddItem = sCmd;
                     }
                 }
 
-                if (RFExplorerClient.Properties.Settings.Default.UserDefinedTitleList.Length > 0)
+                if (Properties.Settings.Default.UserDefinedTitleList.Length > 0)
                 {
                     string[] arrStrings = null;
-                    GetStringArrayFromStringList(RFExplorerClient.Properties.Settings.Default.UserDefinedTitleList, out arrStrings);
+                    GetStringArrayFromStringList(Properties.Settings.Default.UserDefinedTitleList, out arrStrings);
                     foreach (string sText in arrStrings)
                     {
                         if (sText.Length > 0)
@@ -1446,7 +1710,8 @@ namespace RFExplorerClient
             }
             catch (Exception obEx)
             {
-                MessageBox.Show(obEx.Message);
+                MessageBox.Show(obEx.ToString());
+                ReportLog(obEx.ToString(), false);
             }
         }
 
@@ -1471,62 +1736,68 @@ namespace RFExplorerClient
             try
             {
                 //No need to save CustomCommands here, it is already saved in send button.
-                //RFExplorerClient.Properties.Settings.Default.CustomCommands
+                //Properties.Settings.Default.CustomCommands
 
-                if (m_groupCOMPortAnalyzer.IsCOMPortSelected)
+                if (m_ToolGroup_COMPortAnalyzer.IsCOMPortSelected)
                 {
-                    RFExplorerClient.Properties.Settings.Default.COMPort = m_groupCOMPortAnalyzer.COMPortSelected;
+                    Properties.Settings.Default.COMPort = m_ToolGroup_COMPortAnalyzer.COMPortSelected;
                 }
-                if (m_groupCOMPortAnalyzer.IsCOMSpeedSelected)
+                if (m_ToolGroup_COMPortAnalyzer.IsCOMSpeedSelected)
                 {
-                    RFExplorerClient.Properties.Settings.Default.COMSpeed = m_groupCOMPortAnalyzer.COMSpeedSelected;
+                    Properties.Settings.Default.COMSpeed = m_ToolGroup_COMPortAnalyzer.COMSpeedSelected;
                 }
-                if (m_groupCOMPortGenerator.IsCOMPortSelected)
+                if (m_ToolGroup_COMPortGenerator.IsCOMPortSelected)
                 {
-                    RFExplorerClient.Properties.Settings.Default.COMPortRFGen = m_groupCOMPortGenerator.COMPortSelected;
+                    Properties.Settings.Default.COMPortRFGen = m_ToolGroup_COMPortGenerator.COMPortSelected;
                 }
-                if (m_groupCOMPortGenerator.IsCOMSpeedSelected)
+                if (m_ToolGroup_COMPortGenerator.IsCOMSpeedSelected)
                 {
-                    RFExplorerClient.Properties.Settings.Default.COMSpeedRFGen = m_groupCOMPortGenerator.COMSpeedSelected;
+                    Properties.Settings.Default.COMSpeedRFGen = m_ToolGroup_COMPortGenerator.COMSpeedSelected;
                 }
 
-                RFExplorerClient.Properties.Settings.Default.SaveOnClose = menuSaveOnClose.Checked;
-                RFExplorerClient.Properties.Settings.Default.ScreenZoom = (int)numericZoom.Value;
-                RFExplorerClient.Properties.Settings.Default.ViewPeaks = menuShowPeak.Checked;
-                RFExplorerClient.Properties.Settings.Default.ShowControlArea = menuShowControlArea.Checked;
-                RFExplorerClient.Properties.Settings.Default.DarkMode = menuDarkMode.Checked;
-                RFExplorerClient.Properties.Settings.Default.AutoLCDOff = menuAutoLCDOff.Checked;
-                RFExplorerClient.Properties.Settings.Default.DefaultDataFolder = m_sDefaultDataFolder;
-                RFExplorerClient.Properties.Settings.Default.CSVDelimiter = (uint)comboCSVFieldSeparator.SelectedIndex;
-                RFExplorerClient.Properties.Settings.Default.ContinuousLog = menuContinuousLog.Checked;
-                RFExplorerClient.Properties.Settings.Default.ShowRFConnections = menuRFConnections.Checked;
-                RFExplorerClient.Properties.Settings.Default.SignalFill = menuSignalFill.Checked;
-                RFExplorerClient.Properties.Settings.Default.SignalSmooth = menuSmoothSignals.Checked;
-                RFExplorerClient.Properties.Settings.Default.ThickTrace = menuThickTrace.Checked;
-                RFExplorerClient.Properties.Settings.Default.ShowGrid = menuShowGrid.Checked;
-                RFExplorerClient.Properties.Settings.Default.WaterfallView = (uint)m_controlWaterfall.PerspectiveView;
-                RFExplorerClient.Properties.Settings.Default.TransparentWaterfall = m_controlWaterfall.Transparent;
-                RFExplorerClient.Properties.Settings.Default.WaterfallFloor = m_controlWaterfall.DrawFloor;
-                RFExplorerClient.Properties.Settings.Default.WaterfallSignalType = (int)m_eWaterfallSignal;
-                RFExplorerClient.Properties.Settings.Default.ShowAxisTitle = menuShowAxisLabels.Checked;
-                RFExplorerClient.Properties.Settings.Default.LimitLinesSoundAlarm = menuItemSoundAlarmLimitLine.Checked;
-                RFExplorerClient.Properties.Settings.Default.AutoLoadCorrectionModel = menuAutoLoadAmplitudeData.Checked;
-                RFExplorerClient.Properties.Settings.Default.AutoMaxHold = menuRemoteMaxHold.Checked;
-                RFExplorerClient.Properties.Settings.Default.AutoAmplitudeRemoteUpdate = menuRemoteAmplitudeUpdate.Checked;
+                Properties.Settings.Default.SaveOnClose = menuSaveOnClose.Checked;
+                Properties.Settings.Default.ScreenZoom = m_ToolGroup_RemoteScreen.ScreenZoom;
+                Properties.Settings.Default.ViewPeaks = menuShowPeak.Checked;
+                Properties.Settings.Default.ShowControlArea = menuShowControlArea.Checked;
+                Properties.Settings.Default.DarkMode = menuDarkMode.Checked;
+                Properties.Settings.Default.AutoLCDOff = menuAutoLCDOff.Checked;
+                Properties.Settings.Default.DefaultDataFolder = m_sDefaultUserFolder;
+                Properties.Settings.Default.CSVDelimiter = (uint)comboCSVFieldSeparator.SelectedIndex;
+                Properties.Settings.Default.ContinuousLog = menuContinuousLog.Checked;
+                Properties.Settings.Default.ShowRFConnections = menuRFConnections.Checked;
+                Properties.Settings.Default.SignalFill = menuSignalFill.Checked;
+                Properties.Settings.Default.SignalSmooth = menuSmoothSignals.Checked;
+                Properties.Settings.Default.ThickTrace = menuThickTrace.Checked;
+                Properties.Settings.Default.ShowGrid = menuShowGrid.Checked;
+                Properties.Settings.Default.ShowAxisTitle = menuShowAxisLabels.Checked;
+                Properties.Settings.Default.LimitLinesSoundAlarm = menuItemSoundAlarmLimitLine.Checked;
+                Properties.Settings.Default.AutoLoadCorrectionModel = menuAutoLoadAmplitudeData.Checked;
+                Properties.Settings.Default.AutoMaxHold = menuRemoteMaxHold.Checked;
+                Properties.Settings.Default.AutoAmplitudeRemoteUpdate = menuRemoteAmplitudeUpdate.Checked;
 
-                RFExplorerClient.Properties.Settings.Default.WaterfallBottom = menuPlaceWaterfallAtBottom.Checked;
-                RFExplorerClient.Properties.Settings.Default.WaterfallRight = menuPlaceWaterfallOnTheRight.Checked;
-                RFExplorerClient.Properties.Settings.Default.WaterfallNoSA = menuPlaceWaterfallNone.Checked;
+                Properties.Settings.Default.WaterfallView = (uint)m_objMainWaterfall.PerspectiveModeView;
+                Properties.Settings.Default.TransparentWaterfall = m_objMainWaterfall.Transparent;
+                Properties.Settings.Default.WaterfallFloor = m_objMainWaterfall.DrawFloor;
+                Properties.Settings.Default.WaterfallSignalType = (int)m_objMainWaterfall.SignalType;
 
-                RFExplorerClient.Properties.Settings.Default.TrackingAverage = m_nRFGENIterationAverage.Value;
+                Properties.Settings.Default.WaterfallViewSA = (uint)m_objSAWaterfall.PerspectiveModeView;
+                Properties.Settings.Default.TransparentWaterfallSA = m_objSAWaterfall.Transparent;
+                Properties.Settings.Default.WaterfallFloorSA = m_objSAWaterfall.DrawFloor;
+                Properties.Settings.Default.WaterfallSignalTypeSA = (int)m_objSAWaterfall.SignalType;
 
-                RFExplorerClient.Properties.Settings.Default.UserDefinedTitleList = "";
+                Properties.Settings.Default.WaterfallBottom = menuPlaceWaterfallAtBottom.Checked;
+                Properties.Settings.Default.WaterfallRight = menuPlaceWaterfallOnTheRight.Checked;
+                Properties.Settings.Default.WaterfallNoSA = menuPlaceWaterfallNone.Checked;
+
+                Properties.Settings.Default.TrackingAverage = m_ToolGroup_RFEGenTracking.Average;
+
+                Properties.Settings.Default.UserDefinedTitleList = "";
                 foreach (string sText in m_dlgUserDefinedText.m_comboText.Items)
                 {
-                    RFExplorerClient.Properties.Settings.Default.UserDefinedTitleList += ";" + sText.Replace(';', '-');
+                    Properties.Settings.Default.UserDefinedTitleList += ";" + sText.Replace(';', '-');
                 }
 
-                RFExplorerClient.Properties.Settings.Default.Save();
+                Properties.Settings.Default.Save();
 
                 SaveSettingsXML(_Default);
             }
@@ -1557,7 +1828,8 @@ namespace RFExplorerClient
         {
             try
             {
-                m_Markers.HideAllMarkers();                                
+                m_MarkersSA.HideAllMarkers();
+                m_MarkersSNA.HideAllMarkers();
 
                 DataRow[] objRowCol = m_DataSettings.Tables[_Common_Settings].Select("Name='" + sSettingsName + "'");
                 if (objRowCol.Length > 0)
@@ -1567,7 +1839,7 @@ namespace RFExplorerClient
                     double fStepFrequencyMHZ = (double)objRowDefault[_StepFreq];
                     double fAmplitudeTop = (double)objRowDefault[_TopAmp];
                     double fAmplitudeBottom = (double)objRowDefault[_BottomAmp];
-                    numericIterations.Value = (UInt16)objRowDefault[_Calculator];
+                    m_ToolGroup_AnalyzerDataFeed.Iterations = (UInt16)objRowDefault[_Calculator];
                     menuAveragedTrace.Checked = (bool)objRowDefault[_ViewAvg];
                     menuRealtimeTrace.Checked = (bool)objRowDefault[_ViewRT];
                     menuMinTrace.Checked = (bool)objRowDefault[_ViewMin];
@@ -1590,42 +1862,60 @@ namespace RFExplorerClient
                             objRowDefault[_ViewMaxHold] = menuMaxHoldTrace.Checked;
                         }
                     }
-                    catch {}
+                    catch { }
 
-                    if (m_DataSettings.Tables[_Common_Settings].Columns[_MarkerTrackSignal] == null)
+                    if (m_DataSettings.Tables[_Common_Settings].Columns[_MarkerTrackSignalSA] == null)
                     {
                         //Introduced in v1.11.0.1402, may not exist before this date
                         for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
                         {
-                            m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerEnabled + nInd.ToString(), System.Type.GetType("System.Boolean")));
+                            m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerEnabledSA + nInd.ToString(), System.Type.GetType("System.Boolean")));
                             if (nInd != 1)
                             {
-                                m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerFrequency + nInd.ToString(), System.Type.GetType("System.Double")));
+                                m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerFrequencySA + nInd.ToString(), System.Type.GetType("System.Double")));
                             }
                             else
                             {
-                                m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerTrackSignal, System.Type.GetType("System.UInt16")));
+                                m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerTrackSignalSA, System.Type.GetType("System.UInt16")));
+                            }
+                        }
+                    }
+
+                    if (m_DataSettings.Tables[_Common_Settings].Columns[_MarkerTrackSignalSNA] == null)
+                    {
+                        //Introduced in v1.12.1507.2, may not exist before this date
+                        for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
+                        {
+                            m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerEnabledSNA + nInd.ToString(), System.Type.GetType("System.Boolean")));
+                            if (nInd != 1)
+                            {
+                                m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerFrequencySNA + nInd.ToString(), System.Type.GetType("System.Double")));
+                            }
+                            else
+                            {
+                                m_DataSettings.Tables[_Common_Settings].Columns.Add(new DataColumn(_MarkerTrackSignalSNA, System.Type.GetType("System.UInt16")));
                             }
                         }
                     }
 
                     try
                     {
-                        if ((objRowDefault[_MarkerTrackSignal] != null) && (!String.IsNullOrEmpty(objRowDefault[_MarkerTrackSignal].ToString())))
+                        //SA markers
+                        if ((objRowDefault[_MarkerTrackSignalSA] != null) && (!String.IsNullOrEmpty(objRowDefault[_MarkerTrackSignalSA].ToString())))
                         {
                             for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
                             {
-                                if ((bool)objRowDefault[_MarkerEnabled + nInd.ToString()])
+                                if ((bool)objRowDefault[_MarkerEnabledSA + nInd.ToString()])
                                 {
-                                    m_Markers.EnableMarker(nInd - 1);
+                                    m_MarkersSA.EnableMarker(nInd - 1);
                                 }
                                 if (nInd != 1)
                                 {
-                                    m_Markers.SetMarkerFrequency(nInd - 1, (double)objRowDefault[_MarkerFrequency + nInd.ToString()]);
+                                    m_MarkersSA.SetMarkerFrequency(nInd - 1, (double)objRowDefault[_MarkerFrequencySA + nInd.ToString()]);
                                 }
                                 else
                                 {
-                                    m_eTrackSignalPeak = (RFExplorerSignalType)(UInt16)objRowDefault[_MarkerTrackSignal];
+                                    m_ToolGroup_Markers_SA.TrackSignalPeak = (RFECommunicator.RFExplorerSignalType)(UInt16)objRowDefault[_MarkerTrackSignalSA];
                                 }
                             }
                         }
@@ -1633,19 +1923,58 @@ namespace RFExplorerClient
                         {
                             for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
                             {
-                                objRowDefault[_MarkerEnabled + nInd.ToString()] = m_Markers.IsMarkerEnabled(nInd - 1);
+                                objRowDefault[_MarkerEnabledSA + nInd.ToString()] = m_MarkersSA.IsMarkerEnabled(nInd - 1);
                                 if (nInd != 1)
                                 {
-                                    objRowDefault[_MarkerFrequency + nInd.ToString()] = m_Markers.GetMarkerFrequency(nInd - 1);
+                                    objRowDefault[_MarkerFrequencySA + nInd.ToString()] = m_MarkersSA.GetMarkerFrequency(nInd - 1);
                                 }
                                 else
                                 {
-                                    objRowDefault[_MarkerTrackSignal] = 0;
+                                    objRowDefault[_MarkerTrackSignalSA] = 0;
                                 }
                             }
                         }
                     }
-                    catch {};
+                    catch { };
+
+                    try
+                    {
+                        //SNA markers
+                        if ((objRowDefault[_MarkerTrackSignalSNA] != null) && (!String.IsNullOrEmpty(objRowDefault[_MarkerTrackSignalSNA].ToString())))
+                        {
+                            for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
+                            {
+                                if ((bool)objRowDefault[_MarkerEnabledSNA + nInd.ToString()])
+                                {
+                                    m_MarkersSNA.EnableMarker(nInd - 1);
+                                }
+                                if (nInd != 1)
+                                {
+                                    m_MarkersSNA.SetMarkerFrequency(nInd - 1, (double)objRowDefault[_MarkerFrequencySNA + nInd.ToString()]);
+                                }
+                                else
+                                {
+                                    m_ToolGroup_Markers_SNA.TrackSignalPeak = (RFECommunicator.RFExplorerSignalType)(UInt16)objRowDefault[_MarkerTrackSignalSNA];
+                                }
+                            }
+                        }
+                        else
+                        {
+                            for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
+                            {
+                                objRowDefault[_MarkerEnabledSNA + nInd.ToString()] = m_MarkersSNA.IsMarkerEnabled(nInd - 1);
+                                if (nInd != 1)
+                                {
+                                    objRowDefault[_MarkerFrequencySNA + nInd.ToString()] = m_MarkersSNA.GetMarkerFrequency(nInd - 1);
+                                }
+                                else
+                                {
+                                    objRowDefault[_MarkerTrackSignalSNA] = 0;
+                                }
+                            }
+                        }
+                    }
+                    catch { };
 
                     if (m_DataSettings.Tables[_Common_Settings].Columns[_RFGenStartFreq] == null)
                     {
@@ -1661,26 +1990,27 @@ namespace RFExplorerClient
                     {
                         if ((objRowDefault[_RFGenStartFreq] != null) && (!String.IsNullOrEmpty(objRowDefault[_RFGenStartFreq].ToString())))
                         {
-                            double fRFGenStartFrequencyMHZ = (double)objRowDefault[_RFGenStartFreq];
-                            m_sRFGenFreqSweepStart.Text = fRFGenStartFrequencyMHZ.ToString("f3");
-                            double fRFGenStopFrequencyMHZ = (double)objRowDefault[_RFGenStopFreq];
-                            m_sRFGenFreqSweepStop.Text = fRFGenStopFrequencyMHZ.ToString("f3");
-                            UInt16 nRFGenSteps = (UInt16)objRowDefault[_RFGenSteps];
-                            m_sRFGenFreqSweepSteps.Text = nRFGenSteps.ToString();
+                            m_ToolGroupRFEGenFreqSweep.Start = (double)objRowDefault[_RFGenStartFreq];
+                            m_ToolGroupRFEGenFreqSweep.Stop = (double)objRowDefault[_RFGenStopFreq];
+                            m_ToolGroupRFEGenFreqSweep.Steps = (UInt16)objRowDefault[_RFGenSteps];
+                            //TODO: restore all RFGen settings from properties
                             UInt16 nRFGenPower = (UInt16)objRowDefault[_RFGenPower];
                             UInt16 nRFGenStepTime = (UInt16)objRowDefault[_RFGenStepTime];
                         }
                         else
                         {
-                            objRowDefault[_RFGenStartFreq] = Convert.ToDouble(m_sRFGenFreqSweepStart.Text);
-                            objRowDefault[_RFGenStopFreq] = Convert.ToDouble(m_sRFGenFreqSweepStop.Text);
-                            objRowDefault[_RFGenSteps] = Convert.ToDouble(m_sRFGenFreqSweepSteps.Text);
+                            objRowDefault[_RFGenStartFreq] = m_ToolGroupRFEGenFreqSweep.Start;
+                            objRowDefault[_RFGenStopFreq] = m_ToolGroupRFEGenFreqSweep.Stop;
+                            objRowDefault[_RFGenSteps] = m_ToolGroupRFEGenFreqSweep.Steps;
                             objRowDefault[_RFGenPower] = 0;
                             objRowDefault[_RFGenStepTime] = 0;
                         }
                     }
-                    catch {};
+                    catch { };
 
+                    UpdateMenuFromMarkerCollection(m_MainTab.SelectedTab == m_tabRFGen);
+                    UpdateSAMarkerControlContents();
+                    UpdateSNAMarkerControlContents();
 
                     if (m_objRFEAnalyzer.PortConnected == false)
                     {
@@ -1702,10 +2032,10 @@ namespace RFExplorerClient
                         //if device is connected, we do not need to change anything: just ask the device to reconfigure and the new configuration will come back
                         SendNewConfig(fStartFrequencyMHZ, fStartFrequencyMHZ + fStepFrequencyMHZ * m_objRFEAnalyzer.FreqSpectrumSteps, fAmplitudeTop, fAmplitudeBottom);
                     }
+
                     m_sLastSettingsLoaded = sSettingsName;
                     UpdateTitleText_Analyzer();
                     UpdateButtonStatus();
-                    UpdateMenuFromMarkerCollection();
                 }
             }
             catch (Exception obEx)
@@ -1736,7 +2066,7 @@ namespace RFExplorerClient
                 objRow[_StepFreq] = m_objRFEAnalyzer.StepFrequencyMHZ;
                 objRow[_TopAmp] = m_objRFEAnalyzer.AmplitudeTopDBM;
                 objRow[_BottomAmp] = m_objRFEAnalyzer.AmplitudeBottomDBM;
-                objRow[_Calculator] = (int)numericIterations.Value;
+                objRow[_Calculator] = (int)m_ToolGroup_AnalyzerDataFeed.Iterations;
                 objRow[_ViewAvg] = menuAveragedTrace.Checked;
                 objRow[_ViewRT] = menuRealtimeTrace.Checked;
                 objRow[_ViewMin] = menuMinTrace.Checked;
@@ -1750,28 +2080,52 @@ namespace RFExplorerClient
 
                 try
                 {
+                    //Marker SA
                     //Introduced in Feb 2014, may not exist before this date. The column should have been created already in ReadXML function...
+                    UpdateMenuFromMarkerCollection(false);
                     for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
                     {
                         if (nInd != 1)
                         {
-                            objRow[_MarkerFrequency + nInd.ToString()] = m_Markers.GetMarkerFrequency(nInd - 1);
+                            objRow[_MarkerFrequencySA + nInd.ToString()] = m_MarkersSA.GetMarkerFrequency(nInd - 1);
                         }
                         else
                         {
-                            objRow[_MarkerTrackSignal] = (UInt16)m_eTrackSignalPeak;
+                            objRow[_MarkerTrackSignalSA] = (UInt16)m_ToolGroup_Markers_SA.TrackSignalPeak;
                         }
-                        objRow[_MarkerEnabled + nInd.ToString()] = m_arrMarkersEnabledMenu[nInd - 1].Checked;
+                        objRow[_MarkerEnabledSA + nInd.ToString()] = m_arrMarkersEnabledMenu[nInd - 1].Checked;
                     }
                 }
                 catch { };
 
                 try
                 {
+                    //Marker SNA
+                    //Introduced in Jul 2015, may not exist before this date. The column should have been created already in ReadXML function...
+                    UpdateMenuFromMarkerCollection(true);
+                    for (int nInd = 1; nInd <= MarkerCollection.MAX_MARKERS; nInd++)
+                    {
+                        if (nInd != 1)
+                        {
+                            objRow[_MarkerFrequencySNA + nInd.ToString()] = m_MarkersSNA.GetMarkerFrequency(nInd - 1);
+                        }
+                        else
+                        {
+                            objRow[_MarkerTrackSignalSNA] = (UInt16)m_ToolGroup_Markers_SNA.TrackSignalPeak;
+                        }
+                        objRow[_MarkerEnabledSNA + nInd.ToString()] = m_arrMarkersEnabledMenu[nInd - 1].Checked;
+                    }
+                }
+                catch { };
+
+                UpdateMenuFromMarkerCollection(m_MainTab.SelectedTab == m_tabRFGen); //restore after changes done in current menu
+
+                try
+                {
                     //Introduced in Sep 2014
-                    objRow[_RFGenStartFreq] = Convert.ToDouble(m_sRFGenFreqSweepStart.Text);
-                    objRow[_RFGenStopFreq] = Convert.ToDouble(m_sRFGenFreqSweepStop.Text);
-                    objRow[_RFGenSteps] = Convert.ToDouble(m_sRFGenFreqSweepSteps.Text);
+                    objRow[_RFGenStartFreq] = m_ToolGroupRFEGenFreqSweep.Start;
+                    objRow[_RFGenStopFreq] = m_ToolGroupRFEGenFreqSweep.Stop;
+                    objRow[_RFGenSteps] = m_ToolGroupRFEGenFreqSweep.Steps;
                     objRow[_RFGenPower] = 0;
                     objRow[_RFGenStepTime] = 0;
                 }
@@ -1801,34 +2155,42 @@ namespace RFExplorerClient
 
         private void DisplayRequiredFirmware()
         {
-            if (m_objRFEAnalyzer.RFExplorerFirmwareDetected != m_objRFEAnalyzer.FirmwareCertified)
+            try
             {
-                UInt16 nMayorVerFound = Convert.ToUInt16(m_objRFEAnalyzer.RFExplorerFirmwareDetected.Substring(0, 2));
-                UInt16 nMinorVerFound = Convert.ToUInt16(m_objRFEAnalyzer.RFExplorerFirmwareDetected.Substring(3, 2));
-                UInt32 nVersionFound = (UInt32)(nMayorVerFound * 100 + nMinorVerFound);
-                UInt16 nMayorVerTested = Convert.ToUInt16(m_objRFEAnalyzer.FirmwareCertified.Substring(0, 2));
-                UInt16 nMinorVerTested = Convert.ToUInt16(m_objRFEAnalyzer.FirmwareCertified.Substring(3, 2));
-                UInt32 nVersionTested = (UInt32)(nMayorVerTested * 100 + nMinorVerTested);
+                if (m_objRFEAnalyzer.RFExplorerFirmwareDetected != m_objRFEAnalyzer.FirmwareCertified)
+                {
+                    UInt16 nMayorVerFound = Convert.ToUInt16(m_objRFEAnalyzer.RFExplorerFirmwareDetected.Substring(0, 2));
+                    UInt16 nMinorVerFound = Convert.ToUInt16(m_objRFEAnalyzer.RFExplorerFirmwareDetected.Substring(3, 2));
+                    UInt32 nVersionFound = (UInt32)(nMayorVerFound * 100 + nMinorVerFound);
+                    UInt16 nMayorVerTested = Convert.ToUInt16(m_objRFEAnalyzer.FirmwareCertified.Substring(0, 2));
+                    UInt16 nMinorVerTested = Convert.ToUInt16(m_objRFEAnalyzer.FirmwareCertified.Substring(3, 2));
+                    UInt32 nVersionTested = (UInt32)(nMayorVerTested * 100 + nMinorVerTested);
 
-                if (nVersionFound > nVersionTested)
-                {
-                    ReportLog("\r\nWARNING: Firmware version connected v" + m_objRFEAnalyzer.RFExplorerFirmwareDetected + " is newer than the one certified v" +
-                                m_objRFEAnalyzer.FirmwareCertified + " for this version of RF Explorer for Windows.\r\n" +
-                                  "         However, it may be compatible but you should check www.rf-explorer.com website\r\n" +
-                                  "         to double check if there is a newer version available.\r\n", false);
-                }
-                else
-                {
-                    string sText = "RF Explorer device has an older firmware version " + m_objRFEAnalyzer.RFExplorerFirmwareDetected +
-                        "\r\nPlease upgrade it to required version " + m_objRFEAnalyzer.FirmwareCertified +
-                        "\r\nVisit www.rf-explorer/download to get required firmware.";
-                    if (!m_bVersionAlerted)
+                    if (nVersionFound > nVersionTested)
                     {
-                        m_bVersionAlerted = true;
-                        MessageBox.Show(sText, "Firmware Warning");
+                        ReportLog("\r\nWARNING: Firmware version connected v" + m_objRFEAnalyzer.RFExplorerFirmwareDetected + " is newer than the one certified v" +
+                                    m_objRFEAnalyzer.FirmwareCertified + " for this version of RF Explorer for Windows.\r\n" +
+                                      "         However, it may be compatible but you should check www.rf-explorer.com website\r\n" +
+                                      "         to double check if there is a newer version available.\r\n", false);
                     }
-                    ReportLog(sText, false);
+                    else
+                    {
+                        string sText = "RF Explorer device has an older firmware version " + m_objRFEAnalyzer.RFExplorerFirmwareDetected +
+                            "\r\nPlease upgrade it to required version " + m_objRFEAnalyzer.FirmwareCertified +
+                            "\r\nVisit www.rf-explorer/download to get required firmware.";
+                        if (!m_bVersionAlerted)
+                        {
+                            m_bVersionAlerted = true;
+                            MessageBox.Show(sText, "Firmware Warning");
+                        }
+                        ReportLog(sText, false);
+                    }
                 }
+            }
+            catch (Exception obEx)
+            {
+                ReportLog("Cannot check firmware code: " + m_objRFEAnalyzer.RFExplorerFirmwareDetected, false);
+                ReportLog(obEx.ToString(), true);
             }
         }
 
@@ -1850,11 +2212,6 @@ namespace RFExplorerClient
                 if (m_objRFEGenerator.PortConnected)
                 {
                     m_objRFEGenerator.ProcessReceivedString(true, out sOut);
-                    if ((m_nTimerCounter%5)==0)
-                    {
-                        //every 500ms
-                        UpdateButtonStatus_RFGen();
-                    }
                 }
 
                 if (bDraw)
@@ -1864,7 +2221,7 @@ namespace RFExplorerClient
 #endif
                     if (m_objRFEAnalyzer.Mode == RFECommunicator.eMode.MODE_TRACKING)
                     {
-                        if (m_MainTab.SelectedTab==m_tabRFGen)
+                        if (m_MainTab.SelectedTab == m_tabRFGen)
                         {
                             DisplayTrackingData();
                         }
@@ -1910,7 +2267,7 @@ namespace RFExplorerClient
             if ((menuSaveOnClose.Checked || menuContinuousLog.Checked) && (m_sFilenameRFE.Length == 0) && m_objRFEAnalyzer.IsAnalyzer())
             {
                 GetNewFilename(RFExplorerFileType.SweepDataFile);
-                SaveFileRFE(m_sFilenameRFE);
+                SaveFileRFE(m_sFilenameRFE, true);
             }
             SaveProperties();
             m_objRFEAnalyzer.Close();
@@ -1926,9 +2283,9 @@ namespace RFExplorerClient
             if (m_GraphSpectrumAnalyzer == null)
                 return;
 
-            #if CALLSTACK
+#if CALLSTACK
             Console.WriteLine("CALLSTACK:SetupSpectrumAnalyzerAxis");
-            #endif
+#endif
             double fStart = m_objRFEAnalyzer.StartFrequencyMHZ;
             double fEnd = m_objRFEAnalyzer.CalculateEndFrequencyMHZ() - m_objRFEAnalyzer.StepFrequencyMHZ;
             double fMajorStep = 1.0;
@@ -1969,7 +2326,7 @@ namespace RFExplorerClient
 
             UpdateYAxis();
 
-            UpdateDialogFromFreqSettings();
+            m_ToolGroup_AnalyzerFreqSettings.UpdateButtonStatus(true);
         }
 
         /// <summary>
@@ -2010,12 +2367,23 @@ namespace RFExplorerClient
 
         private string GetCurrentAmplitudeUnitLabel()
         {
-            if (menuItemWatt.Checked)
-                return "Watt";
-            else if (menuItemDBUV.Checked)
-                return "dBuV";
+            if (m_MainTab.SelectedTab == m_tabRFGen)
+            {
+                if (m_ToolGroup_RFEGenTracking.ListSNAOptions.Contains("VSWR"))
+                    return "";
+                else
+                    return "dB";
+            }
             else
-                return "dBm";
+            //if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+            {
+                if (menuItemWatt.Checked)
+                    return "Watt";
+                else if (menuItemDBUV.Checked)
+                    return "dBuV";
+                else
+                    return "dBm";
+            }
         }
 
         private RFECommunicator.eAmplitudeUnit GetCurrentAmplitudeEnum()
@@ -2055,9 +2423,11 @@ namespace RFExplorerClient
 #if CALLSTACK_REALTIME
             Console.WriteLine("CALLSTACK:DisplaySpectrumAnalyzerData");
 #endif
+            if (m_GraphSpectrumAnalyzer.GraphPane.CurveList.Count == 0)
+                return;
+
             m_objRFEAnalyzer.PeakValueMHZ = 0.0;
             m_objRFEAnalyzer.PeakValueAmplitudeDBM = RFECommunicator.MIN_AMPLITUDE_DBM;
-            m_Markers.HideAllMarkers();
             foreach (CurveItem objCurve in m_GraphSpectrumAnalyzer.GraphPane.CurveList)
             {
                 if (objCurve.Label.Text.Contains("Limit") || objCurve.Label.Text.Contains("Overload"))
@@ -2072,7 +2442,7 @@ namespace RFExplorerClient
                     objLine.Line.IsSmooth = menuSmoothSignals.Checked;
                     if (menuThickTrace.Checked)
                     {
-                        if (objLine.Label.Text=="Max Hold")
+                        if (objLine.Label.Text == "Max Hold")
                             objLine.Line.Width = 6;
                         else
                             objLine.Line.Width = 3;
@@ -2097,16 +2467,22 @@ namespace RFExplorerClient
             m_PointList_MaxHold.Clear();
             m_MaxBar.Clear();
 
+            m_MarkersSA.HideAllMarkers(); //hide markers and show them only based on menu settings
+                                          //draw all marker except tracking 1
+            UpdateMarkerCollectionFromMenuSA();
+            //remove old text from all peak track markers
+            m_MarkersSA.CleanAllMarkerText(0);
+
             if (m_objRFEAnalyzer.SweepData.Count == 0)
             {
                 m_GraphSpectrumAnalyzer.Refresh();
                 return; //nothing to paint
             }
 
-            UInt32 nSweepIndex = (UInt32)numericSampleSA.Value;
+            UInt32 nSweepIndex = m_ToolGroup_AnalyzerDataFeed.SweepIndex;
             m_nDrawingIteration++;
 
-            UInt32 nTotalCalculatorIterations = (UInt32)numericIterations.Value;
+            UInt32 nTotalCalculatorIterations = m_ToolGroup_AnalyzerDataFeed.Iterations;
             if (m_bCalibrating)
             {
                 nTotalCalculatorIterations = 5;
@@ -2123,7 +2499,7 @@ namespace RFExplorerClient
                 else
                     toolCOMStatus.Text = "Disconnected";
 
-                toolStripSamples.Text = "Total Samples in buffer: " + (UInt32)numericSampleSA.Value + "/" + RFESweepDataCollection.MAX_ELEMENTS + " - " + (100 * (double)numericSampleSA.Value / RFESweepDataCollection.MAX_ELEMENTS).ToString("0.0") + "%";
+                toolStripSamples.Text = "Total Samples in buffer: " + m_ToolGroup_AnalyzerDataFeed.SweepIndex + "/" + RFESweepDataCollection.MAX_ELEMENTS + " - " + (100 * (double)m_ToolGroup_AnalyzerDataFeed.SweepIndex / RFESweepDataCollection.MAX_ELEMENTS).ToString("0.0") + "%";
             }
 
             //Use the current data sweep item pointed out by the selected index
@@ -2215,41 +2591,41 @@ namespace RFExplorerClient
                 bool bPlaySound = false;
                 PointPairList listCheck = null;
                 SelectSinglePointPairList(ref listCheck);
-                m_GraphLimitLineMax.Points = m_LimitLineMax;
-                m_GraphLimitLineMax.IsVisible = m_LimitLineMax.Count > 1;
-                if (m_LimitLineMax.Intersect(listCheck, true))
+                m_GraphLimitLineAnalyzer_Max.Points = m_LimitLineAnalyzer_Max;
+                m_GraphLimitLineAnalyzer_Max.IsVisible = m_LimitLineAnalyzer_Max.Count > 1;
+                if (m_LimitLineAnalyzer_Max.Intersect(listCheck, true))
                 {
                     bPlaySound = true;
-                    m_GraphLimitLineMax.Line.Width = 5;
+                    m_GraphLimitLineAnalyzer_Max.Line.Width = 5;
                 }
                 else
                 {
-                    m_GraphLimitLineMax.Line.Width = 1;
+                    m_GraphLimitLineAnalyzer_Max.Line.Width = 1;
                 }
 
-                m_GraphLimitLineOverload.Points = m_LimitLineOverload;
-                m_GraphLimitLineOverload.IsVisible = (m_LimitLineOverload.Count > 1) && menuUseAmplitudeCorrection.Checked;
-                if (m_LimitLineOverload.Intersect(m_PointList_Realtime, true))
+                m_GraphLimitLineAnalyzer_Overload.Points = m_LimitLineAnalyzer_Overload;
+                m_GraphLimitLineAnalyzer_Overload.IsVisible = (m_LimitLineAnalyzer_Overload.Count > 1) && menuUseAmplitudeCorrection.Checked;
+                if (m_LimitLineAnalyzer_Overload.Intersect(m_PointList_Realtime, true))
                 {
                     bPlaySound = true;
-                    m_GraphLimitLineOverload.Line.Width = 10;
+                    m_GraphLimitLineAnalyzer_Overload.Line.Width = 10;
                     m_OverloadText.IsVisible = true;
                 }
                 else
                 {
-                    m_GraphLimitLineOverload.Line.Width = 1;
+                    m_GraphLimitLineAnalyzer_Overload.Line.Width = 1;
                 }
 
-                m_GraphLimitLineMin.Points = m_LimitLineMin;
-                m_GraphLimitLineMin.IsVisible = m_LimitLineMin.Count > 1;
-                if (m_LimitLineMin.Intersect(listCheck, false))
+                m_GraphLimitLineAnalyzer_Min.Points = m_LimitLineAnalyzer_Min;
+                m_GraphLimitLineAnalyzer_Min.IsVisible = m_LimitLineAnalyzer_Min.Count > 1;
+                if (m_LimitLineAnalyzer_Min.Intersect(listCheck, false))
                 {
-                    m_GraphLimitLineMin.Line.Width = 5;
+                    m_GraphLimitLineAnalyzer_Min.Line.Width = 5;
                     bPlaySound = true;
                 }
                 else
                 {
-                    m_GraphLimitLineMin.Line.Width = 1;
+                    m_GraphLimitLineAnalyzer_Min.Line.Width = 1;
                 }
                 if (bPlaySound && menuItemSoundAlarmLimitLine.Checked)
                 {
@@ -2267,60 +2643,34 @@ namespace RFExplorerClient
                 }
                 else
                 {
+                    UpdateMarkerCollectionFromMenuSA();
 
-                    //draw all marker except tracking 1
-                    for (int nMenuInd = 1; nMenuInd < m_arrMarkersEnabledMenu.Length; nMenuInd++)
-                    {
-                        if (m_arrMarkersEnabledMenu[nMenuInd].Checked)
-                        {
-                            if (menuRealtimeTrace.Checked)
-                            {
-                                m_Markers.UpdateMarker(nMenuInd, RFExplorerSignalType.Realtime, m_PointList_Realtime.InterpolateX(m_Markers.GetMarkerFrequency(nMenuInd)));
-                            }
-                            if (menuAveragedTrace.Checked)
-                            {
-                                m_Markers.UpdateMarker(nMenuInd, RFExplorerSignalType.Average, m_PointList_Avg.InterpolateX(m_Markers.GetMarkerFrequency(nMenuInd)));
-                            }
-                            if (menuMaxTrace.Checked)
-                            {
-                                m_Markers.UpdateMarker(nMenuInd, RFExplorerSignalType.MaxPeak, m_PointList_Max.InterpolateX(m_Markers.GetMarkerFrequency(nMenuInd)));
-                            }
-                            if (menuMaxHoldTrace.Checked)
-                            {
-                                m_Markers.UpdateMarker(nMenuInd, RFExplorerSignalType.MaxHold, m_PointList_MaxHold.InterpolateX(m_Markers.GetMarkerFrequency(nMenuInd)));
-                            }
-                            if (menuMinTrace.Checked)
-                            {
-                                m_Markers.UpdateMarker(nMenuInd, RFExplorerSignalType.Min, m_PointList_Min.InterpolateX(m_Markers.GetMarkerFrequency(nMenuInd)));
-                            }
-                        }
-                    }
-
+                    //Draw marker 1
                     double fTrackPeakMHZ = 0.0;
                     if (m_arrMarkersEnabledMenu[0].Checked)
                     {
                         double fTrackDBM = RFECommunicator.MIN_AMPLITUDE_DBM;
-                        if ((m_eTrackSignalPeak == RFExplorerSignalType.Realtime) && menuRealtimeTrace.Checked)
+                        if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Realtime) && menuRealtimeTrace.Checked)
                         {
                             fTrackPeakMHZ = m_PointList_Realtime[m_PointList_Realtime.GetIndexMax()].X;
                             fTrackDBM = m_PointList_Realtime[m_PointList_Realtime.GetIndexMax()].Y;
                         }
-                        else if ((m_eTrackSignalPeak == RFExplorerSignalType.Average) && menuAveragedTrace.Checked)
+                        else if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Average) && menuAveragedTrace.Checked)
                         {
                             fTrackPeakMHZ = m_PointList_Avg[m_PointList_Avg.GetIndexMax()].X;
                             fTrackDBM = m_PointList_Avg[m_PointList_Avg.GetIndexMax()].Y;
                         }
-                        else if ((m_eTrackSignalPeak == RFExplorerSignalType.MaxHold) && menuMaxHoldTrace.Checked)
+                        else if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.MaxHold) && menuMaxHoldTrace.Checked)
                         {
                             fTrackPeakMHZ = m_PointList_MaxHold[m_PointList_MaxHold.GetIndexMax()].X;
                             fTrackDBM = m_PointList_MaxHold[m_PointList_MaxHold.GetIndexMax()].Y;
                         }
-                        else if ((m_eTrackSignalPeak == RFExplorerSignalType.MaxPeak) && menuMaxTrace.Checked)
+                        else if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.MaxPeak) && menuMaxTrace.Checked)
                         {
                             fTrackPeakMHZ = m_PointList_Max[m_PointList_Max.GetIndexMax()].X;
                             fTrackDBM = m_PointList_Max[m_PointList_Max.GetIndexMax()].Y;
                         }
-                        else if ((m_eTrackSignalPeak == RFExplorerSignalType.Min) && menuMinTrace.Checked)
+                        else if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Min) && menuMinTrace.Checked)
                         {
                             fTrackPeakMHZ = m_PointList_Min[m_PointList_Min.GetIndexMax()].X;
                             fTrackDBM = m_PointList_Min[m_PointList_Min.GetIndexMax()].Y;
@@ -2328,14 +2678,17 @@ namespace RFExplorerClient
                         else
                         {
                             m_arrMarkersEnabledMenu[0].Checked = false;
-                            UpdateMarkerControlContents();
+                            m_MarkersSA.HideMarker(0);
+                            m_ToolGroup_Markers_SA.UpdateButtonStatus();
+                            UpdateSAMarkerControlContents();
                         }
-                        m_Markers.SetMarkerFrequency(0, fTrackPeakMHZ);
+                        m_MarkersSA.SetMarkerFrequency(0, fTrackPeakMHZ);
                         m_objRFEAnalyzer.PeakValueMHZ = fTrackPeakMHZ;
                         m_objRFEAnalyzer.PeakValueAmplitudeDBM = RFECommunicator.ConvertAmplitude(GetCurrentAmplitudeEnum(), fTrackDBM, RFECommunicator.eAmplitudeUnit.dBm);
                     }
+
                     //remove old text from all peak track markers
-                    m_Markers.CleanAllMarkerText(0);
+                    m_MarkersSA.CleanAllMarkerText(0);
 
                     //draw data curves
                     if (menuRealtimeTrace.Checked)
@@ -2346,11 +2699,11 @@ namespace RFExplorerClient
 
                         if (m_arrMarkersEnabledMenu[0].Checked)
                         {
-                            double dAmplitude = m_PointList_Realtime.InterpolateX(m_Markers.GetMarkerFrequency(0));
-                            m_Markers.UpdateMarker(0, RFExplorerSignalType.Realtime, dAmplitude);
-                            if ((m_eTrackSignalPeak == RFExplorerSignalType.Realtime) && menuShowPeak.Checked)
+                            double dAmplitude = m_PointList_Realtime.InterpolateX(m_MarkersSA.GetMarkerFrequency(0));
+                            m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Realtime, dAmplitude);
+                            if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Realtime) && menuShowPeak.Checked)
                             {
-                                m_Markers.SetMarkerText(0, RFExplorerSignalType.Realtime, m_Markers.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
+                                m_MarkersSA.SetMarkerText(0, RFECommunicator.RFExplorerSignalType.Realtime, m_MarkersSA.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
                             }
                         }
                     }
@@ -2363,11 +2716,11 @@ namespace RFExplorerClient
 
                         if (m_arrMarkersEnabledMenu[0].Checked)
                         {
-                            double dAmplitude = m_PointList_Avg.InterpolateX(m_Markers.GetMarkerFrequency(0));
-                            m_Markers.UpdateMarker(0, RFExplorerSignalType.Average, dAmplitude);
-                            if ((m_eTrackSignalPeak == RFExplorerSignalType.Average) && menuShowPeak.Checked)
+                            double dAmplitude = m_PointList_Avg.InterpolateX(m_MarkersSA.GetMarkerFrequency(0));
+                            m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Average, dAmplitude);
+                            if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Average) && menuShowPeak.Checked)
                             {
-                                m_Markers.SetMarkerText(0, RFExplorerSignalType.Average, m_Markers.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
+                                m_MarkersSA.SetMarkerText(0, RFECommunicator.RFExplorerSignalType.Average, m_MarkersSA.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
                             }
                         }
                     }
@@ -2382,11 +2735,11 @@ namespace RFExplorerClient
 
                             if (m_arrMarkersEnabledMenu[0].Checked)
                             {
-                                double dAmplitude = m_PointList_Max.InterpolateX(m_Markers.GetMarkerFrequency(0));
-                                m_Markers.UpdateMarker(0, RFExplorerSignalType.MaxPeak, dAmplitude);
-                                if ((m_eTrackSignalPeak == RFExplorerSignalType.MaxPeak) && menuShowPeak.Checked)
+                                double dAmplitude = m_PointList_Max.InterpolateX(m_MarkersSA.GetMarkerFrequency(0));
+                                m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.MaxPeak, dAmplitude);
+                                if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.MaxPeak) && menuShowPeak.Checked)
                                 {
-                                    m_Markers.SetMarkerText(0, RFExplorerSignalType.MaxPeak, m_Markers.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
+                                    m_MarkersSA.SetMarkerText(0, RFECommunicator.RFExplorerSignalType.MaxPeak, m_MarkersSA.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
                                 }
                             }
                         }
@@ -2398,11 +2751,11 @@ namespace RFExplorerClient
                         m_GraphLine_Min.Label.IsVisible = true;
                         if (m_arrMarkersEnabledMenu[0].Checked)
                         {
-                            double dAmplitude = m_PointList_Min.InterpolateX(m_Markers.GetMarkerFrequency(0));
-                            m_Markers.UpdateMarker(0, RFExplorerSignalType.Min, dAmplitude);
-                            if ((m_eTrackSignalPeak == RFExplorerSignalType.Min) && menuShowPeak.Checked)
+                            double dAmplitude = m_PointList_Min.InterpolateX(m_MarkersSA.GetMarkerFrequency(0));
+                            m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Min, dAmplitude);
+                            if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Min) && menuShowPeak.Checked)
                             {
-                                m_Markers.SetMarkerText(0, RFExplorerSignalType.Min, m_Markers.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
+                                m_MarkersSA.SetMarkerText(0, RFECommunicator.RFExplorerSignalType.Min, m_MarkersSA.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
                             }
                         }
                     }
@@ -2413,18 +2766,18 @@ namespace RFExplorerClient
                         m_GraphLine_MaxHold.Label.IsVisible = true;
                         if (m_arrMarkersEnabledMenu[0].Checked)
                         {
-                            double dAmplitude = m_PointList_MaxHold.InterpolateX(m_Markers.GetMarkerFrequency(0));
-                            m_Markers.UpdateMarker(0, RFExplorerSignalType.MaxHold, dAmplitude);
-                            if ((m_eTrackSignalPeak == RFExplorerSignalType.MaxHold) && menuShowPeak.Checked)
+                            double dAmplitude = m_PointList_MaxHold.InterpolateX(m_MarkersSA.GetMarkerFrequency(0));
+                            m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.MaxHold, dAmplitude);
+                            if ((m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.MaxHold) && menuShowPeak.Checked)
                             {
-                                m_Markers.SetMarkerText(0, RFExplorerSignalType.MaxHold, m_Markers.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
+                                m_MarkersSA.SetMarkerText(0, RFECommunicator.RFExplorerSignalType.MaxHold, m_MarkersSA.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel());
                             }
 
                         }
                     }
                 }
 
-                UpdateMarkerControlValues();
+                UpdateSAMarkerControlValues();
 
                 if (!m_bPrintModeEnabled)
                     m_GraphSpectrumAnalyzer.Refresh();
@@ -2518,6 +2871,65 @@ namespace RFExplorerClient
             }
         }
 
+        private void UpdateMarkerCollectionFromMenuSA()
+        {
+            if (m_arrMarkersEnabledMenu[0].Checked)
+            {
+                if (menuRealtimeTrace.Checked)
+                    m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Realtime, RFECommunicator.MIN_AMPLITUDE_DBM);
+                if (menuAveragedTrace.Checked)
+                    m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Average, RFECommunicator.MIN_AMPLITUDE_DBM);
+                if (menuMaxTrace.Checked)
+                    m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.MaxPeak, RFECommunicator.MIN_AMPLITUDE_DBM);
+                if (menuMaxHoldTrace.Checked)
+                    m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.MaxHold, RFECommunicator.MIN_AMPLITUDE_DBM);
+                if (menuMinTrace.Checked)
+                    m_MarkersSA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Min, RFECommunicator.MIN_AMPLITUDE_DBM);
+            }
+
+            for (int nMenuInd = 1; nMenuInd < m_arrMarkersEnabledMenu.Length; nMenuInd++)
+            {
+                if (m_arrMarkersEnabledMenu[nMenuInd].Checked)
+                {
+                    if (menuRealtimeTrace.Checked)
+                    {
+                        if (m_PointList_Realtime != null && m_PointList_Realtime.Count > 0)
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Realtime, m_PointList_Realtime.InterpolateX(m_MarkersSA.GetMarkerFrequency(nMenuInd)));
+                        else
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Realtime, RFECommunicator.MIN_AMPLITUDE_DBM);
+                    }
+                    if (menuAveragedTrace.Checked)
+                    {
+                        if (m_PointList_Avg != null && m_PointList_Avg.Count > 0)
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Average, m_PointList_Avg.InterpolateX(m_MarkersSA.GetMarkerFrequency(nMenuInd)));
+                        else
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Average, RFECommunicator.MIN_AMPLITUDE_DBM);
+                    }
+                    if (menuMaxTrace.Checked)
+                    {
+                        if (m_PointList_Max != null && m_PointList_Max.Count > 0)
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.MaxPeak, m_PointList_Max.InterpolateX(m_MarkersSA.GetMarkerFrequency(nMenuInd)));
+                        else
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.MaxPeak, RFECommunicator.MIN_AMPLITUDE_DBM);
+                    }
+                    if (menuMaxHoldTrace.Checked)
+                    {
+                        if (m_PointList_MaxHold != null && m_PointList_MaxHold.Count > 0)
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.MaxHold, m_PointList_MaxHold.InterpolateX(m_MarkersSA.GetMarkerFrequency(nMenuInd)));
+                        else
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.MaxHold, RFECommunicator.MIN_AMPLITUDE_DBM);
+                    }
+                    if (menuMinTrace.Checked)
+                    {
+                        if (m_PointList_Min != null && m_PointList_Min.Count > 0)
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Min, m_PointList_Min.InterpolateX(m_MarkersSA.GetMarkerFrequency(nMenuInd)));
+                        else
+                            m_MarkersSA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Min, RFECommunicator.MIN_AMPLITUDE_DBM);
+                    }
+                }
+            }
+        }
+
         private string GraphPointValueHandler(ZedGraphControl control, GraphPane pane, CurveItem curve, int iPt)
         {
             // Get the PointPair that is under the mouse
@@ -2528,11 +2940,6 @@ namespace RFExplorerClient
         private void zedSpectrumAnalyzer_ZoomEvent(ZedGraphControl sender, ZoomState oldState, ZoomState newState)
         {
 
-        }
-
-        private void SendCommand(string sData)
-        {
-            m_objRFEAnalyzer.SendCommand(sData);
         }
 
         private void SendNewConfig(double fStartMHZ, double fEndMHZ, double fTopDBM, double fBottomDBM)
@@ -2552,7 +2959,7 @@ namespace RFExplorerClient
             string sData = "C2-F:" +
                 nStartKhz.ToString("D7") + "," + nEndKhz.ToString("D7") + "," +
                 sTopDBM + "," + nBottomDBM.ToString("D3");
-            SendCommand(sData);
+            m_objRFEAnalyzer.SendCommand(sData);
 
             ResetSettingsTitle();
 
@@ -2567,23 +2974,6 @@ namespace RFExplorerClient
                 UpdateTitleText_Analyzer();
             }
         }
-
-        private void UpdateRemoteConfigData()
-        {
-            try
-            {
-                if (m_objRFEAnalyzer.PortConnected)
-                {
-                    SendNewConfig(Convert.ToDouble(m_sAnalyzerStartFreq.Text), Convert.ToDouble(m_sAnalyzerEndFreq.Text),
-                        ConvertFromCurrentAmplitudeUnit(m_sAnalyzerTopAmplitude.Text), ConvertFromCurrentAmplitudeUnit(m_sAnalyzerBottomAmplitude.Text));
-                }
-            }
-            catch (Exception obEx)
-            {
-                ReportLog(obEx.ToString(), false);
-            }
-        }
-
         private void CleanSweepData()
         {
             m_objRFEAnalyzer.SweepData.CleanAll();
@@ -2597,17 +2987,13 @@ namespace RFExplorerClient
                 DisplaySpectrumAnalyzerData();
                 m_GraphSpectrumAnalyzer.Invalidate();
             }
-            if (m_controlWaterfall != null)
-            {
-                m_controlWaterfall.CleanAll();
-            }
+            WaterfallClean();
             m_objRFEAnalyzer.ResetInternalBuffers();
-            numericSampleSA.Value = 0;
+            m_ToolGroup_AnalyzerDataFeed.SweepIndex = 0;
         }
 
-        private void chkRunMode_CheckedChanged(object sender, EventArgs e)
+        private void OnRunModeChanged(object sender, EventArgs e)
         {
-            m_objRFEAnalyzer.HoldMode = !chkRunMode.Checked;
             if (!m_objRFEAnalyzer.HoldMode && (m_objRFEAnalyzer.SweepData.IsFull()))
             {
                 CleanSweepData();
@@ -2616,40 +3002,37 @@ namespace RFExplorerClient
             UpdateFeedMode();
         }
 
-        private void chkHoldMode_CheckedChanged(object sender, EventArgs e)
+        private void OnHoldModeChanged(object sender, EventArgs e)
         {
-            m_objRFEAnalyzer.HoldMode = chkHoldMode.Checked;
-            if (m_objRFEAnalyzer.HoldMode)
+            if (!m_objRFEAnalyzer.HoldMode)
             {
-                //Send hold mode to RF Explorer to stop RS232 traffic
-                m_objRFEAnalyzer.SendCommand_Hold();
-            }
-            else
-            {
-                //Not on hold anymore, restore RS232 traffic
-                m_objRFEAnalyzer.SendCommand_RequestConfigData();
                 Thread.Sleep(50);
             }
             UpdateFeedMode();
         }
 
-        private void numericUpDown_ValueChanged(object sender, EventArgs e)
+        private void OnSweepIndexChanged(object sender, EventArgs e)
         {
-            if (m_objRFEAnalyzer.HoldMode || (!m_objRFEAnalyzer.PortConnected && m_objRFEAnalyzer.SweepData.Count > 0))
+            if ((m_MainTab.SelectedTab == m_tabSpectrumAnalyzer) || (m_MainTab.SelectedTab == m_tabPowerChannel))
             {
-                if (numericSampleSA.Value > m_objRFEAnalyzer.SweepData.Count)
+                DisplaySpectrumAnalyzerData();
+                if (menuPlaceWaterfallAtBottom.Checked || menuPlaceWaterfallOnTheRight.Checked) //Split screen
                 {
-                    numericSampleSA.Value = m_objRFEAnalyzer.SweepData.Count;
-                }
-                if ((m_MainTab.SelectedTab == m_tabSpectrumAnalyzer) || (m_MainTab.SelectedTab == m_tabPowerChannel))
-                {
-                    DisplaySpectrumAnalyzerData();
-                }
-                else
-                {
+                    WaterfallClean();
                     UpdateWaterfall();
                 }
             }
+            else
+            {
+                WaterfallClean();
+                UpdateWaterfall();
+            }
+        }
+
+        private void WaterfallClean()
+        {
+            m_objMainWaterfall.CleanAll();
+            m_objSAWaterfall.CleanAll();
         }
 
         private void OnExit_Click(object sender, EventArgs e)
@@ -2667,8 +3050,27 @@ namespace RFExplorerClient
 
         private void MainMenuView_DropDownOpening(object sender, EventArgs e)
         {
-            menuTransparentWaterfall.Checked = m_controlWaterfall.Transparent;
-            menuWaterfallFloor.Checked = m_controlWaterfall.DrawFloor;
+            RFEWaterfallGL.SharpGLForm objWaterfall = null;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                objWaterfall = m_objSAWaterfall;
+            else
+                objWaterfall = m_objMainWaterfall;
+
+            menuTransparentWaterfall.Checked = objWaterfall.Transparent;
+            menuWaterfallFloor.Checked = objWaterfall.DrawFloor;
+
+            menuLimitLines.Enabled = (m_MainTab.SelectedTab == m_tabRFGen) || (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuMarkers.Enabled = (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer) || (m_MainTab.SelectedTab == m_tabRFGen);
+            menuPrint.Enabled = (m_MainTab.SelectedTab == m_tabRFGen) || (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuPrintPreview.Enabled = (m_MainTab.SelectedTab == m_tabRFGen) || (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuSmoothSignals.Enabled = (m_MainTab.SelectedTab == m_tabRFGen) || (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuCalculatorSignalModes.Enabled = (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuSignalFill.Enabled = (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuThickTrace.Enabled = (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuShowPeak.Enabled = (m_MainTab.SelectedTab == m_tabRFGen) || (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuAmplitudeUnits.Enabled = (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuShowAxisLabels.Enabled = (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+            menuCleanReport.Enabled = (m_MainTab.SelectedTab == m_tabReport);
         }
 
         private void click_view_mode(object sender, EventArgs e)
@@ -2677,8 +3079,9 @@ namespace RFExplorerClient
             if (menuShowPeak.Checked)
             {
                 m_arrMarkersEnabledMenu[0].Checked = true;
+                m_MarkersSA.EnableMarker(0);
             }
-            UpdateMarkerControlContents();
+            UpdateSAMarkerControlContents();
             UpdateButtonStatus();
 
             if (m_objRFEAnalyzer.HoldMode)
@@ -2694,14 +3097,16 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = _RFE_File_Selector;
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
-                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                     GetNewFilename(RFExplorerFileType.SweepDataFile);
                     MySaveFileDialog.FileName = m_sFilenameRFE;
 
                     if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
                     {
-                        SaveFileRFE(MySaveFileDialog.FileName);
+                        SaveFileRFE(MySaveFileDialog.FileName, false);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
                     }
                 }
             }
@@ -2717,13 +3122,15 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = _CSV_File_Selector;
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
-                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                     MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.CumulativeCSVDataFile);
 
                     if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
                     {
                         SaveFileCSV(MySaveFileDialog.FileName);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
                     }
                 }
             }
@@ -2753,13 +3160,15 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = _CSV_File_Selector;
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
-                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                     MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.SimpleCSVDataFile);
 
                     if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
                     {
                         SaveSimpleCSV(MySaveFileDialog.FileName, listCurrentPointList);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
                     }
                 }
             }
@@ -2768,7 +3177,7 @@ namespace RFExplorerClient
 
         private char GetCSVDelimiter()
         {
-            char cReturn = ',';
+            char cReturn = '\t';
 
             /*
                 Comma (,)
@@ -2780,11 +3189,11 @@ namespace RFExplorerClient
 
             switch (comboCSVFieldSeparator.SelectedIndex)
             {
-                default:
                 case 0: cReturn = ','; break;
                 case 1: cReturn = '|'; break;
                 case 2: cReturn = ';'; break;
                 case 3: cReturn = ' '; break;
+                default:
                 case 4: cReturn = '\t'; break;
             }
 
@@ -2795,17 +3204,16 @@ namespace RFExplorerClient
         {
             try
             {
-
-                //if no file path was explicited, add the default folder
+                //if no file path was explicit, add the default folder
                 if (sFilename.IndexOf("\\") < 0)
                 {
-                    sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    sFilename = m_sDefaultUserFolder + "\\" + sFilename;
                     sFilename = sFilename.Replace("\\\\", "\\");
                 }
 
                 char cCSV = GetCSVDelimiter();
 
-                using (StreamWriter myFile = new StreamWriter(sFilename, true))
+                using (StreamWriter myFile = new StreamWriter(sFilename, false))
                 {
                     foreach (PointPair objPointPair in listCurrentPointList)
                     {
@@ -2819,42 +3227,49 @@ namespace RFExplorerClient
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
         private void fileToolStripMenuItem_DropDownOpening(object sender, EventArgs e)
         {
-            menuSaveAsRFE.Enabled = (m_objRFEAnalyzer.SweepData.Count > 0) && (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
-            menuSaveCSV.Enabled = (m_objRFEAnalyzer.SweepData.Count > 0) && (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
-            menusSaveSimpleCSV.Enabled = menuSaveCSV.Enabled;
-            menuLoadRFE.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
-
-            menuSaveRemoteImage.Enabled = (m_objRFEAnalyzer.ScreenData.Count > 0) && (m_MainTab.SelectedTab == m_tabRemoteScreen);
-            menuLoadRFS.Enabled = m_MainTab.SelectedTab == m_tabRemoteScreen;
-            menuSaveRFS.Enabled = (m_objRFEAnalyzer.ScreenData.Count > 0) && (m_MainTab.SelectedTab == m_tabRemoteScreen);
-
-            menuPrint.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
-            menuPrintPreview.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
-            menuPageSetup.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
-
-            menuSaveSNACSV.Enabled = false; //TODO
-            menuSaveS1P.Enabled = false; //TODO
-            menuSaveSNANormalization.Enabled = m_objRFEAnalyzer.PortConnected && m_objRFEGenerator.PortConnected && m_objRFEAnalyzer.IsTrackingNormalized();
-            menuLoadSNANormalization.Enabled = m_objRFEAnalyzer.PortConnected && m_objRFEGenerator.PortConnected;
-
-            if (RFExplorerClient.Properties.Settings.Default.MRUList.Length==0)
+            try
             {
-                menuMRU.Enabled = false;
-                menuMRU.Visible = false;
-            }
-            else
-            {
-                menuMRU.Enabled = true;
-                menuMRU.Visible = true;
+                menuSaveAsRFE.Enabled = (m_objRFEAnalyzer.SweepData.Count > 0) && (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+                menuSaveCSV.Enabled = (m_objRFEAnalyzer.SweepData.Count > 0) && (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer);
+                menusSaveSimpleCSV.Enabled = menuSaveCSV.Enabled;
+                menuLoadRFE.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
 
-                if (menuMRU.DropDownItems.Count == 0)
+                menuSaveRemoteImage.Enabled = (controlRemoteScreen.RFExplorer.ScreenData.Count > 0) && (m_MainTab.SelectedTab == m_tabRemoteScreen);
+                menuLoadRFS.Enabled = m_MainTab.SelectedTab == m_tabRemoteScreen;
+                menuSaveRFS.Enabled = (controlRemoteScreen.RFExplorer.ScreenData.Count > 0) && (m_MainTab.SelectedTab == m_tabRemoteScreen);
+
+                menuPrint.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer || m_MainTab.SelectedTab == m_tabRFGen; ;
+                menuPrintPreview.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer || m_MainTab.SelectedTab == m_tabRFGen;
+                menuPageSetup.Enabled = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer || m_MainTab.SelectedTab == m_tabRFGen; ;
+
+                menuSaveSNACSV.Enabled = m_PointList_Tracking_Avg.Count > 0;
+                menuSaveS1P.Enabled = m_PointList_Tracking_Avg.Count > 0 && (m_ToolGroup_RFEGenTracking.ListSNAOptionsIndex != 2);
+                menuSaveSNANormalization.Enabled = m_objRFEAnalyzer.PortConnected && m_objRFEGenerator.PortConnected && m_objRFEAnalyzer.IsTrackingNormalized();
+                menuLoadSNANormalization.Enabled = m_objRFEAnalyzer.PortConnected && m_objRFEGenerator.PortConnected;
+
+                if (Properties.Settings.Default.MRUList.Length == 0)
                 {
-                    //add one sub item just to display it properly
-                    ToolStripMenuItem menuNew = new ToolStripMenuItem(".");
-                    menuNew.Name = "MRUFile_0";
-                    menuNew.Click += new System.EventHandler(this.OnMRU_Click);
-                    menuMRU.DropDownItems.Add(menuNew);
+                    menuMRU.Enabled = false;
+                    menuMRU.Visible = false;
                 }
+                else
+                {
+                    menuMRU.Enabled = true;
+                    menuMRU.Visible = true;
+
+                    if (menuMRU.DropDownItems.Count == 0)
+                    {
+                        //add one sub item just to display it properly
+                        ToolStripMenuItem menuNew = new ToolStripMenuItem(".");
+                        menuNew.Name = "MRUFile_0";
+                        menuNew.Click += new System.EventHandler(this.OnMRU_Click);
+                        menuMRU.DropDownItems.Add(menuNew);
+                    }
+                }
+            }
+            catch (Exception obEx)
+            {
+                ReportLog(obEx.ToString(), true);
             }
         }
 
@@ -2897,11 +3312,10 @@ namespace RFExplorerClient
                 m_objRFEAnalyzer.HoldMode = true;
             }
 
-            chkRunMode.Checked = !m_objRFEAnalyzer.HoldMode;
+            m_ToolGroup_AnalyzerDataFeed.UpdateButtonStatus();
             chkRunDecoder.Checked = !m_objRFEAnalyzer.HoldMode;
-            chkHoldMode.Checked = m_objRFEAnalyzer.HoldMode;
             chkHoldDecoder.Checked = m_objRFEAnalyzer.HoldMode;
-            if ((m_objRFEAnalyzer.HoldMode == false) || (m_objRFEAnalyzer.SweepData.Count==0))
+            if ((m_objRFEAnalyzer.HoldMode == false) || (m_objRFEAnalyzer.SweepData.Count == 0))
             {
                 toolFile.Text = " - File: none";
                 m_sFilenameRFE = "";
@@ -2917,14 +3331,22 @@ namespace RFExplorerClient
             zedRAWDecoder.Refresh();
         }
 
-        private void SaveFileRFE(string sFilename)
+        /// <summary>
+        /// This function save RFE format file
+        /// </summary>
+        /// <param name="sFilename">path where file will be saved</param>
+        /// <param name="bAutosave">true if the file is saved automatically otherwise (saved by user) false</param>
+        private void SaveFileRFE(string sFilename, bool bAutosave)
         {
             try
             {
-                //if no file path was explicited, add the default folder
+                //if no file path was explicit, add the default folder
                 if (sFilename.IndexOf("\\") < 0)
                 {
-                    sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    if (bAutosave)
+                        sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    else
+                        sFilename = m_sDefaultUserFolder + "\\" + sFilename;
                     sFilename = sFilename.Replace("\\\\", "\\");
                 }
                 m_objRFEAnalyzer.SaveFileRFE(sFilename, menuUseAmplitudeCorrection.Checked);
@@ -2939,7 +3361,7 @@ namespace RFExplorerClient
                 //if no file path was explicited, add the default folder
                 if (sFilename.IndexOf("\\") < 0)
                 {
-                    sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    sFilename = m_sDefaultUserFolder + "\\" + sFilename;
                     sFilename = sFilename.Replace("\\\\", "\\");
                 }
                 if (menuUseAmplitudeCorrection.Checked)
@@ -2951,28 +3373,13 @@ namespace RFExplorerClient
             catch (Exception obEx) { MessageBox.Show(obEx.Message); }
         }
 
-        private void UpdateSweepNumericControls()
-        {
-#if CALLSTACK_REALTIME
-            Console.WriteLine("CALLSTACK:UpdateSweepNumericControls");
-#endif
-            //Update sweep data
-            if (m_objRFEAnalyzer.SweepData.Count < numericSampleSA.Value)
-            {
-                numericSampleSA.Value = m_objRFEAnalyzer.SweepData.Count - 1;
-            }
-            //we can now safely change the max and the value (if not did already)
-            numericSampleSA.Maximum = m_objRFEAnalyzer.SweepData.Count - 1;
-            numericSampleSA.Value = m_objRFEAnalyzer.SweepData.Count - 1;
-        }
-
         private void LoadFileRFE(string sFile)
         {
             Cursor.Current = Cursors.WaitCursor;
             if (m_objRFEAnalyzer.PortConnected)
             {
-                m_groupCOMPortAnalyzer.ClosePort();
-                m_groupCOMPortGenerator.ClosePort();
+                m_ToolGroup_COMPortAnalyzer.ClosePort();
+                m_ToolGroup_COMPortGenerator.ClosePort();
             }
             try
             {
@@ -2983,9 +3390,10 @@ namespace RFExplorerClient
                     menuUseAmplitudeCorrection.Checked = false;
 
                     CheckSomeTraceModeIsEnabled();
-                    UpdateSweepNumericControls();
+                    m_ToolGroup_AnalyzerDataFeed.UpdateNumericControls();
+
                     UpdateButtonStatus();
-                    UpdateConfigControlContents();
+                    UpdateConfigControlContents(m_panelSAConfiguration, m_objRFEAnalyzer);
 
                     ReportLog("File " + sFile + " loaded with total of " + m_objRFEAnalyzer.SweepData.Count + " sweeps.", false);
                     m_sFilenameRFE = sFile;
@@ -2994,10 +3402,10 @@ namespace RFExplorerClient
 
                     AutoLoadAmplitudeDataFile();
 
-                    if (m_LimitLineOverload.Count > 0)
+                    if (m_LimitLineAnalyzer_Overload.Count > 0)
                     {
                         //potentially offset may change
-                        m_LimitLineOverload.NewOffset(m_objRFEAnalyzer.AmplitudeOffsetDB);
+                        m_LimitLineAnalyzer_Overload.NewOffset(m_objRFEAnalyzer.AmplitudeOffsetDB);
                     }
 
                     SetupSpectrumAnalyzerAxis();
@@ -3017,7 +3425,7 @@ namespace RFExplorerClient
 
         private void AddMRUFile(string sFile)
         {
-            string sStoredMRU = RFExplorerClient.Properties.Settings.Default.MRUList;
+            string sStoredMRU = Properties.Settings.Default.MRUList;
 
             if (sStoredMRU.Contains(sFile))
             {
@@ -3038,7 +3446,7 @@ namespace RFExplorerClient
             }
 
             //add the new file on top of the list
-            RFExplorerClient.Properties.Settings.Default.MRUList = sStoredMRU;
+            Properties.Settings.Default.MRUList = sStoredMRU;
         }
 
         private void OnLoadFileRFE_Click(object sender, EventArgs e)
@@ -3050,11 +3458,13 @@ namespace RFExplorerClient
                     MyOpenFileDialog.Filter = _RFE_File_Selector;
                     MyOpenFileDialog.FilterIndex = 1;
                     MyOpenFileDialog.RestoreDirectory = false;
-                    MyOpenFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                    MyOpenFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                     if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
                     {
                         LoadFileRFE(MyOpenFileDialog.FileName);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MyOpenFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
                     }
                 }
             }
@@ -3129,140 +3539,90 @@ namespace RFExplorerClient
             m_objRFEAnalyzer.ListAllCOMPorts();
         }
 
-        private void OnReset_Click(object sender, EventArgs e)
-        {
-            UpdateDialogFromFreqSettings();
-        }
-
-        private void UpdateDialogFromFreqSettings()
-        {
-            m_sAnalyzerBottomAmplitude.Text = ConvertToCurrentAmplitudeString(m_objRFEAnalyzer.AmplitudeBottomDBM);
-            m_sAnalyzerTopAmplitude.Text = ConvertToCurrentAmplitudeString(m_objRFEAnalyzer.AmplitudeTopDBM);
-            m_sAnalyzerStartFreq.Text = m_objRFEAnalyzer.StartFrequencyMHZ.ToString("f3");
-            m_sRefFrequency.Text = m_objRFEAnalyzer.RefFrequencyMHZ.ToString("f3");
-            m_sAnalyzerEndFreq.Text = m_objRFEAnalyzer.CalculateEndFrequencyMHZ().ToString("f3");
-            m_sAnalyzerCenterFreq.Text = m_objRFEAnalyzer.CalculateCenterFrequencyMHZ().ToString("f3");
-            m_sAnalyzerFreqSpan.Text = m_objRFEAnalyzer.CalculateFrequencySpanMHZ().ToString("f3");
-        }
-
         private bool IsDifferent(double d1, double d2, double dEpsilon = 0.001)
         {
             return (Math.Abs(d1 - d2) > dEpsilon);
         }
 
-        private void OnSendAnalyzerConfiguration_Click(object sender, EventArgs e)
+        private void OnSendAnalyzerConfiguration(object sender, EventArgs e)
         {
             UpdateYAxis();
-            UpdateRemoteConfigData();
         }
 
         private void OnMoveFreqDecLarge_Click(object sender, EventArgs e)
         {
-            double fStartFreq = Convert.ToDouble(m_sAnalyzerStartFreq.Text);
+            double fStartFreq = m_ToolGroup_AnalyzerFreqSettings.FreqStart;
             fStartFreq -= m_objRFEAnalyzer.CalculateFrequencySpanMHZ() * 0.5;
-            double fEndFreq = Convert.ToDouble(m_sAnalyzerEndFreq.Text);
-            fEndFreq -= m_objRFEAnalyzer.CalculateFrequencySpanMHZ() * 0.5;
-            m_sAnalyzerStartFreq.Text = fStartFreq.ToString("f3");
-            m_sAnalyzerEndFreq.Text = fEndFreq.ToString("f3");
-            OnStartFreq_Leave(null, null);
-
-            UpdateRemoteConfigData();
+            m_ToolGroup_AnalyzerFreqSettings.FreqStart = fStartFreq;
+            SaveProperties();
         }
 
         private void OnMoveFreqIncLarge_Click(object sender, EventArgs e)
         {
-            double fStartFreq = Convert.ToDouble(m_sAnalyzerStartFreq.Text);
+            double fStartFreq = m_ToolGroup_AnalyzerFreqSettings.FreqStart;
             fStartFreq += m_objRFEAnalyzer.CalculateFrequencySpanMHZ() * 0.5;
-            double fEndFreq = Convert.ToDouble(m_sAnalyzerEndFreq.Text);
-            fEndFreq += m_objRFEAnalyzer.CalculateFrequencySpanMHZ() * 0.5;
-            m_sAnalyzerStartFreq.Text = fStartFreq.ToString("f3");
-            m_sAnalyzerEndFreq.Text = fEndFreq.ToString("f3");
-            OnEndFreq_Leave(null, null);
-
-            UpdateRemoteConfigData();
+            m_ToolGroup_AnalyzerFreqSettings.FreqStart = fStartFreq;
+            SaveProperties();
         }
 
         private void OnMoveFreqDecSmall_Click(object sender, EventArgs e)
         {
-            m_objRFEAnalyzer.StartFrequencyMHZ -= m_objRFEAnalyzer.CalculateFrequencySpanMHZ() / 10;
-            if (m_objRFEAnalyzer.StartFrequencyMHZ < m_objRFEAnalyzer.MinFreqMHZ)
-            {
-                m_objRFEAnalyzer.StartFrequencyMHZ = m_objRFEAnalyzer.MinFreqMHZ;
-            }
-
-            SetupSpectrumAnalyzerAxis();
+            double fStartFreq = m_objRFEAnalyzer.StartFrequencyMHZ;
+            fStartFreq -= m_objRFEAnalyzer.CalculateFrequencySpanMHZ() / 10;
+            m_ToolGroup_AnalyzerFreqSettings.FreqStart = fStartFreq;
             SaveProperties();
-            UpdateRemoteConfigData();
         }
 
         private void OnMoveFreqIncSmall_Click(object sender, EventArgs e)
         {
-            m_objRFEAnalyzer.StartFrequencyMHZ += m_objRFEAnalyzer.CalculateFrequencySpanMHZ() / 10;
-            if (m_objRFEAnalyzer.CalculateEndFrequencyMHZ() > m_objRFEAnalyzer.MaxFreqMHZ)
-            {
-                m_objRFEAnalyzer.StartFrequencyMHZ = m_objRFEAnalyzer.MaxFreqMHZ - m_objRFEAnalyzer.CalculateFrequencySpanMHZ();
-            }
-
-            SetupSpectrumAnalyzerAxis();
+            double fStartFreq = m_objRFEAnalyzer.StartFrequencyMHZ;
+            fStartFreq += m_objRFEAnalyzer.CalculateFrequencySpanMHZ() / 10;
+            m_ToolGroup_AnalyzerFreqSettings.FreqStart = fStartFreq;
             SaveProperties();
-            UpdateRemoteConfigData();
         }
 
         private void OnSpanDec_Click(object sender, EventArgs e)
         {
-            double fFreqSpan = Convert.ToDouble(m_sAnalyzerFreqSpan.Text);
+            double fFreqSpan = m_ToolGroup_AnalyzerFreqSettings.FreqSpan;
             fFreqSpan -= fFreqSpan * 0.25;
-            m_sAnalyzerFreqSpan.Text = fFreqSpan.ToString("f3");
-            OnFreqSpan_Leave(null, null);
-            UpdateRemoteConfigData();
+            m_ToolGroup_AnalyzerFreqSettings.FreqSpan = fFreqSpan;
         }
 
         private void OnSpanInc_Click(object sender, EventArgs e)
         {
-            double fFreqSpan = Convert.ToDouble(m_sAnalyzerFreqSpan.Text);
+            double fFreqSpan = m_ToolGroup_AnalyzerFreqSettings.FreqSpan;
             fFreqSpan += fFreqSpan * 0.25;
-            m_sAnalyzerFreqSpan.Text = fFreqSpan.ToString("f3");
-            OnFreqSpan_Leave(null, null);
-            UpdateRemoteConfigData();
+            m_ToolGroup_AnalyzerFreqSettings.FreqSpan = fFreqSpan;
         }
 
         private void OnSpanMax_Click(object sender, EventArgs e)
         {
-            double fFreqSpan = 10000; //just a big number
-            m_sAnalyzerFreqSpan.Text = fFreqSpan.ToString("f3");
-            OnFreqSpan_Leave(null, null);
-            UpdateRemoteConfigData();
+            double fFreqSpan = m_ToolGroup_AnalyzerFreqSettings.FreqSpan;
+            fFreqSpan = 10000; //just a big number
+            m_ToolGroup_AnalyzerFreqSettings.FreqSpan = fFreqSpan;
         }
 
         private void OnSpanDefault_Click(object sender, EventArgs e)
         {
-            double fFreqSpan = 10;
-            m_sAnalyzerFreqSpan.Text = fFreqSpan.ToString("f3");
-            OnFreqSpan_Leave(null, null);
-            UpdateRemoteConfigData();
+            m_ToolGroup_AnalyzerFreqSettings.FreqSpan = 10;
         }
 
         private void OnSpanMin_Click(object sender, EventArgs e)
         {
-            double fFreqSpan = 0; //just a very small number
-            m_sAnalyzerFreqSpan.Text = fFreqSpan.ToString("f3");
-            OnFreqSpan_Leave(null, null);
-            UpdateRemoteConfigData();
+            m_ToolGroup_AnalyzerFreqSettings.FreqSpan = 0; //just a very small number
         }
 
         private void IncreaseTopAmplitude(double dIncreaseAmplitudeDBM)
         {
-            double fAmplitudeTop = ConvertFromCurrentAmplitudeUnit(m_sAnalyzerTopAmplitude.Text);
-            fAmplitudeTop += dIncreaseAmplitudeDBM;
-            m_sAnalyzerTopAmplitude.Text = ConvertToCurrentAmplitudeString(fAmplitudeTop);
-            OnAmplitudeLeave(null, null);
+            m_objRFEAnalyzer.AmplitudeTopDBM += dIncreaseAmplitudeDBM;
+            m_ToolGroup_AnalyzerFreqSettings.SetNewAmplitude(m_objRFEAnalyzer.AmplitudeBottomDBM, m_objRFEAnalyzer.AmplitudeTopDBM);
+
             if (m_objRFEAnalyzer.PortConnected && menuRemoteAmplitudeUpdate.Checked && menuAutoLCDOff.Checked == false)
             {
-                UpdateRemoteConfigData();
+                m_ToolGroup_AnalyzerFreqSettings.UpdateRemoteConfigData();
             }
             else
             {
-                m_objRFEAnalyzer.AmplitudeTopDBM = fAmplitudeTop;
                 UpdateYAxis();
                 DisplaySpectrumAnalyzerData();
             }
@@ -3270,17 +3630,15 @@ namespace RFExplorerClient
 
         private void IncreaseBottomAmplitude(double dIncreaseAmplitudeDBM)
         {
-            double fAmplitudeBottom = ConvertFromCurrentAmplitudeUnit(m_sAnalyzerBottomAmplitude.Text);
-            fAmplitudeBottom += dIncreaseAmplitudeDBM;
-            m_sAnalyzerBottomAmplitude.Text = ConvertToCurrentAmplitudeString(fAmplitudeBottom);
-            OnAmplitudeLeave(null, null);
+            m_objRFEAnalyzer.AmplitudeBottomDBM += dIncreaseAmplitudeDBM;
+            m_ToolGroup_AnalyzerFreqSettings.SetNewAmplitude(m_objRFEAnalyzer.AmplitudeBottomDBM, m_objRFEAnalyzer.AmplitudeTopDBM);
+
             if (m_objRFEAnalyzer.PortConnected && menuRemoteAmplitudeUpdate.Checked && menuAutoLCDOff.Checked == false)
             {
-                UpdateRemoteConfigData();
+                m_ToolGroup_AnalyzerFreqSettings.UpdateRemoteConfigData();
             }
             else
             {
-                m_objRFEAnalyzer.AmplitudeBottomDBM = fAmplitudeBottom;
                 UpdateYAxis();
                 DisplaySpectrumAnalyzerData();
             }
@@ -3326,22 +3684,21 @@ namespace RFExplorerClient
                     fBottom -= 10;
                 }
 
-                fTop += (fTop - fBottom) * 0.3; //add a 20% on top
+                fTop += (fTop - fBottom) * 0.3; //add a 30% on top
                 fBottom -= (fTop - fBottom) * 0.1; //add a 10% at the bottom
             }
 
-            m_sAnalyzerBottomAmplitude.Text = fBottom.ToString(GetCurrentAmplitudeUnitFormat());
-            m_sAnalyzerTopAmplitude.Text = fTop.ToString(GetCurrentAmplitudeUnitFormat());
+            m_objRFEAnalyzer.AmplitudeTopDBM = ConvertFromCurrentAmplitudeUnit(fTop);
+            m_objRFEAnalyzer.AmplitudeBottomDBM = ConvertFromCurrentAmplitudeUnit(fBottom);
 
-            OnAmplitudeLeave(null, null);
-            if (m_objRFEAnalyzer.PortConnected && menuRemoteAmplitudeUpdate.Checked && menuAutoLCDOff.Checked==false)
+            m_ToolGroup_AnalyzerFreqSettings.SetNewAmplitude(m_objRFEAnalyzer.AmplitudeBottomDBM, m_objRFEAnalyzer.AmplitudeTopDBM);
+
+            if (m_objRFEAnalyzer.PortConnected && menuRemoteAmplitudeUpdate.Checked && menuAutoLCDOff.Checked == false)
             {
-                UpdateRemoteConfigData();
+                m_ToolGroup_AnalyzerFreqSettings.UpdateRemoteConfigData();
             }
 
             m_GraphSpectrumAnalyzer.ZoomOutAll(m_GraphSpectrumAnalyzer.GraphPane);
-            m_objRFEAnalyzer.AmplitudeTopDBM = ConvertFromCurrentAmplitudeUnit(fTop);
-            m_objRFEAnalyzer.AmplitudeBottomDBM = ConvertFromCurrentAmplitudeUnit(fBottom);
             UpdateYAxis();
             DisplaySpectrumAnalyzerData();
         }
@@ -3370,191 +3727,58 @@ namespace RFExplorerClient
         {
             if (m_objRFEAnalyzer.PeakValueMHZ > 0.0f)
             {
-                m_sAnalyzerCenterFreq.Text = m_objRFEAnalyzer.PeakValueMHZ.ToString("f3");
-                OnCenterFreq_Leave(null, null);
-
-                UpdateRemoteConfigData();
+                m_ToolGroup_AnalyzerFreqSettings.FreqCenter = m_objRFEAnalyzer.PeakValueMHZ;
             }
         }
 
-        private void OnStartFreq_Leave(object sender, EventArgs e)
+        /// <summary>
+        /// Function required to force a true redraw of the waterfall, otherwise some driver bug may not repaint the whole control.
+        /// A way to reproduce this problem without this fix:
+        /// * Open application with waterfall 2D at bottom in SA tab
+        /// * Switch to Waterfall tab
+        /// * Get back to SA tab
+        /// * Change the waterfall control in SA tab to Perspective1 mode. Without this function call the control will not fully repaint from now on.
+        /// </summary>
+        void WaterfallSAInvalidate()
         {
-            try
+            if (m_objSAWaterfall != null)
             {
-                double fStartFreq = Convert.ToDouble(m_sAnalyzerStartFreq.Text);
-                fStartFreq = Math.Max(m_objRFEAnalyzer.MinFreqMHZ, fStartFreq);
-                fStartFreq = Math.Min(m_objRFEAnalyzer.MaxFreqMHZ - m_objRFEAnalyzer.MinSpanMHZ, fStartFreq);
-
-                double fEndFreq = Convert.ToDouble(m_sAnalyzerEndFreq.Text);
-                fEndFreq = Math.Max(m_objRFEAnalyzer.MinFreqMHZ + m_objRFEAnalyzer.MinSpanMHZ, fEndFreq);
-                fEndFreq = Math.Min(m_objRFEAnalyzer.MaxFreqMHZ, fEndFreq);
-
-                double fFreqSpan = (fEndFreq - fStartFreq);
-                fFreqSpan = Math.Max(m_objRFEAnalyzer.MinSpanMHZ, fFreqSpan);
-                fFreqSpan = Math.Min(m_objRFEAnalyzer.MaxSpanMHZ, fFreqSpan);
-
-                fEndFreq = fStartFreq + fFreqSpan;
-
-                m_sAnalyzerStartFreq.Text = fStartFreq.ToString("f3");
-                m_sAnalyzerEndFreq.Text = fEndFreq.ToString("f3");
-
-                m_sAnalyzerCenterFreq.Text = (fStartFreq + fFreqSpan / 2.0).ToString("f3");
-                m_sAnalyzerFreqSpan.Text = (fFreqSpan).ToString("f3");
-            }
-            catch (Exception obEx)
-            {
-                ReportLog(obEx.ToString(), false);
+                m_objPanelSAWaterfall.Visible = false;
+                Size BackupSize = m_objPanelSAWaterfall.Size;
+                m_objPanelSAWaterfall.Size = new Size(BackupSize.Width / 2, BackupSize.Height / 2);
+                m_objPanelSAWaterfall.Size = BackupSize;
+                m_objPanelSAWaterfall.Visible = true;
             }
         }
 
-        private void OnEndFreq_Leave(object sender, EventArgs e)
+        void WaterfallMainInvalidate()
         {
-            try
+            if (m_objMainWaterfall != null)
             {
-                double fStartFreq = Convert.ToDouble(m_sAnalyzerStartFreq.Text);
-                fStartFreq = Math.Max(m_objRFEAnalyzer.MinFreqMHZ, fStartFreq);
-                fStartFreq = Math.Min(m_objRFEAnalyzer.MaxFreqMHZ - m_objRFEAnalyzer.MinSpanMHZ, fStartFreq);
-
-                double fEndFreq = Convert.ToDouble(m_sAnalyzerEndFreq.Text);
-                fEndFreq = Math.Max(m_objRFEAnalyzer.MinFreqMHZ + m_objRFEAnalyzer.MinSpanMHZ, fEndFreq);
-                fEndFreq = Math.Min(m_objRFEAnalyzer.MaxFreqMHZ, fEndFreq);
-
-                double fFreqSpan = (fEndFreq - fStartFreq);
-                fFreqSpan = Math.Max(m_objRFEAnalyzer.MinSpanMHZ, fFreqSpan);
-                fFreqSpan = Math.Min(m_objRFEAnalyzer.MaxSpanMHZ, fFreqSpan);
-
-                fStartFreq = fEndFreq - fFreqSpan;
-
-                m_sAnalyzerStartFreq.Text = fStartFreq.ToString("f3");
-                m_sAnalyzerEndFreq.Text = fEndFreq.ToString("f3");
-
-                m_sAnalyzerCenterFreq.Text = (fStartFreq + fFreqSpan / 2.0).ToString("f3");
-                m_sAnalyzerFreqSpan.Text = (fFreqSpan).ToString("f3");
-            }
-            catch (Exception obEx)
-            {
-                ReportLog(obEx.ToString(), false);
-            }
-        }
-
-        private void OnFreqSpan_Leave(object sender, EventArgs e)
-        {
-            try
-            {
-                double fFreqSpan = Convert.ToDouble(m_sAnalyzerFreqSpan.Text);
-                fFreqSpan = Math.Max(m_objRFEAnalyzer.MinSpanMHZ, fFreqSpan);
-                fFreqSpan = Math.Min(m_objRFEAnalyzer.MaxSpanMHZ, fFreqSpan);
-
-                double fCenterFreq = Convert.ToDouble(m_sAnalyzerCenterFreq.Text);
-                if ((fCenterFreq - (fFreqSpan / 2.0)) < m_objRFEAnalyzer.MinFreqMHZ)
-                    fCenterFreq = (m_objRFEAnalyzer.MinFreqMHZ + (fFreqSpan / 2.0));
-                if ((fCenterFreq + (fFreqSpan / 2.0)) > m_objRFEAnalyzer.MaxFreqMHZ)
-                    fCenterFreq = (m_objRFEAnalyzer.MaxFreqMHZ - (fFreqSpan / 2.0));
-
-                m_sAnalyzerFreqSpan.Text = fFreqSpan.ToString("f3");
-                m_sAnalyzerCenterFreq.Text = fCenterFreq.ToString("f3");
-
-                double fStartMHZ = fCenterFreq - fFreqSpan / 2.0;
-                m_sAnalyzerStartFreq.Text = fStartMHZ.ToString("f3");
-                m_sAnalyzerEndFreq.Text = (fStartMHZ + fFreqSpan).ToString("f3");
-            }
-            catch (Exception obEx)
-            {
-                ReportLog(obEx.ToString(), false);
-            }
-        }
-
-        private void OnCenterFreq_Leave(object sender, EventArgs e)
-        {
-            try
-            {
-                double fCenterFreq = Convert.ToDouble(m_sAnalyzerCenterFreq.Text);
-                if (fCenterFreq > (m_objRFEAnalyzer.MaxFreqMHZ - (m_objRFEAnalyzer.MinSpanMHZ / 2.0)))
-                    fCenterFreq = (m_objRFEAnalyzer.MaxFreqMHZ - (m_objRFEAnalyzer.MinSpanMHZ / 2.0));
-                if (fCenterFreq < (m_objRFEAnalyzer.MinFreqMHZ + (m_objRFEAnalyzer.MinSpanMHZ / 2.0)))
-                    fCenterFreq = (m_objRFEAnalyzer.MinFreqMHZ + (m_objRFEAnalyzer.MinSpanMHZ / 2.0));
-
-                double fFreqSpan = Convert.ToDouble(m_sAnalyzerFreqSpan.Text);
-                if ((fCenterFreq - (fFreqSpan / 2.0)) < m_objRFEAnalyzer.MinFreqMHZ)
-                    fFreqSpan = (fCenterFreq - m_objRFEAnalyzer.MinFreqMHZ) * 2.0;
-                if ((fCenterFreq + (fFreqSpan / 2.0)) > m_objRFEAnalyzer.MaxFreqMHZ)
-                    fFreqSpan = (m_objRFEAnalyzer.MaxFreqMHZ - fCenterFreq) * 2.0;
-                m_sAnalyzerFreqSpan.Text = fFreqSpan.ToString("f3");
-                m_sAnalyzerCenterFreq.Text = fCenterFreq.ToString("f3");
-
-                double fStartMHZ = fCenterFreq - fFreqSpan / 2.0;
-                m_sAnalyzerStartFreq.Text = fStartMHZ.ToString("f3");
-                m_sAnalyzerEndFreq.Text = (fStartMHZ + fFreqSpan).ToString("f3");
-            }
-            catch (Exception obEx)
-            {
-                ReportLog(obEx.ToString(), false);
-            }
-        }
-
-        private void OnAmplitudeLeave(object sender, EventArgs e)
-        {
-            try
-            {
-                double fAmplitudeBottom = Convert.ToDouble(m_sAnalyzerBottomAmplitude.Text);
-                double fAmplitudeTop = Convert.ToDouble(m_sAnalyzerTopAmplitude.Text);
-
-                //If not in dBm convert them to dBm
-                fAmplitudeTop = ConvertFromCurrentAmplitudeUnit(fAmplitudeTop);
-                fAmplitudeBottom = ConvertFromCurrentAmplitudeUnit(fAmplitudeBottom);
-
-                if (fAmplitudeBottom - m_objRFEAnalyzer.AmplitudeOffsetDB < RFECommunicator.MIN_AMPLITUDE_DBM)
-                    fAmplitudeBottom = RFECommunicator.MIN_AMPLITUDE_DBM + m_objRFEAnalyzer.AmplitudeOffsetDB;
-                if (fAmplitudeBottom > (fAmplitudeTop - RFECommunicator.MIN_AMPLITUDE_RANGE_DBM))
-                    fAmplitudeBottom = (fAmplitudeTop - RFECommunicator.MIN_AMPLITUDE_RANGE_DBM);
-
-                if (fAmplitudeTop - m_objRFEAnalyzer.AmplitudeOffsetDB > RFECommunicator.MAX_AMPLITUDE_DBM)
-                    fAmplitudeTop = RFECommunicator.MAX_AMPLITUDE_DBM + m_objRFEAnalyzer.AmplitudeOffsetDB;
-                if (fAmplitudeTop < (fAmplitudeBottom + RFECommunicator.MIN_AMPLITUDE_RANGE_DBM))
-                    fAmplitudeTop = (fAmplitudeBottom + RFECommunicator.MIN_AMPLITUDE_RANGE_DBM);
-
-                //Convert them to back to used measurement units
-                m_sAnalyzerBottomAmplitude.Text = ConvertToCurrentAmplitudeString(fAmplitudeBottom);
-                m_sAnalyzerTopAmplitude.Text = ConvertToCurrentAmplitudeString(fAmplitudeTop);
-            }
-            catch(Exception obEx)
-            {
-                ReportLog(obEx.ToString(), false);
+                m_objPanelMainWaterfall.Visible = false;
+                Size BackupSize = m_objPanelMainWaterfall.Size;
+                m_objPanelMainWaterfall.Size = new Size(BackupSize.Width / 2, BackupSize.Height / 2);
+                m_objPanelMainWaterfall.Size = BackupSize;
+                m_objPanelMainWaterfall.Visible = true;
             }
         }
 
         private void tabSpectrumAnalyzer_Enter(object sender, EventArgs e)
         {
+            UpdateAllWaterfallMenuItems();
+            UpdateMenuFromMarkerCollection(false);
             DisplayGroups();
+            if (IsWaterfallOnMainScreen())
+            {
+                WaterfallSAInvalidate();
+                WaterfallClean(); 
+                UpdateWaterfall();
+            }
         }
 
         private void OnCleanReport_Click(object sender, EventArgs e)
         {
             m_ReportTextBox.Text = "Text cleared." + Environment.NewLine;
-        }
-
-        private void OnCalcAverage_CheckedChanged(object sender, EventArgs e)
-        {
-            menuAveragedTrace.Checked = chkCalcAverage.Checked;
-            click_view_mode(null, null);
-        }
-
-        private void OnCalcMax_CheckedChanged(object sender, EventArgs e)
-        {
-            menuMaxTrace.Checked = chkCalcMax.Checked;
-            click_view_mode(null, null);
-        }
-
-        private void OnCalcMin_CheckedChanged(object sender, EventArgs e)
-        {
-            menuMinTrace.Checked = chkCalcMin.Checked;
-            click_view_mode(null, null);
-        }
-
-        private void OnCalcRealtime_CheckedChanged(object sender, EventArgs e)
-        {
-            menuRealtimeTrace.Checked = chkCalcRealtime.Checked;
-            click_view_mode(null, null);
         }
 
         private void OnReinitializeData_Click(object sender, EventArgs e)
@@ -3563,9 +3787,10 @@ namespace RFExplorerClient
             {
                 if (m_MainTab.SelectedTab == m_tabRemoteScreen)
                 {
-                    m_objRFEAnalyzer.ScreenData.CleanAll();
+                    m_objRFEAnalyzer.CleanScreenData();
+                    m_objRFEGenerator.CleanScreenData();
                     m_sFilenameRFS = "";
-                    numScreenIndex.Value = 0;
+                    m_ToolGroup_RemoteScreen.ScreenIndex = 0;
                     MessageBox.Show("Remote Screen buffer cleared.");
                 }
                 else
@@ -3595,14 +3820,14 @@ namespace RFExplorerClient
         {
             //This is looking for 2 difference in width because some sort of weird behavior makes it repaint more than needed for repeated 2 pixel changes
             //for some reason this does not happen in height but in width only
-            if ((m_SizePriorMainTab.Width!=m_MainTab.ClientSize.Width) || (m_SizePriorMainTab.Height != m_MainTab.ClientSize.Height))
+            if ((m_SizePriorMainTab.Width != m_MainTab.ClientSize.Width) || (m_SizePriorMainTab.Height != m_MainTab.ClientSize.Height))
             {
 #if CALLSTACK
                 Console.WriteLine("CALLSTACK:MainTab_ClientSizeChanged " + m_SizePriorMainTab.ToString() + " " + m_MainTab.ClientSize.ToString());
 #endif
                 //this is to fix the problem of Tabs not resizing their childs automatically
                 m_MainTab.Refresh();
-                m_panelWaterfall.Refresh();
+                m_objPanelMainWaterfall.Refresh();
                 m_panelRemoteScreen.Refresh();
                 m_SizePriorMainTab = m_MainTab.ClientSize;
             }
@@ -3623,23 +3848,23 @@ namespace RFExplorerClient
             if (m_bInsideDisplayGroups)
             {
                 //sanity check to avoid any potential nested call to this expensive redraw method
-                #if CALLSTACK
+#if CALLSTACK
                 Console.WriteLine("CALLSTACK:DisplayGroups nested");
-                #endif
+#endif
                 return;
             }
 
             m_bInsideDisplayGroups = true;
             try
             {
-                #if CALLSTACK
+#if CALLSTACK
                 Console.WriteLine("CALLSTACK:DisplayGroups");
-                #endif
+#endif
 
                 if (m_MainTab.Width != (Width - 16))
                 {
-                    //important: do not use anything smaller than 16 or may provoke unnecesary back and forth refresh
-                    m_MainTab.Width = Width - 16; 
+                    //important: do not use anything smaller than 16 or may provoke unnecessary back and forth refresh
+                    m_MainTab.Width = Width - 16;
                 }
                 if (m_MainTab.Height != Height - 64)
                 {
@@ -3660,16 +3885,20 @@ namespace RFExplorerClient
 
                 int nButtonPositions = 0;
 
-                m_groupCOMPortAnalyzer.Visible = true;
-                m_groupCOMPortGenerator.Visible = false;
-                m_groupControl_FreqSettings.Visible = true;
-                m_groupControl_DataFeed.Visible = true;
-                m_groupControl_Commands.Visible = false;
-                m_groupControl_RemoteScreen.Visible = false;
-                m_groupControl_RFEGen_FrequencySweep.Visible = false;
-                m_groupControl_RFEGen_CW.Visible = false;
-                m_groupControl_RFEGen_Tracking.Visible = false;
-                m_controlWaterfall.DrawTitle = true;
+                m_ToolGroup_COMPortAnalyzer.Visible = m_MainTab.SelectedTab != m_tabRFGen;
+                m_ToolGroup_AnalyzerFreqSettings.Visible = m_MainTab.SelectedTab != m_tabRFGen;
+                m_ToolGroup_AnalyzerDataFeed.Visible = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
+                m_ToolGroup_AnalyzerTraces.Visible = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
+                m_ToolGroup_Markers_SA.Visible = m_MainTab.SelectedTab == m_tabSpectrumAnalyzer;
+                m_ToolGroup_COMPortGenerator.Visible = m_MainTab.SelectedTab == m_tabRFGen;
+                m_ToolGroup_Commands.Visible = m_MainTab.SelectedTab == m_tabReport;
+                m_ToolGroup_RemoteScreen.Visible = m_MainTab.SelectedTab == m_tabRemoteScreen;
+                m_ToolGroupRFEGenFreqSweep.Visible = m_MainTab.SelectedTab == m_tabRFGen;
+                m_ToolGroupRFEGenAmplSweep.Visible = m_MainTab.SelectedTab == m_tabRFGen;
+                m_ToolGroup_RFGenCW.Visible = m_MainTab.SelectedTab == m_tabRFGen;
+                m_ToolGroup_RFEGenTracking.Visible = m_MainTab.SelectedTab == m_tabRFGen;
+                m_ToolGroup_Markers_SNA.Visible = m_MainTab.SelectedTab == m_tabRFGen;
+                m_objMainWaterfall.DrawTitle = true;
 
                 if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
                 {
@@ -3679,39 +3908,34 @@ namespace RFExplorerClient
                     m_GraphSpectrumAnalyzer.Width -= (m_panelSAMarkers.Width + 8);
                     m_GraphSpectrumAnalyzer.Left = 6;
 
+                    m_objPanelSAWaterfall.Visible = IsWaterfallOnMainScreen();
+
                     if (IsWaterfallOnMainScreen())
                     {
-                        m_panelWaterfall.BorderStyle = BorderStyle.FixedSingle;
-                        m_panelWaterfall.Parent = m_tabSpectrumAnalyzer;
-
                         if (menuPlaceWaterfallAtBottom.Checked)
                         {
-                            m_controlWaterfall.DrawTitle = false;
+                            m_objSAWaterfall.DrawTitle = false;
 
                             int nSABottom = m_GraphSpectrumAnalyzer.Bottom;
                             m_GraphSpectrumAnalyzer.Height /= 2;
-                            m_panelWaterfall.Left = m_GraphSpectrumAnalyzer.Left;
-                            m_panelWaterfall.Width = m_GraphSpectrumAnalyzer.Width;
-                            m_panelWaterfall.Top = m_GraphSpectrumAnalyzer.Bottom + 5;
-                            m_panelWaterfall.Height = nSABottom - m_panelWaterfall.Top;
+                            m_objPanelSAWaterfall.Left = m_GraphSpectrumAnalyzer.Left;
+                            m_objPanelSAWaterfall.Width = m_GraphSpectrumAnalyzer.Width;
+                            m_objPanelSAWaterfall.Top = m_GraphSpectrumAnalyzer.Bottom + 5;
+                            m_objPanelSAWaterfall.Height = nSABottom - m_objPanelSAWaterfall.Top;
                         }
                         else
                         {
                             int nSAWidth = m_GraphSpectrumAnalyzer.Width;
                             m_GraphSpectrumAnalyzer.Width /= 2;
-                            m_panelWaterfall.Left = m_GraphSpectrumAnalyzer.Right + 5;
-                            m_panelWaterfall.Height = m_GraphSpectrumAnalyzer.Height;
-                            m_panelWaterfall.Top = m_GraphSpectrumAnalyzer.Top;
-                            m_panelWaterfall.Width = nSAWidth - m_panelWaterfall.Left;
+                            m_objPanelSAWaterfall.Left = m_GraphSpectrumAnalyzer.Right + 5;
+                            m_objPanelSAWaterfall.Height = m_GraphSpectrumAnalyzer.Height;
+                            m_objPanelSAWaterfall.Top = m_GraphSpectrumAnalyzer.Top;
+                            m_objPanelSAWaterfall.Width = nSAWidth - m_objPanelSAWaterfall.Left;
                         }
                     }
-                    else
-                    {
-                        m_panelWaterfall.Parent = m_tabWaterfall;
-                    }
 
-                    UpdateConfigControlContents();
-                    UpdateMarkerControlContents();
+                    UpdateConfigControlContents(m_panelSAConfiguration, m_objRFEAnalyzer);
+                    UpdateSAMarkerControlContents();
                     nButtonPositions = m_panelSAMarkers.Right + 8;
 
                     if (menuRFConnections.Checked)
@@ -3751,26 +3975,28 @@ namespace RFExplorerClient
                 }
                 else if (m_MainTab.SelectedTab == m_tabWaterfall)
                 {
-                    m_panelWaterfall.Parent = m_tabWaterfall;
-                    m_panelWaterfall.BorderStyle = BorderStyle.None;
-                    m_panelWaterfall.Top = nTop + 5;
-                    m_panelWaterfall.Height = m_MainStatusBar.Top - m_panelWaterfall.Top - 3;
-                    m_panelWaterfall.Left = 6;
-                    m_panelWaterfall.Width = Width - 35;
+                    m_objPanelMainWaterfall.Top = nTop + 5;
+                    m_objPanelMainWaterfall.Height = m_MainStatusBar.Top - m_objPanelMainWaterfall.Top - 3;
+                    m_objPanelMainWaterfall.Left = 6;
+                    m_objPanelMainWaterfall.Width = Width - 35;
+                    m_ToolGroup_AnalyzerDataFeed.Visible = true;
                 }
                 else if (m_MainTab.SelectedTab == m_tabRFGen)
                 {
-                    m_groupControl_FreqSettings.Visible = false;
-                    m_groupControl_DataFeed.Visible = false;
-                    m_groupControl_RFEGen_FrequencySweep.Visible = true;
-                    m_groupControl_RFEGen_CW.Visible = true;
-                    m_groupControl_RFEGen_Tracking.Visible = true;
-                    m_groupCOMPortAnalyzer.Visible = false;
-                    m_groupCOMPortGenerator.Visible = true;
+                    m_ToolGroup_AnalyzerFreqSettings.Visible = false;
+                    m_ToolGroup_AnalyzerDataFeed.Visible = false;
+                    m_ToolGroupRFEGenFreqSweep.Visible = true;
+                    m_ToolGroupRFEGenAmplSweep.Visible = true;
+                    m_ToolGroup_RFGenCW.Visible = true;
+                    m_ToolGroup_RFEGenTracking.Visible = true;
+                    m_ToolGroup_Markers_SNA.Visible = true;
+                    m_ToolGroup_COMPortAnalyzer.Visible = false;
+                    m_ToolGroup_COMPortGenerator.Visible = true;
 
                     m_GraphTrackingGenerator.Top = nTop + 5;
                     m_GraphTrackingGenerator.Height = m_MainStatusBar.Top - m_GraphTrackingGenerator.Top - 3;
                     m_GraphTrackingGenerator.Width = Width - 35;
+                    m_GraphTrackingGenerator.Width -= (m_panelSNAMarkers.Width + 8);
                     m_GraphTrackingGenerator.Left = 6;
 
                     DisplayGroups_RFGen();
@@ -3778,10 +4004,11 @@ namespace RFExplorerClient
 
                 if (m_MainTab.SelectedTab == m_tabRemoteScreen)
                 {
-                    m_groupControl_RemoteScreen.Visible = true;
-                    m_groupControl_DataFeed.Visible = false;
-                    m_groupControl_RemoteScreen.Parent = m_tableLayoutControlArea;
-                    m_groupControl_RemoteScreen.Dock = DockStyle.Top;
+                    m_ToolGroup_RemoteScreen.Visible = true;
+                    m_ToolGroup_AnalyzerDataFeed.Visible = false;
+                    m_ToolGroup_RemoteScreen.Parent = m_tableLayoutControlArea;
+
+                    m_ToolGroup_RemoteScreen.Dock = DockStyle.Top;
 
                     m_panelRemoteScreen.Top = nTop + 5;
                     m_panelRemoteScreen.Width = Width - 45;
@@ -3791,7 +4018,7 @@ namespace RFExplorerClient
 
                 if (m_MainTab.SelectedTab == m_tabPowerChannel)
                 {
-                    m_groupControl_DataFeed.Visible = true;
+                    m_ToolGroup_AnalyzerDataFeed.Visible = true;
 
                     m_panelPowerChannel.Top = nTop + 5;
                     m_panelPowerChannel.Left = 6;
@@ -3799,7 +4026,7 @@ namespace RFExplorerClient
                     m_panelPowerChannel.Height = m_MainStatusBar.Top - nTop - 10;
                     m_panelPowerChannel.BorderStyle = BorderStyle.FixedSingle;
 
-                    double dMin=m_objRFEAnalyzer.AmplitudeBottomDBM;
+                    double dMin = m_objRFEAnalyzer.AmplitudeBottomDBM;
                     double dMax = m_objRFEAnalyzer.AmplitudeTopDBM;
 
                     m_PowerChannelRegion_Low.MinValue = dMin;
@@ -3816,12 +4043,11 @@ namespace RFExplorerClient
 
                 if (m_MainTab.SelectedTab == m_tabReport)
                 {
-                    m_groupControl_Commands.Visible = true;
-                    m_groupControl_Commands.Dock = DockStyle.Top;
-                    m_groupControl_Commands.Parent = m_tableLayoutControlArea;
+                    m_ToolGroup_Commands.Visible = true;
+                    m_ToolGroup_Commands.Parent = m_tableLayoutControlArea;
 
-                    m_groupControl_DataFeed.Visible = false;
-                    m_groupControl_FreqSettings.Visible = false;
+                    m_ToolGroup_AnalyzerDataFeed.Visible = false;
+                    m_ToolGroup_AnalyzerFreqSettings.Visible = false;
                     m_ReportTextBox.Top = nTop + 5;
                     m_ReportTextBox.Width = Width - 35;
                     m_ReportTextBox.Height = m_MainStatusBar.Top - nTop - 10;
@@ -3842,8 +4068,8 @@ namespace RFExplorerClient
                     m_panelRFConnections.Parent = m_tableConfiguration;
                     m_panelRFConnections.Dock = DockStyle.Fill;
 
-                    m_groupControl_DataFeed.Visible = false;
-                    m_groupControl_FreqSettings.Visible = false;
+                    m_ToolGroup_AnalyzerDataFeed.Visible = false;
+                    m_ToolGroup_AnalyzerFreqSettings.Visible = false;
                 }
 
                 m_GraphSpectrumAnalyzer.Visible = true;
@@ -3927,33 +4153,49 @@ namespace RFExplorerClient
         /// <returns></returns>
         private int SelectSinglePointPairList(ref PointPairList listCurrentPointList)
         {
-            int nSelectionCounter = 0;
-            if (menuAveragedTrace.Checked)
+            if (m_MainTab.SelectedTab == m_tabRFGen)
             {
-                nSelectionCounter++;
-                listCurrentPointList = m_PointList_Avg;
+                if (m_PointList_Tracking_Avg != null && m_PointList_Tracking_Avg.Count > 0)
+                {
+                    listCurrentPointList = m_PointList_Tracking_Avg;
+                    return 1;
+                }
+                else
+                {
+                    listCurrentPointList = null;
+                    return 0;
+                }
             }
-            if (menuMaxHoldTrace.Checked)
+            else
             {
-                nSelectionCounter++;
-                listCurrentPointList = m_PointList_MaxHold;
+                int nSelectionCounter = 0;
+                if (menuAveragedTrace.Checked)
+                {
+                    nSelectionCounter++;
+                    listCurrentPointList = m_PointList_Avg;
+                }
+                if (menuMaxHoldTrace.Checked)
+                {
+                    nSelectionCounter++;
+                    listCurrentPointList = m_PointList_MaxHold;
+                }
+                if (menuMaxTrace.Checked)
+                {
+                    listCurrentPointList = m_PointList_Max;
+                    nSelectionCounter++;
+                }
+                if (menuMinTrace.Checked)
+                {
+                    nSelectionCounter++;
+                    listCurrentPointList = m_PointList_Min;
+                }
+                if (menuRealtimeTrace.Checked)
+                {
+                    listCurrentPointList = m_PointList_Realtime;
+                    nSelectionCounter++;
+                }
+                return nSelectionCounter;
             }
-            if (menuMaxTrace.Checked)
-            {
-                listCurrentPointList = m_PointList_Max;
-                nSelectionCounter++;
-            }
-            if (menuMinTrace.Checked)
-            {
-                nSelectionCounter++;
-                listCurrentPointList = m_PointList_Min;
-            }
-            if (menuRealtimeTrace.Checked)
-            {
-                listCurrentPointList = m_PointList_Realtime;
-                nSelectionCounter++;
-            }
-            return nSelectionCounter;
         }
 
         private void OnShowAxisLabels_Click(object sender, EventArgs e)
@@ -3961,6 +4203,7 @@ namespace RFExplorerClient
             m_GraphSpectrumAnalyzer.GraphPane.XAxis.Title.IsVisible = menuShowAxisLabels.Checked;
             m_GraphSpectrumAnalyzer.GraphPane.YAxis.Title.IsVisible = menuShowAxisLabels.Checked;
             m_GraphSpectrumAnalyzer.Refresh();
+            UpdateButtonStatus();
         }
 
         private void OnItemAmplitudeUnit_Click(object sender, EventArgs e)
@@ -3969,15 +4212,16 @@ namespace RFExplorerClient
             menuItemDBUV.Checked = (sender.ToString() == menuItemDBUV.Text);
             menuItemWatt.Checked = (sender.ToString() == menuItemWatt.Text);
 
-            //rescale limit lines according to new units
-            m_LimitLineOverload.AmplitudeUnits = GetCurrentAmplitudeEnum();
-            m_LimitLineMin.AmplitudeUnits = GetCurrentAmplitudeEnum();
-            m_LimitLineMax.AmplitudeUnits = GetCurrentAmplitudeEnum();
+            m_objRFEAnalyzer.CurrentAmplitudeUnit = GetCurrentAmplitudeEnum();
 
-            UpdateDialogFromFreqSettings();
+            //rescale limit lines according to new units
+            m_LimitLineAnalyzer_Overload.AmplitudeUnits = GetCurrentAmplitudeEnum();
+            m_LimitLineAnalyzer_Min.AmplitudeUnits = GetCurrentAmplitudeEnum();
+            m_LimitLineAnalyzer_Max.AmplitudeUnits = GetCurrentAmplitudeEnum();
+
+            m_ToolGroup_AnalyzerFreqSettings.UpdateButtonStatus(true);
             UpdateYAxis();
             DisplaySpectrumAnalyzerData();
-            //btnAutoscale_Click(null, null);
         }
 
         private void PlayNotificationSound()
@@ -4018,12 +4262,17 @@ namespace RFExplorerClient
         {
             if (m_objRFEAnalyzer.HoldMode)
                 DisplaySpectrumAnalyzerData();
+            UpdateButtonStatus();
         }
 
         private void OnShowGrid_Click(object sender, EventArgs e)
         {
             if (m_objRFEAnalyzer.HoldMode)
                 DisplaySpectrumAnalyzerData();
+
+            if (m_MainTab.SelectedTab == m_tabRFGen)
+                DisplayTrackingData();
+            UpdateButtonStatus();
         }
         #endregion
 
@@ -4031,53 +4280,10 @@ namespace RFExplorerClient
 
         private void tabWaterfall_Enter(object sender, EventArgs e)
         {
+            UpdateAllWaterfallMenuItems();
             DisplayGroups();
+            WaterfallMainInvalidate();
             UpdateWaterfall();
-        }
-
-        /// <summary>
-        /// Creates a max hold data from what is in the RFE object. This is useful when reconstructing from file or buffer
-        /// because when receiving realtime this is done more efficiently on updata data callback
-        /// </summary>
-        private void CreateMaxHoldWaterfallData()
-        {
-            m_WaterfallSweepMaxHold.CleanAll();
-
-            if ((m_objRFEAnalyzer.SweepData == null) || (m_objRFEAnalyzer.SweepData.Count < 5))
-            {
-                return;
-            }
-
-            uint nTotalSweepSteps = m_objRFEAnalyzer.SweepData.GetData(0).TotalSteps;
-
-            uint nStartPos, nTotalSteps;
-            if (m_objRFEAnalyzer.SweepData.Count < 100)
-            {
-                nStartPos = 0;
-                nTotalSteps = m_objRFEAnalyzer.SweepData.Count;
-            }
-            else
-            {
-                nStartPos = m_objRFEAnalyzer.SweepData.Count - 100;
-                nTotalSteps = 100;
-            }
-
-            for (UInt16 nMaxHoldInd = 0; nMaxHoldInd < nTotalSteps; nMaxHoldInd++)
-            {
-                m_WaterfallSweepMaxHold.Add(new RFESweepData(m_objRFEAnalyzer.SweepData.GetData(0).StartFrequencyMHZ,
-                    m_objRFEAnalyzer.SweepData.GetData(0).StepFrequencyMHZ, m_objRFEAnalyzer.SweepData.GetData(0).TotalSteps));
-                for (UInt16 nSourceInd = 0; nSourceInd <= nStartPos; nSourceInd++)
-                {
-                    for (UInt16 nSweepDataInd = 0; nSweepDataInd < nTotalSweepSteps; nSweepDataInd++)
-                    {
-                        if (m_objRFEAnalyzer.SweepData.GetData(nSourceInd).GetAmplitudeDBM(nSweepDataInd,null,false) > m_WaterfallSweepMaxHold.GetData(nMaxHoldInd).GetAmplitudeDBM(nSweepDataInd,null,false))
-                        {
-                            m_WaterfallSweepMaxHold.GetData(nMaxHoldInd).SetAmplitudeDBM(nSweepDataInd, m_objRFEAnalyzer.SweepData.GetData(nSourceInd).GetAmplitudeDBM(nSweepDataInd,null,false));
-                        }
-                    }
-                }
-                nStartPos++;
-            }
         }
 
         /// <summary>
@@ -4085,121 +4291,102 @@ namespace RFExplorerClient
         /// </summary>
         private void UpdateWaterfall()
         {
-            m_controlWaterfall.DarkMode = menuDarkMode.Checked;
+            RFEWaterfallGL.SharpGLForm objWaterfall = null;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+            {
+                if (!IsWaterfallOnMainScreen())
+                    return;
+                objWaterfall = m_objSAWaterfall;
+            }
+            else
+                objWaterfall = m_objMainWaterfall;
+
+            objWaterfall.DarkMode = menuDarkMode.Checked;
 
             if (m_objRFEAnalyzer.SweepData.Count == 0)
                 return; //nothing to paint
 
-            UInt32 nSourceSweepIndex = 0;  //Index to position last source sample to use (first sample to draw in front)
-            UInt32 nTargetSweepIndex = 0;  //Index to position first target sample to use (first sample to draw in front)
-
-            switch (m_eWaterfallSignal)
+            UInt32 nSourceSweepIndex = 0;
+            switch (objWaterfall.SignalType)
             {
-                case RFExplorerSignalType.MaxHold:
-                    {
-                        //Check if data is available but not in the waterfall collection (e.g. was read from a file, etc)
-                        if ((m_WaterfallSweepMaxHold.Count == 0) && (m_objRFEAnalyzer.SweepData.MaxHoldData != null))
-                        {
-                            CreateMaxHoldWaterfallData();
-                        }
-
-                        //Get the index to use for painting, we always paint most recent in front, so get the latest value available
-                        if (m_WaterfallSweepMaxHold.Count == 0)
-                            return; //nothing to paint!
-
-                        nSourceSweepIndex = m_WaterfallSweepMaxHold.Count - 1;
-                    }
+                default:
+                case RFECommunicator.RFExplorerSignalType.Realtime:
+                    nSourceSweepIndex = m_ToolGroup_AnalyzerDataFeed.SweepIndex - 1;
                     break;
-                case RFExplorerSignalType.Realtime:
-                    {
-                        nSourceSweepIndex = (UInt32)numericSampleSA.Value - 1;
-                    }
+                case RFECommunicator.RFExplorerSignalType.MaxHold:
+                    nSourceSweepIndex = m_WaterfallSweepMaxHold.Count - 1;
                     break;
             }
 
-            //Set range to the waterfall control
-            m_controlWaterfall.InitSpectrumRange(m_objRFEAnalyzer.StartFrequencyMHZ, m_objRFEAnalyzer.StopFrequencyMHZ, m_objRFEAnalyzer.AmplitudeBottomDBM, m_objRFEAnalyzer.AmplitudeTopDBM);
-
-            //We will use the "iterations" factor as the number of sweeps to use for the Z axis
-            UInt32 nTotalCalculatorIterations = RFEWaterfallGL.SharpGLForm.TotalDrawingSweeps; //for the moment we will hardcode to 100, we can change this later on
-            if (nTotalCalculatorIterations > nSourceSweepIndex)
-                nTotalCalculatorIterations = nSourceSweepIndex;
-
-            // now we populate
-            for (int nSweepIterator = (int)nTotalCalculatorIterations; nSweepIterator > 0; nSweepIterator--, nSourceSweepIndex--)
-            {
-                //for each sweep, we get the amplitude values (from left to right)
-                RFESweepData objSweep = null;
-
-                switch (m_eWaterfallSignal)
-                {
-                    case RFExplorerSignalType.MaxHold:
-                        {
-                            objSweep = m_WaterfallSweepMaxHold.GetData(nSourceSweepIndex);
-                            nTargetSweepIndex = (uint)(nTotalCalculatorIterations - nSourceSweepIndex);
-                        }
-                        break;
-                    case RFExplorerSignalType.Realtime:
-                        {
-                            objSweep = m_objRFEAnalyzer.SweepData.GetData(nSourceSweepIndex);
-                            nTargetSweepIndex = (uint)(nTotalCalculatorIterations - nSweepIterator);
-                        }
-                        break;
-                }
-
-                //build one full sweep data entry
-                if (objSweep != null)
-                {
-                    m_controlWaterfall.AddTimeStamp(nTargetSweepIndex, objSweep.CaptureTime);
-                    for (UInt16 nStep = 0; nStep < objSweep.TotalSteps; nStep++)
-                    {
-                        double fAmplitudeDBM = objSweep.GetAmplitudeDBM(nStep, m_objRFEAnalyzer.m_AmplitudeCalibration, menuUseAmplitudeCorrection.Checked);
-                        double fFrequencyMHZ = objSweep.GetFrequencyMHZ(nStep);
-
-                        m_controlWaterfall.AddValue(nStep, nTargetSweepIndex, fAmplitudeDBM);
-
-                        //This is for debug only, it writes all the data points in the "Report" window. It takes a lot to print a large data set so use with care
-                        //ReportLog("[x,y,z]=[" +  fFrequencyMHZ + "," + fAmplitudeDBM + "," + nSourceSweepIndex + "]",false);
-                        //Console.WriteLine("[x,y,z]=[{0},{1},{2}]", fFrequencyMHZ, fAmplitudeDBM, nSourceSweepIndex);
-                    }
-                }
-            }
+            objWaterfall.UpdateWaterfallGL(m_WaterfallSweepMaxHold, nSourceSweepIndex, menuUseAmplitudeCorrection.Checked);
         }
 
         private void OnWaterfallContextRealtime_Click(object sender, EventArgs e)
         {
-            m_eWaterfallSignal = RFExplorerSignalType.Realtime;
+            RFEWaterfallGL.SharpGLForm objWaterfall = null;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                objWaterfall = m_objSAWaterfall;
+            else
+                objWaterfall = m_objMainWaterfall;
+
+            objWaterfall.SignalType = RFECommunicator.RFExplorerSignalType.Realtime;
             UpdateAllWaterfallMenuItems();
+            WaterfallClean();
             UpdateWaterfall();
-            m_controlWaterfall.Invalidate();
+            objWaterfall.Invalidate();
         }
 
         private void OnWaterfallContextMaxHold_Click(object sender, EventArgs e)
         {
-            m_eWaterfallSignal = RFExplorerSignalType.MaxHold;
+            RFEWaterfallGL.SharpGLForm objWaterfall = null;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                objWaterfall = m_objSAWaterfall;
+            else
+                objWaterfall = m_objMainWaterfall;
+
+            Cursor.Current = Cursors.WaitCursor;
+            objWaterfall.SignalType = RFECommunicator.RFExplorerSignalType.MaxHold;
             UpdateAllWaterfallMenuItems();
+            WaterfallClean();
             UpdateWaterfall();
-            m_controlWaterfall.Invalidate();
+            objWaterfall.Invalidate();
+            Cursor.Current = Cursors.Default;
         }
 
         private void OnTransparentWaterfall_Click(object sender, EventArgs e)
         {
+            RFEWaterfallGL.SharpGLForm objWaterfall = null;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                objWaterfall = m_objSAWaterfall;
+            else
+                objWaterfall = m_objMainWaterfall;
             ToolStripMenuItem objMenu = (ToolStripMenuItem)sender;
-            m_controlWaterfall.Transparent = objMenu.Checked;
-            m_controlWaterfall.Invalidate();
+            objWaterfall.Transparent = objMenu.Checked;
+            objWaterfall.Invalidate();
             UpdateAllWaterfallMenuItems();
         }
 
         private void OnWaterfallFloor_Click(object sender, EventArgs e)
         {
+            RFEWaterfallGL.SharpGLForm objWaterfall = null;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                objWaterfall = m_objSAWaterfall;
+            else
+                objWaterfall = m_objMainWaterfall;
             ToolStripMenuItem objMenu = (ToolStripMenuItem)sender;
-            m_controlWaterfall.DrawFloor = objMenu.Checked;
-            m_controlWaterfall.Invalidate();
+            objWaterfall.DrawFloor = objMenu.Checked;
+            objWaterfall.Invalidate();
             UpdateAllWaterfallMenuItems();
         }
 
         private void UpdateAllWaterfallMenuItems()
         {
+            RFEWaterfallGL.SharpGLForm objWaterfall = null;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                objWaterfall = m_objSAWaterfall;
+            else
+                objWaterfall = m_objMainWaterfall;
+
             menuWaterfallContextPerspective1.Checked = false;
             menuWaterfallContextPerspective2.Checked = false;
             menuWaterfallContextISO.Checked = false;
@@ -4208,7 +4395,7 @@ namespace RFExplorerClient
             menuWaterfallPerspective2.Checked = false;
             menuWaterfallPerspective2D.Checked = false;
             menuWaterfallPerspectiveIso.Checked = false;
-            switch (m_controlWaterfall.PerspectiveView)
+            switch (objWaterfall.PerspectiveModeView)
             {
                 case RFEWaterfallGL.SharpGLForm.WaterfallPerspectives.Perspective1:
                     menuWaterfallContextPerspective1.Checked = true;
@@ -4218,11 +4405,11 @@ namespace RFExplorerClient
                     menuWaterfallContextPerspective2.Checked = true;
                     menuWaterfallPerspective2.Checked = true;
                     break;
-                case RFEWaterfallGL.SharpGLForm.WaterfallPerspectives.ISO:
+                case RFEWaterfallGL.SharpGLForm.WaterfallPerspectives.PerspectiveISO:
                     menuWaterfallContextISO.Checked = true;
                     menuWaterfallPerspectiveIso.Checked = true;
                     break;
-                case RFEWaterfallGL.SharpGLForm.WaterfallPerspectives.Pers_2D:
+                case RFEWaterfallGL.SharpGLForm.WaterfallPerspectives.Perspective2D:
                     menuWaterfallContext2D.Checked = true;
                     menuWaterfallPerspective2D.Checked = true;
                     break;
@@ -4230,47 +4417,54 @@ namespace RFExplorerClient
 
             menuWaterfallContextRealtime.Checked = false;
             menuWaterfallContextMaxHold.Checked = false;
-            switch (m_eWaterfallSignal)
+            switch (objWaterfall.SignalType)
             {
-                case RFExplorerSignalType.Realtime:
+                default:
+                case RFECommunicator.RFExplorerSignalType.Realtime:
                     menuWaterfallContextRealtime.Checked = true;
                     break;
-                case RFExplorerSignalType.MaxHold:
+                case RFECommunicator.RFExplorerSignalType.MaxHold:
                     menuWaterfallContextMaxHold.Checked = true;
-                    break;
-                case RFExplorerSignalType.Average:
-                    break;
-                case RFExplorerSignalType.MaxPeak:
-                    break;
-                case RFExplorerSignalType.Min:
                     break;
             }
 
-            menuWaterfallContextFloor.Checked = m_controlWaterfall.DrawFloor;
-            menuWaterfallContextTransparent.Checked = m_controlWaterfall.Transparent;
+            menuWaterfallContextFloor.Checked = objWaterfall.DrawFloor;
+            menuWaterfallContextTransparent.Checked = objWaterfall.Transparent;
         }
 
         private void OnWaterfallPerspective1_Click(object sender, EventArgs e)
         {
-            m_controlWaterfall.Perspective1();
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                m_objSAWaterfall.SetPerspective1();
+            else
+                m_objMainWaterfall.SetPerspective1();
             UpdateAllWaterfallMenuItems();
         }
 
         private void OnWaterfallPerspective2_Click(object sender, EventArgs e)
         {
-            m_controlWaterfall.Perspective2();
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                m_objSAWaterfall.SetPerspective2();
+            else
+                m_objMainWaterfall.SetPerspective2();
             UpdateAllWaterfallMenuItems();
         }
 
         private void OnWaterfallIsometric_Click(object sender, EventArgs e)
         {
-            m_controlWaterfall.ISO();
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                m_objSAWaterfall.SetPerspectiveISO();
+            else
+                m_objMainWaterfall.SetPerspectiveISO();
             UpdateAllWaterfallMenuItems();
         }
 
         private void OnWaterfall2D_Click(object sender, EventArgs e)
         {
-            m_controlWaterfall.Pers_2D();
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+                m_objSAWaterfall.SetPerspective2D();
+            else
+                m_objMainWaterfall.SetPerspective2D();
             UpdateAllWaterfallMenuItems();
         }
         #endregion
@@ -4384,54 +4578,21 @@ namespace RFExplorerClient
 
         private void tabRemoteScreen_Enter(object sender, EventArgs e)
         {
-            chkDumpLCDGrid.Checked = controlRemoteScreen.LCDGrid;
-            chkDumpColorScreen.Checked = controlRemoteScreen.LCDColor;
-            chkDumpHeader.Checked = controlRemoteScreen.HeaderText;
             UpdateButtonStatus();
             DisplayGroups();
             tabRemoteScreen_UpdateZoomValues();
             m_tabRemoteScreen.Invalidate();
         }
 
-        private RFECommunicator GetConnectedDeviceByPrecedence()
-        {
-            RFECommunicator objRFE = null;
-
-            if (m_objRFEAnalyzer!=null && m_objRFEAnalyzer.PortConnected)
-            {
-                objRFE = m_objRFEAnalyzer;
-            }
-            else if (m_objRFEGenerator!=null && m_objRFEGenerator.PortConnected)
-            {
-                objRFE = m_objRFEGenerator;
-            }
-
-            return objRFE;
-        }
-
-        private void numScreenIndex_ValueChanged(object sender, EventArgs e)
-        {
-            RFECommunicator objRFE = GetConnectedDeviceByPrecedence();
-            if (objRFE == null)
-                return; //no device is connected
-
-            objRFE.ScreenIndex = (UInt16)numScreenIndex.Value;
-            numScreenIndex.Value = objRFE.ScreenIndex;
-            if (objRFE.ScreenData.Count > 0)
-            {
-                controlRemoteScreen.Invalidate();
-            }
-        }
-
         private void tabRemoteScreen_UpdateZoomValues()
         {
             int nHeaderSize = 0;
-            if (chkDumpHeader.Checked)
+            if (m_ToolGroup_RemoteScreen.DumpHeaderEnabled)
             {
                 nHeaderSize = 20;
             }
 
-            int nNewZoom = (int)numericZoom.Value;
+            int nNewZoom = m_ToolGroup_RemoteScreen.ScreenZoom;
             int nLastGoodZoom = nNewZoom;
 
             do
@@ -4444,16 +4605,16 @@ namespace RFExplorerClient
                     (controlRemoteScreen.Size.Height > m_panelRemoteScreen.Size.Height))
                   && (nNewZoom > 1));
 
-            if ((nLastGoodZoom > 0) && (nLastGoodZoom != (int)numericZoom.Value))
+            if ((nLastGoodZoom > 0) && (nLastGoodZoom != m_ToolGroup_RemoteScreen.ScreenZoom))
             {
-                numericZoom.Value = nLastGoodZoom;
+                m_ToolGroup_RemoteScreen.ScreenZoom = nLastGoodZoom;
             }
             else
             {
 
-                controlRemoteScreen.UpdateZoom((int)(numericZoom.Value));
+                controlRemoteScreen.UpdateZoom(m_ToolGroup_RemoteScreen.ScreenZoom);
 
-                labelDumpBitmapSize.Text = "Size:" + (controlRemoteScreen.Width - 2) + "x" + (controlRemoteScreen.Height - 2);
+                m_ToolGroup_RemoteScreen.SetBitmapSizeLabel();
 
                 RelocateRemoteControl();
                 controlRemoteScreen.Invalidate();
@@ -4461,55 +4622,28 @@ namespace RFExplorerClient
             m_panelRemoteScreen.Refresh();
         }
 
-        private void numericZoom_ValueChanged(object sender, EventArgs e)
+        private void OnRemoteScreen_ZoomChanged(object sender, EventArgs e)
         {
             tabRemoteScreen_UpdateZoomValues();
             m_tabRemoteScreen.Invalidate();
         }
 
-        private void chkDumpScreen_CheckedChanged(object sender, EventArgs e)
+        private void OnRemoteScreen_EnabledChanged(object sender, EventArgs e)
         {
-            RFECommunicator objRFE = GetConnectedDeviceByPrecedence();
-            if (objRFE == null)
-                return; //no device is connected
-
-            controlRemoteScreen.RFExplorer = objRFE;
-            objRFE.CaptureRemoteScreen = chkDumpScreen.Checked;
             UpdateButtonStatus();
-            if (chkDumpScreen.Checked)
-            {
-                objRFE.SendCommand_EnableScreenDump();
-            }
-            else
-            {
-                objRFE.SendCommand_DisableScreenDump();
-            }
         }
 
-        private void chkDumpColorScreen_CheckedChanged(object sender, EventArgs e)
+        private void OnRemoteScreen_HeaderChanged(object sender, EventArgs e)
         {
-            controlRemoteScreen.LCDColor = chkDumpColorScreen.Checked;
-            controlRemoteScreen.Invalidate();
-        }
-
-        private void chkDumpHeader_CheckedChanged(object sender, EventArgs e)
-        {
-            controlRemoteScreen.HeaderText = chkDumpHeader.Checked;
             tabRemoteScreen_UpdateZoomValues();
-        }
-
-        private void chkDumpLCDGrid_CheckedChanged(object sender, EventArgs e)
-        {
-            controlRemoteScreen.LCDGrid = chkDumpLCDGrid.Checked;
-            controlRemoteScreen.Invalidate();
         }
 
         private void SavePNG(string sFilename)
         {
-            //if no file path was explicited, add the default folder
+            //if no file path was explicit, add the default folder
             if (!String.IsNullOrEmpty(sFilename) && (sFilename.IndexOf("\\") < 0))
             {
-                sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                sFilename = m_sDefaultUserFolder + "\\" + sFilename;
                 sFilename = sFilename.Replace("\\\\", "\\");
             }
 
@@ -4523,15 +4657,21 @@ namespace RFExplorerClient
             }
             else if (m_MainTab.SelectedTab == m_tabWaterfall)
             {
-                rectArea = m_panelWaterfall.ClientRectangle;
-                controlArea = m_panelWaterfall;
+                rectArea = m_objPanelMainWaterfall.ClientRectangle;
+                controlArea = m_objPanelMainWaterfall;
             }
             else if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
             {
                 rectArea = new Rectangle(0, 0,
-                    m_tabSpectrumAnalyzer.ClientRectangle.Width - (m_tabSpectrumAnalyzer.ClientRectangle.Right-btnAutoscale.Left),
-                    m_tabSpectrumAnalyzer.ClientRectangle.Height - m_MainStatusBar.Height -2);
+                    m_tabSpectrumAnalyzer.ClientRectangle.Width - (m_tabSpectrumAnalyzer.ClientRectangle.Right - btnAutoscale.Left),
+                    m_tabSpectrumAnalyzer.ClientRectangle.Height - m_MainStatusBar.Height - 2);
                 controlArea = m_tabSpectrumAnalyzer;
+            }
+            else if (m_MainTab.SelectedTab == m_tabRFGen)
+            {
+                rectArea = new Rectangle(0, 0, m_tabRFGen.ClientRectangle.Width,
+                    m_tabRFGen.ClientRectangle.Height - m_MainStatusBar.Height - 2);
+                controlArea = m_tabRFGen;
             }
             else if (m_MainTab.SelectedTab == m_tabPowerChannel)
             {
@@ -4540,12 +4680,16 @@ namespace RFExplorerClient
             }
             else
             {
+                MessageBox.Show("Not supported on this screen.");
                 return;
             }
 
             using (Bitmap objAppBmp = new Bitmap(rectArea.Width, rectArea.Height))
             {
-                controlArea.DrawToBitmap(objAppBmp, rectArea);
+                Point ptStart = new Point(rectArea.Left, rectArea.Top);
+                Point ptScreen = controlArea.PointToScreen(ptStart);
+                Graphics gGraphics = Graphics.FromImage(objAppBmp);
+                gGraphics.CopyFromScreen(ptScreen, new Point(0, 0), rectArea.Size);
 
                 if (String.IsNullOrEmpty(sFilename))
                 {
@@ -4581,11 +4725,15 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = _PNG_File_Selector;
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
-                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                     if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
                     {
                         MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.AnalyzerScreenshotFile);
+                    }
+                    else if (m_MainTab.SelectedTab == m_tabRFGen)
+                    {
+                        MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.SNATrackingScreenshotFile);
                     }
                     else if (m_MainTab.SelectedTab == m_tabWaterfall)
                     {
@@ -4602,7 +4750,12 @@ namespace RFExplorerClient
 
                     if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
                     {
+                        Cursor.Current = Cursors.WaitCursor;
+                        Thread.Sleep(2000); //fix for T0001
                         SavePNG(MySaveFileDialog.FileName);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
+                        Cursor.Current = Cursors.Default;
                     }
                 }
             }
@@ -4617,17 +4770,17 @@ namespace RFExplorerClient
                 //if no file path was explicited, add the default folder
                 if (sFilename.IndexOf("\\") < 0)
                 {
-                    sFilename = m_sDefaultDataFolder + "\\" + sFilename;
+                    sFilename = m_sDefaultUserFolder + "\\" + sFilename;
                     sFilename = sFilename.Replace("\\\\", "\\");
                 }
 
-                if (m_objRFEAnalyzer.ScreenData.SaveFile(sFilename))
+                if (controlRemoteScreen.RFExplorer.ScreenData.SaveFile(sFilename))  
                 {
-                    ReportLog("File " + sFilename + " loaded with total of " + m_objRFEAnalyzer.ScreenData.Count + " screen shots.", false);
+                    ReportLog("File " + sFilename + " saved with total of " + controlRemoteScreen.RFExplorer.ScreenData.Count + " screen shots.", false);
                 }
                 else
                 {
-                    MessageBox.Show("Wrong or unknown file format");
+                    MessageBox.Show("Error saving file");
                 }
             }
             catch (Exception obEx) { MessageBox.Show(obEx.Message); }
@@ -4639,16 +4792,16 @@ namespace RFExplorerClient
             Cursor.Current = Cursors.WaitCursor;
             try
             {
-                if (m_objRFEAnalyzer.ScreenData.LoadFile(sFilename))
+                if (controlRemoteScreen.RFExplorer.ScreenData.LoadFile(sFilename))
                 {
-                    UpdateScreenNumericControls();
+                    m_ToolGroup_RemoteScreen.UpdateNumericControls();
                     UpdateButtonStatus();
 
-                    ReportLog("File " + sFilename + " saved with total of " + m_objRFEAnalyzer.ScreenData.Count + " screen shots.", false);
+                    ReportLog("File " + sFilename + " loaded with total of " + controlRemoteScreen.RFExplorer.ScreenData.Count + " screen shots.", false);
                 }
                 else
                 {
-                    MessageBox.Show("Error saving to file");
+                    MessageBox.Show("Wrong or unknown file format");
                 }
             }
             catch (Exception obEx) { MessageBox.Show(obEx.Message); }
@@ -4657,7 +4810,7 @@ namespace RFExplorerClient
 
         private void OnSaveRFS_Click(object sender, EventArgs e)
         {
-            if (m_objRFEAnalyzer.ScreenData.Count > 0)
+            if (controlRemoteScreen.RFExplorer.ScreenData.Count > 0)
             {
                 try
                 {
@@ -4666,7 +4819,7 @@ namespace RFExplorerClient
                         MySaveFileDialog.Filter = _RFS_File_Selector;
                         MySaveFileDialog.FilterIndex = 1;
                         MySaveFileDialog.RestoreDirectory = false;
-                        MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                        MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                         GetNewFilename(RFExplorerFileType.RemoteScreenRFSFile);
                         MySaveFileDialog.FileName = m_sFilenameRFS;
@@ -4674,6 +4827,8 @@ namespace RFExplorerClient
                         if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
                         {
                             SaveFileRFS(MySaveFileDialog.FileName);
+                            m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                            edDefaultFilePath.Text = m_sDefaultUserFolder;
                         }
                     }
                 }
@@ -4688,37 +4843,20 @@ namespace RFExplorerClient
                 MyOpenFileDialog.Filter = _RFS_File_Selector;
                 MyOpenFileDialog.FilterIndex = 1;
                 MyOpenFileDialog.RestoreDirectory = false;
-                MyOpenFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                MyOpenFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                 if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
                 {
                     LoadFileRFS(MyOpenFileDialog.FileName);
+                    m_sDefaultUserFolder = Path.GetDirectoryName(MyOpenFileDialog.FileName);
+                    edDefaultFilePath.Text = m_sDefaultUserFolder;
                 }
             }
         }
 
         private void controlRemoteScreen_Load(object sender, EventArgs e)
         {
-            RFECommunicator objRFE = GetConnectedDeviceByPrecedence();
-            if (objRFE == null)
-                return; //no device is connected
-
-            controlRemoteScreen.RFExplorer = objRFE;
-        }
-
-        private void UpdateScreenNumericControls()
-        {
-            RFECommunicator objRFE = GetConnectedDeviceByPrecedence();
-            if (objRFE == null)
-                return; //no device is connected
-
-            //update screen data
-            if (objRFE.ScreenData.Count < numScreenIndex.Value)
-            {
-                numScreenIndex.Value = objRFE.ScreenData.Count;
-            }
-            numScreenIndex.Maximum = objRFE.ScreenData.Count - 1;
-            numScreenIndex.Value = objRFE.ScreenData.Count - 1;
+            
         }
 
         private void RelocateRemoteControl()
@@ -4757,7 +4895,7 @@ namespace RFExplorerClient
             else
                 sLine = Environment.NewLine + sLine;
 
-            if (m_chkDebugTraces.Checked || !bDetailed)
+            if (m_ToolGroup_Commands.DebugTraces || !bDetailed)
             {
                 m_ReportTextBox.AppendText(sLine);
             }
@@ -4785,65 +4923,13 @@ namespace RFExplorerClient
             m_bFirstText = false;
         }
 
-        private void OnSendCustomCmd_Click(object sender, EventArgs e)
+        /// <summary>
+        /// Sends a custom command to analyzer or generator
+        /// </summary>
+        void OnCustomCommandProperties(object sender, EventArgs e)
         {
-            string sCmd = comboCustomCommand.Text;
-            if (sCmd.Length > 0)
-            {
-                if (!RFExplorerClient.Properties.Settings.Default.CustomCommandList.Contains(sCmd))
-                {
-                    RFExplorerClient.Properties.Settings.Default.CustomCommandList += ";" + sCmd.Replace(';','-');
-                    comboCustomCommand.Items.Add(sCmd);
-                    comboCustomCommand.Text = sCmd;
-                }
-
-                string sParsedCmd = "";
-                for (int nCharInd = 0; nCharInd < sCmd.Length; nCharInd++)
-                {
-                    if (('\\' == sCmd[nCharInd]) && ('x' == sCmd[nCharInd + 1]))
-                    {
-                        //An hex byte value is coming
-                        string sHexVal = "";
-                        sHexVal += (char)sCmd[nCharInd + 2];
-                        sHexVal += (char)sCmd[nCharInd + 3];
-                        byte nVal = Convert.ToByte(sHexVal, 16);
-                        sParsedCmd += Convert.ToChar(nVal);
-                        nCharInd += 3;
-                    }
-                    else
-                    {
-                        //Normal text is coming
-                        sParsedCmd += sCmd[nCharInd];
-                    }
-                }
-                SendCommand(sParsedCmd);
-                ReportLog("Command sent: " + sCmd, true);
-            }
-            else
-            {
-                MessageBox.Show("Nothing to send.\nSpecify a command first...");
-            }
-        }
-
-        private void OnSendCmd_Click(object sender, EventArgs e)
-        {
-
-            string sCmd = "";
-            if (comboStdCmd.Text.Length > 0)
-            {
-                sCmd = comboStdCmd.Text;
-                sCmd = sCmd.Substring(sCmd.LastIndexOf(':') + 2);
-            }
-
-            if (sCmd.Length > 0)
-            {
-                SendCommand(sCmd);
-                ReportLog("Command sent: " + sCmd, true);
-            }
-            else
-            {
-                MessageBox.Show("Nothing to send.\nSpecify a command first...");
-            }
+            string sCmd = m_ToolGroup_Commands.CustomCommandText;
+            Properties.Settings.Default.CustomCommandList += ";" + sCmd.Replace(';', '-');
         }
 
         #endregion
@@ -4861,7 +4947,7 @@ namespace RFExplorerClient
 
         private void edDefaultFilePath_Leave(object sender, EventArgs e)
         {
-            m_sDefaultDataFolder = edDefaultFilePath.Text;
+            m_sDefaultUserFolder = edDefaultFilePath.Text;
             SaveProperties();
         }
 
@@ -4905,6 +4991,7 @@ namespace RFExplorerClient
                 ResetSettingsTitle();
                 m_objRFEAnalyzer.SendCommand_EnableMainboard();
                 WorkaroundBug_firmware_v1_11_switching_module();
+                m_objRFEAnalyzer.ResetTrackingNormalizedData();
             }
             menuDevice_DropDownOpening(sender, e);
             Application.DoEvents();
@@ -4923,6 +5010,7 @@ namespace RFExplorerClient
                 ResetSettingsTitle();
                 m_objRFEAnalyzer.SendCommand_EnableExpansion();
                 WorkaroundBug_firmware_v1_11_switching_module();
+                m_objRFEAnalyzer.ResetTrackingNormalizedData();
             }
             menuDevice_DropDownOpening(sender, e);
             Application.DoEvents();
@@ -4959,7 +5047,7 @@ namespace RFExplorerClient
 
         private void OnFirmware_Click(object sender, EventArgs e)
         {
-            Process.Start("http://micro.arocholl.com/download/sw/fw/FirmwareReleaseNotes.pdf");
+            Process.Start("http://j3.rf-explorer.com/download/sw/fw/FirmwareReleaseNotes.pdf");
         }
 
         private void OnDeviceManual_Click(object sender, EventArgs e)
@@ -4969,7 +5057,7 @@ namespace RFExplorerClient
 
         private void OnWindowsReleaseNotes_Click(object sender, EventArgs e)
         {
-            Process.Start("http://micro.arocholl.com/download/sw/win/WindowsClientReleaseNotes.pdf");
+            Process.Start("http://j3.rf-explorer.com/download/sw/win/WindowsClientReleaseNotes.pdf");
         }
         #endregion  //configuration
 
@@ -5056,139 +5144,7 @@ namespace RFExplorerClient
 
                 cPrevChar = cChar;
             }
-            ReportLog(sText,false);
-        }
-        #endregion
-
-        #region Limit Lines
-        private void OnLimitLineBuildFromSignal_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                bool bMin = sender.ToString().Contains("M&in");
-
-                PointPairList listCurrentPointList = null;
-                int nSelectionCounter = SelectSinglePointPairList(ref listCurrentPointList);
-
-                if (nSelectionCounter == 0)
-                {
-                    MessageBox.Show("Condition not met: One active display curve on screen (Avg, Max, Min or Realtime)", "Limit Lines");
-                    return;
-                }
-                else if (nSelectionCounter > 1)
-                {
-                    MessageBox.Show("Condition not met: One active display curve on screen ONLY (Avg, Max, Min or Realtime)", "Limit Lines");
-                    return;
-                }
-
-                using (CreateLimitLine objDialog = new CreateLimitLine())
-                {
-                    if (objDialog.ShowDialog(this) == DialogResult.OK)
-                    {
-                        double dIncrementAmplitudeDB = Convert.ToDouble(objDialog.m_edOffsetDB.Text);
-
-                        if (bMin)
-                            m_LimitLineMin = new LimitLine(listCurrentPointList);
-                        else
-                            m_LimitLineMax = new LimitLine(listCurrentPointList);
-
-                        //add requested offset to each point - NOTE: This is not the RFE measurement offset so the 
-                        //function SetNewOffset is not appropriate here!
-                        for (int nInd = 0; nInd < listCurrentPointList.Count; nInd++)
-                        {
-                            if (bMin)
-                                m_LimitLineMin[nInd].Y -= dIncrementAmplitudeDB;
-                            else
-                                m_LimitLineMax[nInd].Y += dIncrementAmplitudeDB;
-                        }
-
-                        if (bMin)
-                            m_LimitLineMin.AmplitudeUnits = GetCurrentAmplitudeEnum();
-                        else
-                            m_LimitLineMax.AmplitudeUnits = GetCurrentAmplitudeEnum();
-
-                        DisplaySpectrumAnalyzerData();
-                    }
-                }
-            }
-            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
-        }
-
-        private void OnLimitLineSaveToFile_Click(object sender, EventArgs e)
-        {
-            using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
-            {
-                MySaveFileDialog.Filter = _RFL_File_Selector;
-                MySaveFileDialog.FilterIndex = 1;
-                MySaveFileDialog.RestoreDirectory = false;
-                MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
-
-                MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.LimitLineDataFile);
-
-                if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
-                {
-                    if (sender.ToString().Contains("M&in"))
-                        m_LimitLineMin.SaveFile(MySaveFileDialog.FileName);
-                    else
-                        m_LimitLineMax.SaveFile(MySaveFileDialog.FileName);
-                }
-            }
-        }
-
-        private void OnRemoveMaxLimitLine_Click(object sender, EventArgs e)
-        {
-            m_LimitLineMax.Clear();
-            DisplaySpectrumAnalyzerData();
-        }
-
-        private void OnRemoveMinLimitLine_Click(object sender, EventArgs e)
-        {
-            m_LimitLineMin.Clear();
-            DisplaySpectrumAnalyzerData();
-        }
-
-        private void OnLimitLineReadFromFile_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                using (OpenFileDialog MyOpenFileDialog = new OpenFileDialog())
-                {
-                    MyOpenFileDialog.Filter = _RFL_File_Selector;
-                    MyOpenFileDialog.FilterIndex = 1;
-                    MyOpenFileDialog.RestoreDirectory = false;
-                    MyOpenFileDialog.InitialDirectory = m_sDefaultDataFolder;
-
-                    if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
-                    {
-                        bool bOk = false;
-
-                        if (sender.ToString().Contains("M&in"))
-                        {
-                            bOk = m_LimitLineMin.ReadFile(MyOpenFileDialog.FileName);
-                            if (bOk)
-                                m_LimitLineMin.AmplitudeUnits = GetCurrentAmplitudeEnum();
-                        }
-                        else
-                        {
-                            bOk = m_LimitLineMax.ReadFile(MyOpenFileDialog.FileName);
-                            if (bOk)
-                                m_LimitLineMax.AmplitudeUnits = GetCurrentAmplitudeEnum();
-                        }
-
-                        if (bOk)
-                            DisplaySpectrumAnalyzerData();
-                        else
-                            MessageBox.Show("");
-                    }
-                }
-            }
-            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
-        }
-
-        private void OnItemSoundAlarmLimitLine_Click(object sender, EventArgs e)
-        {
-            if (menuItemSoundAlarmLimitLine.Checked == false)
-                m_SoundPlayer.Stop();
+            ReportLog(sText, false);
         }
         #endregion
 
@@ -5226,11 +5182,13 @@ namespace RFExplorerClient
                 }
                 else
                 {
+                    objMarkerMenu.DropDownOpening += new System.EventHandler(OnMarkerTrackPeak_DropDownOpening);
+
                     //Create specific items of marker 0
-                    for (int nInd2 = 0; nInd2 < (int)RFExplorerSignalType.TOTAL_ITEMS; nInd2++)
+                    for (int nInd2 = 0; nInd2 < (int)RFECommunicator.RFExplorerSignalType.TOTAL_ITEMS; nInd2++)
                     {
-                        ToolStripMenuItem objMarkerPeak = new ToolStripMenuItem("Track " + ((RFExplorerSignalType)nInd2).ToString() + " peak");
-                        objMarkerPeak.Name = "menuTrackPeak_" + ((RFExplorerSignalType)nInd2).ToString();
+                        ToolStripMenuItem objMarkerPeak = new ToolStripMenuItem("Track " + ((RFECommunicator.RFExplorerSignalType)nInd2).ToString() + " peak");
+                        objMarkerPeak.Name = "menuTrackPeak_" + ((RFECommunicator.RFExplorerSignalType)nInd2).ToString();
                         objMarkerPeak.ToolTipText = "Marker track peak on this trace, all other traces will follow this one";
                         objMarkerPeak.CheckOnClick = false;
                         objMarkerPeak.Tag = nInd2;
@@ -5240,61 +5198,57 @@ namespace RFExplorerClient
                 }
             }
 
-            UpdateMenuFromMarkerCollection();
-        }
-
-        private void UpdateMenuMarkerPeakTrack()
-        {
-            ToolStripMenuItem objMarker1Menu = (ToolStripMenuItem)menuMarkers.DropDownItems[0];
-
-            for (int nInd2 = 0; nInd2 < (int)RFExplorerSignalType.TOTAL_ITEMS; nInd2++)
-            {
-                if (nInd2 == (int)m_eTrackSignalPeak)
-                {
-                    ((ToolStripMenuItem)objMarker1Menu.DropDownItems[nInd2 + 1]).Checked = true;
-                }
-                else
-                {
-                    ((ToolStripMenuItem)objMarker1Menu.DropDownItems[nInd2 + 1]).Checked = false;
-                }
-            }
+            UpdateMenuFromMarkerCollection(m_MainTab.SelectedTab == m_tabRFGen);
         }
 
         private void OnMarkerTrackPeak_Click(object sender, EventArgs e)
         {
             ToolStripMenuItem objMarkerPeak = (ToolStripMenuItem)sender;
-            m_eTrackSignalPeak = (RFExplorerSignalType)objMarkerPeak.Tag;
-            UpdateMenuMarkerPeakTrack();
-            UpdateMarkerControlContents();
-
+            ToolStripMenuItem objMarker1Menu = (ToolStripMenuItem)menuMarkers.DropDownItems[0];
+            ((ToolStripMenuItem)objMarker1Menu.DropDownItems[0]).Checked = true;
             if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
             {
+                m_ToolGroup_Markers_SA.TrackSignalPeak = (RFECommunicator.RFExplorerSignalType)objMarkerPeak.Tag;
+                UpdateMenuMarkerPeakTrack();
+                UpdateSAMarkerControlContents();
                 DisplaySpectrumAnalyzerData(); //redisplay all for markers update
+                m_ToolGroup_Markers_SA.UpdateButtonStatus();
             }
+            else
+            {
+                m_ToolGroup_Markers_SNA.TrackSignalPeak = (RFECommunicator.RFExplorerSignalType)objMarkerPeak.Tag;
+                UpdateMenuMarkerPeakTrack();
+                UpdateSNAMarkerControlContents();
+                DisplayTrackingData();
+                m_ToolGroup_Markers_SNA.UpdateButtonStatus();
+            }
+        }
+
+        private void OnMarkerTrackPeak_DropDownOpening(object sender, EventArgs e)
+        {
+            ToolStripMenuItem objMarkerPeak = (ToolStripMenuItem)sender;
+            bool bRFGen = (m_MainTab.SelectedTab == m_tabRFGen);
+            UpdateMenuMarkerPeakTrack();
+
+            //Disable all but RT and Avg in SNA
+            objMarkerPeak.DropDownItems[3].Enabled = !bRFGen;
+            objMarkerPeak.DropDownItems[4].Enabled = !bRFGen;
+            objMarkerPeak.DropDownItems[5].Enabled = !bRFGen;
         }
 
         private void OnMarkerVisible_Click(object sender, EventArgs e)
         {
-            UpdateMarkerControlContents();
             if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
             {
+                UpdateSAMarkerControlContents();
                 DisplaySpectrumAnalyzerData(); //redisplay all for markers update
+                m_ToolGroup_Markers_SA.UpdateButtonStatus();
             }
-        }
-
-        private void UpdateMenuFromMarkerCollection()
-        {
-            for (int nInd = 0; nInd < MarkerCollection.MAX_MARKERS; nInd++)
+            else
             {
-                m_arrMarkersEnabledMenu[nInd].Checked = m_Markers.IsMarkerEnabled(nInd);
-                if (nInd > 0)
-                {
-                    m_arrMarkersFrequencyMenu[nInd].Text = m_Markers.GetMarkerFrequency(nInd).ToString("0000.000 MHZ");
-                }
-                else
-                {
-                    UpdateMenuMarkerPeakTrack();
-                }
+                UpdateSNAMarkerControlContents();
+                DisplayTrackingData();
+                m_ToolGroup_Markers_SNA.UpdateButtonStatus();
             }
         }
 
@@ -5302,19 +5256,43 @@ namespace RFExplorerClient
         {
             try
             {
+                MarkerCollection objMarkers = null;
+                if (m_MainTab.SelectedTab == m_tabRFGen)
+                {
+                    objMarkers = m_MarkersSNA;
+                }
+                else
+                {
+                    objMarkers = m_MarkersSA;
+                }
+
                 ToolStripTextBox objFrequency = (ToolStripTextBox)sender;
 
                 string sFreq = objFrequency.Text.Replace("MHZ", "");
                 sFreq = sFreq.Replace(" ", "");
                 double dFreq = Convert.ToDouble(sFreq);
                 int nMarker = Convert.ToInt32(objFrequency.Name.Replace("menuMarkerFrequency_ID", ""));
-                if (nMarker > 1)
+
+                if (nMarker > 1) //defensive code
                 {
-                    m_Markers.SetMarkerFrequency(nMarker-1, dFreq);
-                    m_arrMarkersEnabledMenu[nMarker - 1].Checked=true;
-                    OnMarkerVisible_Click(null, null);
+                    objMarkers.SetMarkerFrequency(nMarker - 1, dFreq);
+                    objMarkers.EnableMarker(nMarker - 1);
+
+                    if (m_MainTab.SelectedTab == m_tabRFGen)
+                    {
+                        UpdateMenuFromMarkerCollection(true);
+                        UpdateSNAMarkerControlContents();
+                        DisplayTrackingData(); //redisplay all for markers update
+                        m_ToolGroup_Markers_SNA.UpdateButtonStatus();
+                    }
+                    else
+                    {
+                        UpdateMenuFromMarkerCollection(false);
+                        UpdateSAMarkerControlContents();
+                        DisplaySpectrumAnalyzerData();
+                        m_ToolGroup_Markers_SA.UpdateButtonStatus();
+                    }
                 }
-                UpdateMenuFromMarkerCollection();
             }
             catch (Exception obEx)
             {
@@ -5323,12 +5301,65 @@ namespace RFExplorerClient
             }
         }
 
+        private void UpdateMenuFromMarkerCollection(bool bRFGen)
+        {
+            MarkerCollection objMarkers = null;
+            if (bRFGen)
+            {
+                objMarkers = m_MarkersSNA;
+            }
+            else
+            {
+                objMarkers = m_MarkersSA;
+            }
+
+            for (int nInd = 0; nInd < MarkerCollection.MAX_MARKERS; nInd++)
+            {
+                m_arrMarkersEnabledMenu[nInd].Checked = objMarkers.IsMarkerEnabled(nInd);
+                if (nInd > 0)
+                {
+                    m_arrMarkersFrequencyMenu[nInd].Text = objMarkers.GetMarkerFrequency(nInd).ToString("0000.000 MHZ");
+                }
+                else
+                {
+                    UpdateMenuMarkerPeakTrack();
+                }
+            }
+        }
+
+        private void UpdateMenuMarkerPeakTrack()
+        {
+            ToolStripMenuItem objMarker1Menu = (ToolStripMenuItem)menuMarkers.DropDownItems[0];
+
+            int nPeak = (int)m_ToolGroup_Markers_SNA.TrackSignalPeak;
+            if (m_MainTab.SelectedTab == m_tabSpectrumAnalyzer)
+            {
+                nPeak = (int)m_ToolGroup_Markers_SA.TrackSignalPeak;
+            }
+
+            for (int nInd2 = 0; nInd2 < (int)RFECommunicator.RFExplorerSignalType.TOTAL_ITEMS; nInd2++)
+            {
+                ToolStripMenuItem objDropDown = (ToolStripMenuItem)objMarker1Menu.DropDownItems[nInd2 + 1];
+                if (objDropDown.Enabled)
+                {
+                    if (nInd2 == nPeak)
+                    {
+                        objDropDown.Checked = true;
+                    }
+                    else
+                    {
+                        objDropDown.Checked = false;
+                    }
+                }
+            }
+        }
+
         private void CreateMarkerConfigPanel()
         {
             m_panelSAMarkers = new Panel();
             m_panelSAMarkers.Visible = true;
             m_panelSAMarkers.AutoSize = true;
-            m_panelSAMarkers.AutoSizeMode = AutoSizeMode.GrowOnly;
+            m_panelSAMarkers.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             m_panelSAMarkers.BorderStyle = BorderStyle.FixedSingle;
             m_panelSAMarkers.Font = new System.Drawing.Font("Tahoma", 8, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             m_panelSAMarkers.ForeColor = m_ColorPanelText;
@@ -5337,23 +5368,41 @@ namespace RFExplorerClient
             m_panelSAConfiguration = new Panel();
             m_panelSAConfiguration.Visible = true;
             m_panelSAConfiguration.AutoSize = true;
-            m_panelSAConfiguration.AutoSizeMode = AutoSizeMode.GrowOnly;
+            m_panelSAConfiguration.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             m_panelSAConfiguration.BorderStyle = BorderStyle.FixedSingle;
             m_panelSAConfiguration.Font = new System.Drawing.Font("Tahoma", 8, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
             m_panelSAConfiguration.ForeColor = m_ColorPanelText;
-            m_panelSAConfiguration.Width = m_panelSAMarkers.Width;
+
+            m_panelSNAMarkers = new Panel();
+            m_panelSNAMarkers.Visible = true;
+            m_panelSNAMarkers.AutoSize = true;
+            m_panelSNAMarkers.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            m_panelSNAMarkers.BorderStyle = BorderStyle.FixedSingle;
+            m_panelSNAMarkers.Font = new System.Drawing.Font("Tahoma", 8, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            m_panelSNAMarkers.ForeColor = m_ColorPanelText;
+            m_panelSNAMarkers.Width = 120;
+
+            m_panelSNAConfiguration = new Panel();
+            m_panelSNAConfiguration.Visible = true;
+            m_panelSNAConfiguration.AutoSize = true;
+            m_panelSNAConfiguration.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            m_panelSNAConfiguration.BorderStyle = BorderStyle.FixedSingle;
+            m_panelSNAConfiguration.Font = new System.Drawing.Font("Tahoma", 8, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            m_panelSNAConfiguration.ForeColor = m_ColorPanelText;
 
             m_tabSpectrumAnalyzer.Controls.Add(m_panelSAMarkers);
             m_tabSpectrumAnalyzer.Controls.Add(m_panelSAConfiguration);
+            m_tabRFGen.Controls.Add(m_panelSNAConfiguration);
+            m_tabRFGen.Controls.Add(m_panelSNAMarkers);
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
-        private void UpdateConfigControlContents()
+        private void UpdateConfigControlContents(Panel objPanelConfiguration, RFECommunicator objRFE)
         {
-            if (m_panelSAConfiguration == null)
+            if ((objPanelConfiguration == null) || (objRFE == null))
                 return;
 
-            if (m_panelSAConfiguration.Controls.Count == 0)
+            if (objPanelConfiguration.Controls.Count == 0)
             {
                 //create labels and initialize
                 int nPosX = 3;
@@ -5363,23 +5412,23 @@ namespace RFExplorerClient
                 objLabelFirmwareNew.Name = _Firmware;
                 objLabelFirmwareNew.Location = new Point(nPosX, nPosY);
                 objLabelFirmwareNew.AutoSize = true;
-                int nTextSizeHeight = objLabelFirmwareNew.Height / 2 + 2;
+                int nTextSizeHeight = objLabelFirmwareNew.Font.Height;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelFirmwareNew);
+                objPanelConfiguration.Controls.Add(objLabelFirmwareNew);
 
                 System.Windows.Forms.Label objLabelMainboard = new System.Windows.Forms.Label();
                 objLabelMainboard.Name = _MainBoard;
                 objLabelMainboard.Location = new Point(nPosX, nPosY);
                 objLabelMainboard.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelMainboard);
+                objPanelConfiguration.Controls.Add(objLabelMainboard);
 
                 System.Windows.Forms.Label objLabelExpansion = new System.Windows.Forms.Label();
                 objLabelExpansion.Name = _ExpansionBoard;
                 objLabelExpansion.Location = new Point(nPosX, nPosY);
                 objLabelExpansion.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelExpansion);
+                objPanelConfiguration.Controls.Add(objLabelExpansion);
 
                 System.Windows.Forms.Label objLabelWindowsNew = new System.Windows.Forms.Label();
                 objLabelWindowsNew.Name = _Windows;
@@ -5387,119 +5436,143 @@ namespace RFExplorerClient
                 objLabelWindowsNew.AutoSize = true;
                 nPosY += nTextSizeHeight;
                 objLabelWindowsNew.Text = "Client: " + Assembly.GetExecutingAssembly().GetName().Version.ToString();
-                m_panelSAConfiguration.Controls.Add(objLabelWindowsNew);
+                objPanelConfiguration.Controls.Add(objLabelWindowsNew);
 
                 System.Windows.Forms.Label objLabelFreq = new System.Windows.Forms.Label();
                 objLabelFreq.Name = _Freq;
                 objLabelFreq.Location = new Point(nPosX, nPosY);
                 objLabelFreq.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelFreq);
+                objPanelConfiguration.Controls.Add(objLabelFreq);
 
                 System.Windows.Forms.Label objLabelSpan = new System.Windows.Forms.Label();
                 objLabelSpan.Name = _Span;
                 objLabelSpan.Location = new Point(nPosX, nPosY);
                 objLabelSpan.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelSpan);
+                objPanelConfiguration.Controls.Add(objLabelSpan);
 
                 System.Windows.Forms.Label objLabelStep = new System.Windows.Forms.Label();
                 objLabelStep.Name = _Step;
                 objLabelStep.Location = new Point(nPosX, nPosY);
                 objLabelStep.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelStep);
+                objPanelConfiguration.Controls.Add(objLabelStep);
 
                 System.Windows.Forms.Label objLabelRBW = new System.Windows.Forms.Label();
                 objLabelRBW.Name = _RBW;
                 objLabelRBW.Location = new Point(nPosX, nPosY);
                 objLabelRBW.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelRBW);
+                objPanelConfiguration.Controls.Add(objLabelRBW);
 
                 System.Windows.Forms.Label objLabelOffsetDBNew = new System.Windows.Forms.Label();
                 objLabelOffsetDBNew.Name = _OffsetDB;
                 objLabelOffsetDBNew.Location = new Point(nPosX, nPosY);
                 objLabelOffsetDBNew.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelOffsetDBNew);
+                objPanelConfiguration.Controls.Add(objLabelOffsetDBNew);
 
                 System.Windows.Forms.Label objLabelCalibration = new System.Windows.Forms.Label();
                 objLabelCalibration.Name = _Cal;
                 objLabelCalibration.Location = new Point(nPosX, nPosY);
                 objLabelCalibration.AutoSize = true;
                 nPosY += nTextSizeHeight;
-                m_panelSAConfiguration.Controls.Add(objLabelCalibration);
+                objPanelConfiguration.Controls.Add(objLabelCalibration);
 
-                m_panelSAConfiguration.Height = nPosY + nTextSizeHeight;
+                objPanelConfiguration.Height = nPosY + nTextSizeHeight / 2;
             }
 
-            m_panelSAConfiguration.ForeColor = m_ColorPanelText;
-            m_panelSAConfiguration.Controls[_MainBoard].ForeColor = m_ColorPanelText;
-            m_panelSAConfiguration.Controls[_ExpansionBoard].ForeColor = m_ColorPanelText;
-            if (m_objRFEAnalyzer.MainBoardModel != RFECommunicator.eModel.MODEL_NONE)
+            objPanelConfiguration.BackColor = m_ColorPanelBackground;
+            objPanelConfiguration.ForeColor = m_ColorPanelText;
+            objPanelConfiguration.Controls[_MainBoard].ForeColor = m_ColorPanelText;
+            objPanelConfiguration.Controls[_ExpansionBoard].ForeColor = m_ColorPanelText;
+            if (objRFE.MainBoardModel != RFECommunicator.eModel.MODEL_NONE)
             {
-                if (m_objRFEAnalyzer.ExpansionBoardActive)
+                if (objRFE.ExpansionBoardActive)
                 {
-                    m_panelSAConfiguration.Controls[_MainBoard].ForeColor = m_ColorPanelText;
-                    m_panelSAConfiguration.Controls[_ExpansionBoard].ForeColor = m_ColorPanelTextHighlight;
+                    objPanelConfiguration.Controls[_MainBoard].ForeColor = m_ColorPanelText;
+                    objPanelConfiguration.Controls[_ExpansionBoard].ForeColor = m_ColorPanelTextHighlight;
                 }
                 else
                 {
-                    m_panelSAConfiguration.Controls[_MainBoard].ForeColor = m_ColorPanelTextHighlight;
-                    m_panelSAConfiguration.Controls[_ExpansionBoard].ForeColor = m_ColorPanelText;
+                    objPanelConfiguration.Controls[_MainBoard].ForeColor = m_ColorPanelTextHighlight;
+                    objPanelConfiguration.Controls[_ExpansionBoard].ForeColor = m_ColorPanelText;
                 }
             }
 
-            m_panelSAConfiguration.Controls[_Firmware].Text = "Firmware: " + m_objRFEAnalyzer.RFExplorerFirmwareDetected;
-            m_panelSAConfiguration.Controls[_MainBoard].Text = "RF Left: " + RFECommunicator.GetModelTextFromEnum(m_objRFEAnalyzer.MainBoardModel);
-            m_panelSAConfiguration.Controls[_ExpansionBoard].Text = "RF Right: " + RFECommunicator.GetModelTextFromEnum(m_objRFEAnalyzer.ExpansionBoardModel);
-            m_panelSAConfiguration.Controls[_Freq].Text = "Center: " + m_objRFEAnalyzer.CalculateCenterFrequencyMHZ().ToString("f3") + "MHz";
-            m_panelSAConfiguration.Controls[_Span].Text = "Span: " + m_objRFEAnalyzer.CalculateFrequencySpanMHZ().ToString("f3") + "MHz";
-            m_panelSAConfiguration.Controls[_OffsetDB].Text = "Offset: " + m_objRFEAnalyzer.AmplitudeOffsetDB + "dB";
-            m_panelSAConfiguration.Controls[_Step].Text = "Step: " + (1000*m_objRFEAnalyzer.StepFrequencyMHZ).ToString("f3") + "KHz";
-            m_panelSAConfiguration.Controls[_RBW].Text = "RBW: " + m_objRFEAnalyzer.RBW_KHZ + "KHz";
+            objPanelConfiguration.Controls[_Firmware].Text = "Firmware: " + objRFE.RFExplorerFirmwareDetected;
+            objPanelConfiguration.Controls[_MainBoard].Text = "RF Left: " + RFECommunicator.GetModelTextFromEnum(objRFE.MainBoardModel);
+            objPanelConfiguration.Controls[_ExpansionBoard].Text = "RF Right: " + RFECommunicator.GetModelTextFromEnum(objRFE.ExpansionBoardModel);
 
-            m_panelSAConfiguration.Controls[_Cal].Text = "Cal: ";
-            if (menuUseAmplitudeCorrection.Checked)
+            if (objPanelConfiguration == m_panelSAConfiguration)
             {
-                if (m_objRFEAnalyzer.m_AmplitudeCalibration.HasCalibrationData)
+                objPanelConfiguration.Controls[_Freq].Text = "Center: " + m_objRFEAnalyzer.CalculateCenterFrequencyMHZ().ToString("f3") + "MHz";
+                objPanelConfiguration.Controls[_Span].Text = "Span: " + m_objRFEAnalyzer.CalculateFrequencySpanMHZ().ToString("f3") + "MHz";
+                objPanelConfiguration.Controls[_OffsetDB].Text = "Offset: " + m_objRFEAnalyzer.AmplitudeOffsetDB + "dB";
+                objPanelConfiguration.Controls[_Step].Text = "Step: " + (1000 * m_objRFEAnalyzer.StepFrequencyMHZ).ToString("f3") + "KHz";
+                objPanelConfiguration.Controls[_RBW].Text = "RBW: " + m_objRFEAnalyzer.RBW_KHZ + "KHz";
+                objPanelConfiguration.Controls[_Cal].Text = "Cal: ";
+                if (menuUseAmplitudeCorrection.Checked)
                 {
-                    m_panelSAConfiguration.Controls[_Cal].Text += "OVR ";
-                    m_panelSAConfiguration.Controls[_Cal].Text += m_objRFEAnalyzer.m_AmplitudeCalibration.CalibrationID.ToLower();
-                    if (m_panelSAConfiguration.Controls[_Cal].Text.Length > 20)
+                    if (m_objRFEAnalyzer.m_AmplitudeCalibration.HasCalibrationData)
                     {
-                        m_panelSAConfiguration.Controls[_Cal].Text = m_panelSAConfiguration.Controls[_Cal].Text.Substring(0,20);
+                        objPanelConfiguration.Controls[_Cal].Text += "OVR ";
+                        objPanelConfiguration.Controls[_Cal].Text += m_objRFEAnalyzer.m_AmplitudeCalibration.CalibrationID.ToLower();
+                        if (objPanelConfiguration.Controls[_Cal].Text.Length > 20)
+                        {
+                            objPanelConfiguration.Controls[_Cal].Text = objPanelConfiguration.Controls[_Cal].Text.Substring(0, 20);
+                        }
+                    }
+                    else
+                    {
+                        objPanelConfiguration.Controls[_Cal].Text += "No";
                     }
                 }
                 else
                 {
-                    m_panelSAConfiguration.Controls[_Cal].Text += "No";
+                    objPanelConfiguration.Controls[_Cal].Text += "Disabled";
                 }
+
+                if (objPanelConfiguration.Width < m_panelSAMarkers.Width)
+                {
+                    objPanelConfiguration.MinimumSize = new Size(m_panelSAMarkers.Width, objPanelConfiguration.Height);
+                }
+                else
+                {
+                    m_panelSAMarkers.MinimumSize = new Size(objPanelConfiguration.Width, m_panelSAMarkers.Height);
+                }
+
+                if (IsWaterfallOnMainScreen())
+                {
+                    objPanelConfiguration.Left = m_objPanelSAWaterfall.Right + 4;
+                }
+                else
+                {
+                    objPanelConfiguration.Left = m_GraphSpectrumAnalyzer.Right + 4;
+                }
+
+                objPanelConfiguration.Top = m_GraphSpectrumAnalyzer.Top;
             }
             else
             {
-                m_panelSAConfiguration.Controls[_Cal].Text += "Disabled";
+                if (objPanelConfiguration.Width < m_panelSNAMarkers.Width)
+                {
+                    objPanelConfiguration.MinimumSize = new Size(m_panelSNAMarkers.Width, objPanelConfiguration.Height);
+                }
+                else
+                {
+                    m_panelSNAMarkers.MinimumSize = new Size(objPanelConfiguration.Width, m_panelSNAMarkers.Height);
+                }
+                objPanelConfiguration.Top = m_GraphTrackingGenerator.Top;
+                objPanelConfiguration.Left = m_GraphTrackingGenerator.Right + 4;
             }
-
-            if (IsWaterfallOnMainScreen())
-            {
-                m_panelSAConfiguration.Left = m_panelWaterfall.Right + 4;
-            }
-            else
-            {
-                m_panelSAConfiguration.Left = m_GraphSpectrumAnalyzer.Right + 4;
-            }
-
-            m_panelSAConfiguration.Top = m_GraphSpectrumAnalyzer.Top;
-
-            m_panelSAConfiguration.BackColor = m_ColorPanelBackground;
         }
 
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
-        private void UpdateMarkerControlContents()
+        private void UpdateSAMarkerControlContents()
         {
-            if (m_panelSAMarkers==null)
+            if (m_panelSAMarkers == null)
                 return;
 
             //remove any old control setting
@@ -5512,19 +5585,120 @@ namespace RFExplorerClient
             m_panelSAMarkers.Top = m_panelSAConfiguration.Bottom + 2;
             m_panelSAMarkers.Left = m_panelSAConfiguration.Left;
 
+            int nHeight = 0;
             if (menuPlaceWaterfallAtBottom.Checked)
             {
-                m_panelSAMarkers.Height = m_GraphSpectrumAnalyzer.Height + m_panelWaterfall.Height - m_panelSAConfiguration.Height - 6;
+                nHeight = m_GraphSpectrumAnalyzer.Height + m_objPanelSAWaterfall.Height - m_panelSAConfiguration.Height - 6;
             }
             else
             {
-                m_panelSAMarkers.Height = m_GraphSpectrumAnalyzer.Height - m_panelSAConfiguration.Height - 2;
+                nHeight = m_GraphSpectrumAnalyzer.Height - m_panelSAConfiguration.Height - 2;
             }
+            m_panelSAMarkers.MinimumSize = new Size(m_panelSAMarkers.MinimumSize.Width, nHeight);
 
             int nPosX = 3;
             int nPosY = 5;
             bool bSomeMarkerEnabled = false;
-            for (int nInd=0; nInd<MarkerCollection.MAX_MARKERS; nInd++)
+            for (int nInd = 0; nInd < MarkerCollection.MAX_MARKERS; nInd++)
+            {
+                if (m_arrMarkersEnabledMenu[nInd].Checked)
+                {
+                    if (nPosY <= (m_panelSAMarkers.Height - 65)) //Tested in the worst case - 175% with lot of traces modes selected
+                    {
+                        bSomeMarkerEnabled = true;
+                        System.Windows.Forms.Label objLabelFreq = new System.Windows.Forms.Label();
+                        objLabelFreq.Name = "M" + (nInd + 1).ToString() + "Freq";
+                        objLabelFreq.Location = new Point(nPosX, nPosY);
+                        objLabelFreq.AutoSize = true;
+                        int nTextSizeHeight = objLabelFreq.Font.Height;
+                        nPosY += nTextSizeHeight;
+                        m_panelSAMarkers.Controls.Add(objLabelFreq);
+
+                        if (menuRealtimeTrace.Checked)
+                        {
+                            System.Windows.Forms.Label objLabel = new System.Windows.Forms.Label();
+                            objLabel.Name = "M" + (nInd + 1).ToString() + "RT";
+                            objLabel.Location = new Point(nPosX + 3, nPosY);
+                            objLabel.AutoSize = true;
+                            nPosY += nTextSizeHeight;
+                            m_panelSAMarkers.Controls.Add(objLabel);
+                        }
+                        if (menuAveragedTrace.Checked)
+                        {
+                            System.Windows.Forms.Label objLabel = new System.Windows.Forms.Label();
+                            objLabel.Name = "M" + (nInd + 1).ToString() + "Avg";
+                            objLabel.Location = new Point(nPosX + 3, nPosY);
+                            objLabel.AutoSize = true;
+                            nPosY += nTextSizeHeight;
+                            m_panelSAMarkers.Controls.Add(objLabel);
+                        }
+                        if (menuMaxTrace.Checked)
+                        {
+                            System.Windows.Forms.Label objLabel = new System.Windows.Forms.Label();
+                            objLabel.Name = "M" + (nInd + 1).ToString() + "Max";
+                            objLabel.Location = new Point(nPosX + 3, nPosY);
+                            objLabel.AutoSize = true;
+                            nPosY += nTextSizeHeight;
+                            m_panelSAMarkers.Controls.Add(objLabel);
+                        }
+                        if (menuMinTrace.Checked)
+                        {
+                            System.Windows.Forms.Label objLabel = new System.Windows.Forms.Label();
+                            objLabel.Name = "M" + (nInd + 1).ToString() + "Min";
+                            objLabel.Location = new Point(nPosX + 3, nPosY);
+                            objLabel.AutoSize = true;
+                            nPosY += nTextSizeHeight;
+                            m_panelSAMarkers.Controls.Add(objLabel);
+                        }
+                        if (menuMaxHoldTrace.Checked)
+                        {
+                            System.Windows.Forms.Label objLabel = new System.Windows.Forms.Label();
+                            objLabel.Name = "M" + (nInd + 1).ToString() + "MxH";
+                            objLabel.Location = new Point(nPosX + 3, nPosY);
+                            objLabel.AutoSize = true;
+                            nPosY += nTextSizeHeight;
+                            m_panelSAMarkers.Controls.Add(objLabel);
+                        }
+                        nPosY += 3;
+                    }
+                }
+            }
+            if (bSomeMarkerEnabled)
+            {
+                UpdateSAMarkerControlValues();
+            }
+        }
+
+        private void OnToolGroupReport(object sender, EventArgs e)
+        {
+            EventReportInfo objArg = (EventReportInfo)e;
+            string sLine = objArg.Data;
+            ReportLog(sLine, false);
+        }
+
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope")]
+        private void UpdateSNAMarkerControlContents()
+        {
+            if (m_panelSNAMarkers == null)
+                return;
+
+            //remove any old control setting
+            foreach (Control objControl in m_panelSNAMarkers.Controls)
+            {
+                objControl.Dispose();
+            }
+            m_panelSNAMarkers.Controls.Clear();
+
+            m_panelSNAMarkers.Top = m_panelSNAConfiguration.Bottom + 2;
+            m_panelSNAMarkers.Left = m_panelSNAConfiguration.Left;
+
+            int nHeight = m_GraphTrackingGenerator.Height - m_panelSNAConfiguration.Height - 6;
+            m_panelSNAMarkers.MinimumSize = new Size(m_panelSNAMarkers.MinimumSize.Width, nHeight);
+
+            int nPosX = 3;
+            int nPosY = 5;
+            bool bSomeMarkerEnabled = false;
+            for (int nInd = 0; nInd < MarkerCollection.MAX_MARKERS; nInd++)
             {
                 if (m_arrMarkersEnabledMenu[nInd].Checked)
                 {
@@ -5533,90 +5707,148 @@ namespace RFExplorerClient
                     objLabelFreq.Name = "M" + (nInd + 1).ToString() + "Freq";
                     objLabelFreq.Location = new Point(nPosX, nPosY);
                     objLabelFreq.AutoSize = true;
-                    int nTextSizeHeight = objLabelFreq.Height/2+2;
+                    int nTextSizeHeight = objLabelFreq.Font.Height;
                     nPosY += nTextSizeHeight;
-                    m_panelSAMarkers.Controls.Add(objLabelFreq);
+                    m_panelSNAMarkers.Controls.Add(objLabelFreq);
 
-                    if (menuRealtimeTrace.Checked)
                     {
-                        System.Windows.Forms.Label objLabel= new System.Windows.Forms.Label();
+                        System.Windows.Forms.Label objLabel = new System.Windows.Forms.Label();
                         objLabel.Name = "M" + (nInd + 1).ToString() + "RT";
                         objLabel.Location = new Point(nPosX + 3, nPosY);
                         objLabel.AutoSize = true;
                         nPosY += nTextSizeHeight;
-                        m_panelSAMarkers.Controls.Add(objLabel);
+                        m_panelSNAMarkers.Controls.Add(objLabel);
                     }
-                    if (menuAveragedTrace.Checked)
+
                     {
-                        System.Windows.Forms.Label objLabel= new System.Windows.Forms.Label();
+                        System.Windows.Forms.Label objLabel = new System.Windows.Forms.Label();
                         objLabel.Name = "M" + (nInd + 1).ToString() + "Avg";
                         objLabel.Location = new Point(nPosX + 3, nPosY);
                         objLabel.AutoSize = true;
                         nPosY += nTextSizeHeight;
-                        m_panelSAMarkers.Controls.Add(objLabel);
+                        m_panelSNAMarkers.Controls.Add(objLabel);
                     }
-                    if (menuMaxTrace.Checked)
-                    {
-                        System.Windows.Forms.Label objLabel= new System.Windows.Forms.Label();
-                        objLabel.Name = "M" + (nInd + 1).ToString() + "Max";
-                        objLabel.Location = new Point(nPosX + 3, nPosY);
-                        objLabel.AutoSize = true;
-                        nPosY += nTextSizeHeight;
-                        m_panelSAMarkers.Controls.Add(objLabel);
-                    }
-                    if (menuMinTrace.Checked)
-                    {
-                        System.Windows.Forms.Label objLabel= new System.Windows.Forms.Label();
-                        objLabel.Name = "M" + (nInd + 1).ToString() + "Min";
-                        objLabel.Location = new Point(nPosX + 3, nPosY);
-                        objLabel.AutoSize = true;
-                        nPosY += nTextSizeHeight;
-                        m_panelSAMarkers.Controls.Add(objLabel);
-                    }
-                    if (menuMaxHoldTrace.Checked)
-                    {
-                        System.Windows.Forms.Label objLabel= new System.Windows.Forms.Label();
-                        objLabel.Name = "M" + (nInd + 1).ToString() + "MxH";
-                        objLabel.Location = new Point(nPosX + 3, nPosY);
-                        objLabel.AutoSize = true;
-                        nPosY += nTextSizeHeight;
-                        m_panelSAMarkers.Controls.Add(objLabel);
-                    }
-                    nPosY += 5;
+                    nPosY += 3;
                 }
             }
             if (bSomeMarkerEnabled)
             {
-                UpdateMarkerControlValues();
+                UpdateSNAMarkerControlValues();
             }
         }
 
-        private void UpdateMarkerControlValues()
+        private void UpdateSNAMarkerControlValues()
         {
-            m_panelSAMarkers.BackColor = m_ColorPanelBackground;
-            m_panelSAMarkers.ForeColor = m_ColorPanelText;
+            m_panelSNAMarkers.BackColor = m_ColorPanelBackground;
+            m_panelSNAMarkers.ForeColor = m_ColorPanelText;
 
-            if ((m_arrMarkersEnabledMenu == null) || (m_panelSAMarkers.Controls.Count==0))
+            if ((m_arrMarkersEnabledMenu == null) || (m_panelSNAMarkers.Controls.Count == 0))
                 return;
 
             for (int nInd = 0; nInd < MarkerCollection.MAX_MARKERS; nInd++)
             {
                 if (m_arrMarkersEnabledMenu[nInd].Checked)
                 {
-                    System.Windows.Forms.Label objLabelFreq=(System.Windows.Forms.Label)m_panelSAMarkers.Controls["M" + (nInd + 1).ToString() + "Freq"];
+                    System.Windows.Forms.Label objLabelFreq = (System.Windows.Forms.Label)m_panelSNAMarkers.Controls["M" + (nInd + 1).ToString() + "Freq"];
                     if (objLabelFreq != null)
                     {
-                        objLabelFreq.Text = "M" + (nInd + 1).ToString() + ": " + m_Markers.GetMarkerFrequency(nInd).ToString("0000.000 MHz");
+                        objLabelFreq.Text = "M" + (nInd + 1).ToString() + ": " + m_MarkersSNA.GetMarkerFrequency(nInd).ToString("0000.000 MHz");
 
                         //Check if the marker is indeed inside the frequency area
-                        if ((m_Markers.GetMarkerFrequency(nInd) > m_objRFEAnalyzer.StopFrequencyMHZ) ||
-                            (m_Markers.GetMarkerFrequency(nInd) < m_objRFEAnalyzer.StartFrequencyMHZ))
+                        objLabelFreq.ForeColor = m_ColorPanelTextDisabled;
+                        if (m_objRFEAnalyzer.TrackingData.Count > 0)
                         {
-                            objLabelFreq.Enabled = false;
+                            if ((m_MarkersSNA.GetMarkerFrequency(nInd) <= m_objRFEAnalyzer.TrackingData.GetData(0).EndFrequencyMHZ) &&
+                                (m_MarkersSNA.GetMarkerFrequency(nInd) >= m_objRFEAnalyzer.TrackingData.GetData(0).StartFrequencyMHZ))
+                            {
+                                objLabelFreq.ForeColor = m_ColorPanelText;
+                            }
                         }
-                        else
+                    }
+                    {
+                        System.Windows.Forms.Label objLabel = (System.Windows.Forms.Label)m_panelSNAMarkers.Controls["M" + (nInd + 1).ToString() + "RT"];
+                        if (objLabel != null)
                         {
-                            objLabelFreq.Enabled = true;
+                            if (nInd == 0)
+                            {
+                                if (m_ToolGroup_Markers_SNA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Realtime)
+                                    objLabel.ForeColor = m_ColorPanelTextHighlight;
+                                else
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
+                            bool bEnabled = (objLabelFreq.ForeColor == m_ColorPanelText) && m_PointList_Tracking_Normal.Count > 0;
+                            if (bEnabled)
+                            {
+                                objLabel.Text = "RT: " + m_MarkersSNA.GetMarkerAmplitude(nInd, RFECommunicator.RFExplorerSignalType.Realtime).ToString("0.00") + GetCurrentAmplitudeUnitLabel();
+                                if (objLabel.ForeColor == m_ColorPanelTextDisabled)
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
+                            else
+                            {
+                                objLabel.Text = "RT: invalid";
+                                objLabel.ForeColor = m_ColorPanelTextDisabled;
+                            }
+                            objLabelFreq.Enabled &= objLabel.Enabled;
+                        }
+                    }
+                    {
+                        System.Windows.Forms.Label objLabel = (System.Windows.Forms.Label)m_panelSNAMarkers.Controls["M" + (nInd + 1).ToString() + "Avg"];
+                        if (objLabel != null)
+                        {
+                            if (nInd == 0)
+                            {
+                                if (m_ToolGroup_Markers_SNA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Average)
+                                    objLabel.ForeColor = m_ColorPanelTextHighlight;
+                                else
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
+                            bool bEnabled = (objLabelFreq.ForeColor == m_ColorPanelText) && m_PointList_Tracking_Avg.Count > 0;
+                            if (bEnabled)
+                            {
+                                objLabel.Text = "Avg: " + m_MarkersSNA.GetMarkerAmplitude(nInd, RFECommunicator.RFExplorerSignalType.Average).ToString("0.00") + GetCurrentAmplitudeUnitLabel();
+                                if (objLabel.ForeColor == m_ColorPanelTextDisabled)
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
+                            else
+                            {
+                                objLabel.Text = "Avg: invalid";
+                                objLabel.ForeColor = m_ColorPanelTextDisabled;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void UpdateSAMarkerControlValues()
+        {
+            m_panelSAMarkers.BackColor = m_ColorPanelBackground;
+            m_panelSAMarkers.ForeColor = m_ColorPanelText;
+
+            if ((m_arrMarkersEnabledMenu == null) || (m_panelSAMarkers.Controls.Count == 0))
+                return;
+
+            for (int nInd = 0; nInd < MarkerCollection.MAX_MARKERS; nInd++)
+            {
+                if (m_arrMarkersEnabledMenu[nInd].Checked)
+                {
+                    System.Windows.Forms.Label objLabelFreq = (System.Windows.Forms.Label)m_panelSAMarkers.Controls["M" + (nInd + 1).ToString() + "Freq"];
+                    if (objLabelFreq != null)
+                    {
+                        objLabelFreq.Text = "M" + (nInd + 1).ToString() + ": " + m_MarkersSA.GetMarkerFrequency(nInd).ToString("0000.000 MHz");
+
+                        //Check if the marker is indeed inside the frequency area
+                        objLabelFreq.ForeColor = m_ColorPanelTextDisabled;
+                        if (m_objRFEAnalyzer.SweepData.Count > 0)
+                        {
+                            if (m_objRFEAnalyzer.Mode != RFECommunicator.eMode.MODE_WIFI_ANALYZER)
+                            {
+                                if ((m_MarkersSA.GetMarkerFrequency(nInd) <= m_objRFEAnalyzer.StopFrequencyMHZ) &&
+                                (m_MarkersSA.GetMarkerFrequency(nInd) >= m_objRFEAnalyzer.StartFrequencyMHZ))
+                                {
+                                    objLabelFreq.ForeColor = m_ColorPanelText;
+                                }
+                            }
                         }
                     }
 
@@ -5627,16 +5859,23 @@ namespace RFExplorerClient
                         {
                             if (nInd == 0)
                             {
-                                if (m_eTrackSignalPeak == RFExplorerSignalType.Realtime)
+                                if (m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Realtime)
                                     objLabel.ForeColor = m_ColorPanelTextHighlight;
                                 else
                                     objLabel.ForeColor = m_ColorPanelText;
                             }
-                            objLabel.Enabled = objLabelFreq.Enabled && m_PointList_Realtime.Count > 0;
-                            if (objLabel.Enabled)
-                                objLabel.Text = "RT: " + m_Markers.GetMarkerAmplitude(nInd, RFExplorerSignalType.Realtime).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                            bool bEnabled = (objLabelFreq.ForeColor == m_ColorPanelText) && (m_PointList_Realtime.Count > 0);
+                            if (bEnabled)
+                            {
+                                objLabel.Text = "RT: " + m_MarkersSA.GetMarkerAmplitude(nInd, RFECommunicator.RFExplorerSignalType.Realtime).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                                if (objLabel.ForeColor == m_ColorPanelTextDisabled)
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
                             else
+                            {
                                 objLabel.Text = "RT: invalid";
+                                objLabel.ForeColor = m_ColorPanelTextDisabled;
+                            }
                             objLabelFreq.Enabled &= objLabel.Enabled;
                         }
                     }
@@ -5647,16 +5886,23 @@ namespace RFExplorerClient
                         {
                             if (nInd == 0)
                             {
-                                if (m_eTrackSignalPeak == RFExplorerSignalType.Average)
+                                if (m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Average)
                                     objLabel.ForeColor = m_ColorPanelTextHighlight;
                                 else
                                     objLabel.ForeColor = m_ColorPanelText;
                             }
-                            objLabel.Enabled = objLabelFreq.Enabled && m_PointList_Avg.Count > 0;
-                            if (objLabel.Enabled)
-                                objLabel.Text = "Avg: " + m_Markers.GetMarkerAmplitude(nInd, RFExplorerSignalType.Average).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                            bool bEnabled = (objLabelFreq.ForeColor == m_ColorPanelText) && m_PointList_Avg.Count > 0;
+                            if (bEnabled)
+                            {
+                                objLabel.Text = "Avg: " + m_MarkersSA.GetMarkerAmplitude(nInd, RFECommunicator.RFExplorerSignalType.Average).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                                if (objLabel.ForeColor == m_ColorPanelTextDisabled)
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
                             else
+                            {
                                 objLabel.Text = "Avg: invalid";
+                                objLabel.ForeColor = m_ColorPanelTextDisabled;
+                            }
                         }
                     }
                     if (menuMaxTrace.Checked)
@@ -5666,16 +5912,23 @@ namespace RFExplorerClient
                         {
                             if (nInd == 0)
                             {
-                                if (m_eTrackSignalPeak == RFExplorerSignalType.MaxPeak)
+                                if (m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.MaxPeak)
                                     objLabel.ForeColor = m_ColorPanelTextHighlight;
                                 else
                                     objLabel.ForeColor = m_ColorPanelText;
                             }
-                            objLabel.Enabled = objLabelFreq.Enabled && m_PointList_Max.Count > 0;
-                            if (objLabel.Enabled)
-                                objLabel.Text = "Max: " + m_Markers.GetMarkerAmplitude(nInd, RFExplorerSignalType.MaxPeak).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                            bool bEnabled = (objLabelFreq.ForeColor == m_ColorPanelText) && m_PointList_Max.Count > 0;
+                            if (bEnabled)
+                            {
+                                objLabel.Text = "Max: " + m_MarkersSA.GetMarkerAmplitude(nInd, RFECommunicator.RFExplorerSignalType.MaxPeak).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                                if (objLabel.ForeColor == m_ColorPanelTextDisabled)
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
                             else
+                            {
                                 objLabel.Text = "Max: invalid";
+                                objLabel.ForeColor = m_ColorPanelTextDisabled;
+                            }
                         }
                     }
                     if (menuMinTrace.Checked)
@@ -5685,16 +5938,23 @@ namespace RFExplorerClient
                         {
                             if (nInd == 0)
                             {
-                                if (m_eTrackSignalPeak == RFExplorerSignalType.Min)
+                                if (m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Min)
                                     objLabel.ForeColor = m_ColorPanelTextHighlight;
                                 else
                                     objLabel.ForeColor = m_ColorPanelText;
                             }
-                            objLabel.Enabled = objLabelFreq.Enabled && m_PointList_Min.Count > 0;
-                            if (objLabel.Enabled)
-                                objLabel.Text = "Min: " + m_Markers.GetMarkerAmplitude(nInd, RFExplorerSignalType.Min).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                            bool bEnabled = (objLabelFreq.ForeColor == m_ColorPanelText) && m_PointList_Min.Count > 0;
+                            if (bEnabled)
+                            {
+                                objLabel.Text = "Min: " + m_MarkersSA.GetMarkerAmplitude(nInd, RFECommunicator.RFExplorerSignalType.Min).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                                if (objLabel.ForeColor == m_ColorPanelTextDisabled)
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
                             else
+                            {
                                 objLabel.Text = "Min: invalid";
+                                objLabel.ForeColor = m_ColorPanelTextDisabled;
+                            }
                         }
                     }
                     if (menuMaxHoldTrace.Checked)
@@ -5704,16 +5964,23 @@ namespace RFExplorerClient
                         {
                             if (nInd == 0)
                             {
-                                if (m_eTrackSignalPeak == RFExplorerSignalType.MaxHold)
+                                if (m_ToolGroup_Markers_SA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.MaxHold)
                                     objLabel.ForeColor = m_ColorPanelTextHighlight;
                                 else
                                     objLabel.ForeColor = m_ColorPanelText;
                             }
-                            objLabel.Enabled = objLabelFreq.Enabled && m_PointList_MaxHold.Count > 0;
-                            if (objLabel.Enabled)
-                                objLabel.Text = "MxH: " + m_Markers.GetMarkerAmplitude(nInd, RFExplorerSignalType.MaxHold).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                            bool bEnabled = (objLabelFreq.ForeColor == m_ColorPanelText) && m_PointList_MaxHold.Count > 0;
+                            if (bEnabled)
+                            {
+                                objLabel.Text = "MxH: " + m_MarkersSA.GetMarkerAmplitude(nInd, RFECommunicator.RFExplorerSignalType.MaxHold).ToString(GetCurrentAmplitudeUnitFormat()) + GetCurrentAmplitudeUnitLabel();
+                                if (objLabel.ForeColor == m_ColorPanelTextDisabled)
+                                    objLabel.ForeColor = m_ColorPanelText;
+                            }
                             else
+                            {
+                                objLabel.ForeColor = m_ColorPanelTextDisabled;
                                 objLabel.Text = "MxH: invalid";
+                            }
                         }
                     }
                 }
@@ -5721,20 +5988,20 @@ namespace RFExplorerClient
         }
         #endregion
 
-        #region AmplitudeCalibration
+        #region Amplitude Calibration
 
         private void LoadFileRFA(string sFilename, bool bInteractiveWarning)
         {
             menuUseAmplitudeCorrection.Checked = false;
             if (m_objRFEAnalyzer.LoadFileRFA(sFilename))
             {
-                m_LimitLineOverload.Clear();
+                m_LimitLineAnalyzer_Overload.Clear();
                 if (m_objRFEAnalyzer.m_AmplitudeCalibration.HasCompressionData)
                 {
-                    m_LimitLineOverload.CreateFromArray(m_objRFEAnalyzer.m_AmplitudeCalibration.m_arrCompressionDataDBM);
-                    m_LimitLineOverload.NewOffset(m_objRFEAnalyzer.AmplitudeOffsetDB);
+                    m_LimitLineAnalyzer_Overload.CreateFromArray(m_objRFEAnalyzer.m_AmplitudeCalibration.m_arrCompressionDataDBM);
+                    m_LimitLineAnalyzer_Overload.NewOffset(m_objRFEAnalyzer.AmplitudeOffsetDB);
                 }
-                m_LimitLineOverload.AmplitudeUnits = GetCurrentAmplitudeEnum();
+                m_LimitLineAnalyzer_Overload.AmplitudeUnits = GetCurrentAmplitudeEnum();
                 menuUseAmplitudeCorrection.Enabled = true;
                 menuUseAmplitudeCorrection.Checked = m_objRFEAnalyzer.PortConnected;
                 DisplaySpectrumAnalyzerData();
@@ -5757,11 +6024,13 @@ namespace RFExplorerClient
                     MyOpenFileDialog.Filter = _RFA_File_Selector;
                     MyOpenFileDialog.FilterIndex = 1;
                     MyOpenFileDialog.RestoreDirectory = false;
-                    MyOpenFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                    MyOpenFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                     if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
                     {
                         LoadFileRFA(MyOpenFileDialog.FileName, true);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MyOpenFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
                     }
                 }
             }
@@ -5771,13 +6040,18 @@ namespace RFExplorerClient
         private void OnUseAmplitudeCorrection_Click(object sender, EventArgs e)
         {
             menuUseAmplitudeCorrection.Checked = !menuUseAmplitudeCorrection.Checked;
-            UpdateConfigControlContents();
+            UpdateConfigControlContents(m_panelSAConfiguration, m_objRFEAnalyzer);
             DisplaySpectrumAnalyzerData();
         }
 
         private string ModelAmplitudeFileName()
         {
-            return m_sAppDataFolder + "\\" + RFECommunicator.GetModelTextFromEnum(m_objRFEAnalyzer.ActiveModel) + ".RFA";
+            string sCalText = "";
+            if ((m_objRFEAnalyzer != null) && m_objRFEAnalyzer.IsAnalyzerEmbeddedCal() && (m_objRFEAnalyzer.ActiveModel != RFECommunicator.eModel.MODEL_NONE))
+            {
+                sCalText = "_CAL";
+            }
+            return m_sAppDataFolder + "\\" + RFECommunicator.GetModelTextFromEnum(m_objRFEAnalyzer.ActiveModel) + sCalText + ".RFA";
         }
 
         private void AutoLoadAmplitudeDataFile()
@@ -5787,7 +6061,7 @@ namespace RFExplorerClient
                 if (File.Exists(ModelAmplitudeFileName()))
                 {
                     LoadFileRFA(ModelAmplitudeFileName(), false);
-                    UpdateConfigControlContents();
+                    UpdateConfigControlContents(m_panelSAConfiguration, m_objRFEAnalyzer);
                     ReportLog("Automatic amplitude calibration data loaded: " + ModelAmplitudeFileName(), false);
                 }
                 else
@@ -5803,6 +6077,7 @@ namespace RFExplorerClient
         }
         #endregion
 
+        #region SNA Tracking
         private void menuSaveSNANormalization_Click(object sender, EventArgs e)
         {
             try
@@ -5812,13 +6087,16 @@ namespace RFExplorerClient
                     MySaveFileDialog.Filter = _SNANORM_File_Selector;
                     MySaveFileDialog.FilterIndex = 1;
                     MySaveFileDialog.RestoreDirectory = false;
-                    MySaveFileDialog.InitialDirectory = m_sDefaultDataFolder;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
 
                     MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.SNANormalizedDataFile); ;
 
                     if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
                     {
+                        ReportLog("Saving file " + MySaveFileDialog.FileName + " " + m_objRFEAnalyzer.TrackingNormalizedData.Dump(), false);
                         m_objRFEAnalyzer.SaveFileSNANormalization(MySaveFileDialog.FileName);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
                     }
                 }
             }
@@ -5837,28 +6115,30 @@ namespace RFExplorerClient
                     MyOpenFileDialog.Filter = _SNANORM_File_Selector;
                     MyOpenFileDialog.FilterIndex = 1;
                     MyOpenFileDialog.RestoreDirectory = false;
-                    MyOpenFileDialog.InitialDirectory = m_sDefaultDataFolder;
-
+                    MyOpenFileDialog.InitialDirectory = m_sDefaultUserFolder;
                     if (MyOpenFileDialog.ShowDialog() == DialogResult.OK)
                     {
                         m_objRFEAnalyzer.TrackingRFEGen = m_objRFEGenerator;
 
                         if (m_objRFEAnalyzer.LoadDataFile(MyOpenFileDialog.FileName))
                         {
-                            UpdateSweepNumericControls();
-                            UpdateConfigControlContents();
-                            ReportLog("Normalization Data File " + MyOpenFileDialog.FileName + " loaded: " + m_objRFEAnalyzer.TrackingNormalizedData.Dump(), false);
+                            m_ToolGroup_AnalyzerDataFeed.UpdateNumericControls();
+                            UpdateConfigControlContents(m_panelSNAConfiguration, m_objRFEGenerator);
+                            ReportLog("Normalization Data File " + MyOpenFileDialog.FileName + " loaded:" + Environment.NewLine + m_objRFEAnalyzer.TrackingNormalizedData.Dump(), false);
                             UpdateFeedMode();
 
                             SetupSpectrumAnalyzerAxis();
                             DisplaySpectrumAnalyzerData();
                             UpdateWaterfall();
 
-                            UpdateRFGeneratorControlsFromObject(false);
-                            UpdateButtonStatus();
+                            m_ToolGroupRFEGenFreqSweep.UpdateRFGeneratorControlsFromObject(false);
+                            m_ToolGroup_RFGenCW.UpdateRFGeneratorControlsFromObject();
+                            
                             //we read it again here. The reason is the previous call UpdateRFGeneratorControlsFromObject may have reset TrackingNormalizedData to null due to changes
                             //in controls, so normalization data would have been lost to null. This recovers it and guarantees the controls are already in expected status.
                             m_objRFEAnalyzer.LoadDataFile(MyOpenFileDialog.FileName);
+                            UpdateButtonStatus();
+                            UpdateButtonStatus_RFGen();
                         }
                         else
                         {
@@ -5866,17 +6146,39 @@ namespace RFExplorerClient
                             MessageBox.Show("Normalization file cannot be loaded or is not valid for the connected models");
                         }
                         UpdateButtonStatus();
+
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MyOpenFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
                     }
                 }
             }
-            catch (Exception obEx) 
+            catch (Exception obEx)
             {
                 ReportLog(obEx.ToString(), false);
-                MessageBox.Show(obEx.Message); 
+                MessageBox.Show(obEx.Message);
             }
 
             Cursor.Current = Cursors.Default;
         }
+
+        private PointPairList CreatePointsFromSweepData(ref RFESweepData objSweep)
+        {
+            PointPairList objList = new PointPairList();
+            for (UInt16 nInd = 0; nInd < objSweep.TotalSteps; nInd++)
+            {
+                objList.Add(objSweep.GetFrequencyMHZ(nInd), objSweep.GetAmplitudeDBM(nInd));
+            }
+            return objList;
+        }
+
+        private void m_btnCalibrate3G_Click(object sender, EventArgs e)
+        {
+        }
+
+        private void m_btnCalibrate1G_Click(object sender, EventArgs e)
+        {
+        }
+
         private void m_btnCalibrate6G_Click(object sender, EventArgs e)
         {
         }
@@ -5884,5 +6186,6 @@ namespace RFExplorerClient
         private void btnCalibratePurge_Click(object sender, EventArgs e)
         {
         }
+        #endregion
     }
 }

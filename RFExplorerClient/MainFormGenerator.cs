@@ -1,6 +1,6 @@
 //============================================================================
 //RF Explorer for Windows - A Handheld Spectrum Analyzer for everyone!
-//Copyright © 2010-15 Ariel Rocholl, www.rf-explorer.com
+//Copyright © 2010-16 Ariel Rocholl, www.rf-explorer.com
 //
 //This application is free software; you can redistribute it and/or
 //modify it under the terms of the GNU Lesser General Public
@@ -43,6 +43,7 @@ using RFExplorerCommunicator;
 using SharpGL;
 using SharpGL.Enumerations;
 using System.Media;
+using RFEClientControls;
 
 namespace RFExplorerClient
 {
@@ -51,7 +52,7 @@ namespace RFExplorerClient
         #region RFGen
         private System.Windows.Forms.TabPage m_tabRFGen;
 
-        private void InitializeRFGenTab()
+        private void CreateRFGenTab()
         {
             this.m_tabRFGen = new System.Windows.Forms.TabPage();
             this.m_tabRFGen.SuspendLayout();
@@ -67,279 +68,144 @@ namespace RFExplorerClient
             this.m_tabRFGen.Padding = new System.Windows.Forms.Padding(3);
             this.m_tabRFGen.Size = new System.Drawing.Size(1084, 510);
             this.m_tabRFGen.TabIndex = 1;
-            this.m_tabRFGen.Text = "Signal Generator [BETA]";
+            this.m_tabRFGen.Text = "Signal Generator";
             this.m_tabRFGen.UseVisualStyleBackColor = true;
             this.m_tabRFGen.Enter += new System.EventHandler(this.OnTabRFGen_Enter);
 
             m_GraphTrackingGenerator = new ZedGraph.ZedGraphControl();
             m_tabRFGen.Controls.Add(m_GraphTrackingGenerator);
-
-            InitializeTrackingGeneratorGraph();
         }
 
         private void OnTabRFGen_Enter(object sender, EventArgs e)
         {
+            UpdateMenuFromMarkerCollection(true);
             DisplayGroups();
-        }
-
-        private void SetRFGenPower()
-        {
-            switch (m_comboRFGenPowerCW.SelectedIndex)
-            {
-                case 0:
-                case 1:
-                case 2:
-                case 3:
-                    m_objRFEGenerator.RFGenHighPowerSwitch = false;
-                    m_objRFEGenerator.RFGenPowerLevel = Convert.ToByte(m_comboRFGenPowerCW.SelectedIndex);
-                    break;
-
-                case 4: 
-                case 5: 
-                case 6: 
-                case 7:
-                    m_objRFEGenerator.RFGenHighPowerSwitch = true;
-                    m_objRFEGenerator.RFGenPowerLevel = Convert.ToByte(m_comboRFGenPowerCW.SelectedIndex - 4);
-                    break;
-            }
         }
 
         private void UpdateButtonStatus_RFGen()
         {
-            bool bTransmitting = m_bRFGenTransmittingSweep || m_objRFEGenerator.RFGenPowerON;
-
             if (m_objRFEGenerator.RFGenPowerON)
             {
-                m_sRFPowerON.Text = "RF Power ON";
-                m_sRFPowerON.ForeColor = Color.Red;
                 m_StatusGraphText_Tracking.FontSpec.FontColor = Color.DarkRed;
             }
             else
             {
-                m_sRFPowerON.Text = "RF Power OFF";
-                m_sRFPowerON.ForeColor = btnStartFreqSweep1.ForeColor;
                 m_StatusGraphText_Tracking.FontSpec.FontColor = Color.DarkGray;
             }
 
-            btnStartFreqSweep1.Enabled = !bTransmitting;
-            btnStartFreqSweepContinuous.Enabled = !bTransmitting;
-            btnStopFreqSweep.Enabled = m_bRFGenTransmittingSweep;
-            btnRFEGenCWStart.Enabled = !bTransmitting;
-            btnRFEGenCWStop.Enabled = m_objRFEGenerator.RFGenPowerON && !m_bRFGenTransmittingSweep && (m_objRFEAnalyzer.Mode!=RFECommunicator.eMode.MODE_TRACKING);
+            m_ToolGroupRFEGenFreqSweep.UpdateButtonStatus();
+            m_ToolGroupRFEGenAmplSweep.UpdateButtonStatus();
 
-            btnNormalizeTracking.Enabled = !bTransmitting;
-            btnTrackingStart.Enabled = !bTransmitting && m_objRFEAnalyzer.IsTrackingNormalized();
-            btnTrackingStop.Enabled = ((m_objRFEAnalyzer.Mode == RFECommunicator.eMode.MODE_TRACKING) && m_objRFEGenerator.RFGenPowerON);
+            m_ToolGroup_RFEGenTracking.UpdateButtonStatus(m_objRFEGenerator.RFGenPowerON);
+            m_ToolGroup_RFGenCW.UpdateButtonStatus();
         }
 
         private void DisplayGroups_RFGen()
         {
             bool bRFGenConnected = m_objRFEGenerator.PortConnected && m_objRFEGenerator.IsGenerator();
 
-            m_groupControl_RFEGen_Tracking.Enabled = bRFGenConnected && m_objRFEAnalyzer.PortConnected;
-            m_groupControl_RFEGen_FrequencySweep.Enabled = bRFGenConnected && !m_objRFEGenerator.RFGenPowerON;
-            m_groupControl_RFEGen_CW.Enabled = bRFGenConnected;
+            UpdateConfigControlContents(m_panelSNAConfiguration, m_objRFEGenerator);
+            UpdateSNAMarkerControlContents();
 
-            if (m_groupControl_RFEGen_CW.Enabled)
-            {
-                m_sRFGenFreqCW.Enabled = !m_objRFEGenerator.RFGenPowerON;
-                m_comboRFGenPowerCW.Enabled = !m_objRFEGenerator.RFGenPowerON;
-            }
+            m_ToolGroup_RFEGenTracking.Enabled = bRFGenConnected && m_objRFEAnalyzer.PortConnected;
 
-            ChangeTextBoxColor(m_sRFGenFreqSweepStart);
-            ChangeTextBoxColor(m_sRFGenFreqSweepStop);
-            ChangeTextBoxColor(m_sRFGenFreqCW);
-            ChangeTextBoxColor(m_sRefFrequency);
-            ChangeTextBoxColor(m_sRFGenFreqSweepSteps);
+            m_ToolGroupRFEGenFreqSweep.DisplayGroups();
+            m_ToolGroupRFEGenAmplSweep.DisplayGroups();
 
             UpdateButtonStatus_RFGen();
 
             UpdateTrackingStatusText();
         }
 
-        bool m_bRFGenTransmittingSweep = false;
-        private void OnStartFreqSweep1_Click(object sender, EventArgs e)
+        private void OnStartFreqSweep_Click(object sender, EventArgs e)
         {
-            if (DialogResult.Cancel == MessageBox.Show("Connect Signal Generator output to a load (50 ohm)", "RF Explorer Signal Generator", MessageBoxButtons.OKCancel))
-                return;
-
             CleanSweepData();
             ClearTrackingGraph();
             HideNormalizatingMessage();
 
-            m_objRFEGenerator.RFGenStartFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqSweepStart.Text);
-            m_objRFEGenerator.RFGenStopFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqSweepStop.Text);
-            m_objRFEGenerator.RFGenSweepSteps = Convert.ToUInt16(m_sRFGenFreqSweepSteps.Text);
-            SetRFGenPower();
+            m_ToolGroup_RFGenCW.UpdateDevicePower();
 
-            m_objRFEGenerator.SendCommand_GeneratorCW();
+            m_ToolGroupRFEGenFreqSweep.UpdateDeviceFrequency();
+
+            m_objRFEGenerator.SendCommand_GeneratorSweepFreq();
 
             DisplayTrackingData_TextProgress(true);
 
-            m_bRFGenTransmittingSweep = true;
             DisplayGroups_RFGen();
-            Thread.Sleep(500);
-            Application.DoEvents();
-
-            Cursor.Current = Cursors.WaitCursor;
-
-            for (UInt16 nInd = 0; m_bRFGenTransmittingSweep && (nInd < m_objRFEGenerator.RFGenSweepSteps); nInd++)
-            {
-                m_objRFEGenerator.SendCommand_TrackingStep(nInd);
-                Application.DoEvents();
-                Thread.Sleep(100);
-            }
-
-            m_objRFEGenerator.SendCommand_GeneratorRFPowerOFF();
-            m_bRFGenTransmittingSweep = false;
-            DisplayGroups_RFGen();
+            
             Cursor.Current = Cursors.Default;
         }
 
-        private void OnStartFreqSweepContinuous_Click(object sender, EventArgs e)
+        private void OnStartAmpSweep_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Under development");
-        }
-
-        private void OnStopFreqSweep_Click(object sender, EventArgs e)
-        {
-            m_bRFGenTransmittingSweep = false;
-            m_objRFEGenerator.SendCommand_GeneratorRFPowerOFF();
-            HideNormalizatingMessage();
-            DisplayGroups_RFGen();
-            DisplayTrackingData_TextProgress(true);
-        }
-
-        private void OnRFEGenCWStart_Click(object sender, EventArgs e)
-        {
-            if (DialogResult.Cancel == MessageBox.Show("Connect Signal Generator output to a load (50 ohm)", "RF Explorer Signal Generator", MessageBoxButtons.OKCancel))
-                return;
-
-            double dFreqMHZ = Convert.ToDouble(m_sRFGenFreqCW.Text);
-
             CleanSweepData();
             ClearTrackingGraph();
             HideNormalizatingMessage();
 
-            m_objRFEGenerator.RFGenStartFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqCW.Text);
-            m_objRFEGenerator.RFGenStopFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqCW.Text) + 1.0; //any frequency would do
-            m_objRFEGenerator.RFGenSweepSteps = Convert.ToUInt16(m_sRFGenFreqSweepSteps.Text);
-            SetRFGenPower();
+            m_ToolGroup_RFGenCW.SetFrequency();
 
-            m_objRFEGenerator.SendCommand_GeneratorCW();
+            m_ToolGroupRFEGenAmplSweep.UpdateDevicePower(); 
+
+            m_objRFEGenerator.SendCommand_GeneratorSweepAmplitude();
+
             DisplayTrackingData_TextProgress(true);
 
-            ReportLog("CW at " + dFreqMHZ.ToString("f3") + "MHZ with estimated amplitude: " + m_objRFEGenerator.GetSignalGeneratorEstimatedAmplitude(dFreqMHZ) + "dBm",false);
-
-            Thread.Sleep(500);
-            Application.DoEvents();
             DisplayGroups_RFGen();
+
+            Cursor.Current = Cursors.Default;
         }
 
-        private void OnRFEGenCWStop_Click(object sender, EventArgs e)
+        private void OnStopSweep_Click(object sender, EventArgs e)
         {
-            m_objRFEGenerator.SendCommand_GeneratorRFPowerOFF();
             HideNormalizatingMessage();
             DisplayGroups_RFGen();
             DisplayTrackingData_TextProgress(true);
-        }
-
-        private void OnFreqGenerator_Leave(object sender, EventArgs e)
-        {
-            double dFreqMHZ = Convert.ToDouble(m_sRFGenFreqCW.Text);
-            if (dFreqMHZ < 23.438)
-                m_sRFGenFreqCW.Text = "23.438";
-            if (dFreqMHZ>6000)
-                m_sRFGenFreqCW.Text = "6000.000";
-        }
-
-        private void ValidateRFGenSweepFreqRanges(bool bResetNormalizeData)
-        {
-            if (m_objRFEGenerator == null || !m_objRFEGenerator.PortConnected)
-                return;
-
-            int nSteps = Convert.ToInt32(m_sRFGenFreqSweepSteps.Text);
-            double dStartMHZ = Convert.ToDouble(m_sRFGenFreqSweepStart.Text);
-            double dStopMHZ = Convert.ToDouble(m_sRFGenFreqSweepStop.Text);
-            if (dStartMHZ >= dStopMHZ)
-                dStopMHZ = dStartMHZ + (nSteps / 1000.0);
-            if (dStartMHZ < m_objRFEGenerator.MinFreqMHZ)
-                dStartMHZ = m_objRFEGenerator.MinFreqMHZ;
-            if (dStopMHZ > m_objRFEGenerator.MaxFreqMHZ)
-                dStopMHZ = m_objRFEGenerator.MaxFreqMHZ;
-            if (m_objRFEAnalyzer.PortConnected)
-            {
-                if (dStartMHZ < m_objRFEAnalyzer.MinFreqMHZ)
-                    dStartMHZ = m_objRFEAnalyzer.MinFreqMHZ;
-                if (dStopMHZ > m_objRFEAnalyzer.MaxFreqMHZ)
-                    dStopMHZ = m_objRFEAnalyzer.MaxFreqMHZ;
-            }
-            m_sRFGenFreqSweepStop.Text = dStopMHZ.ToString("f3");
-            m_sRFGenFreqSweepStart.Text = dStartMHZ.ToString("f3");
-
-            if (bResetNormalizeData && (m_objRFEAnalyzer != null) && (m_objRFEAnalyzer.PortConnected))
-            {
-                //if previous setup was normalized, reset as it will no longer be valid
-                if (m_objRFEAnalyzer.IsTrackingNormalized())
-                {
-                    if ((m_objRFEGenerator.RFGenSweepSteps != nSteps) ||
-                        (m_objRFEGenerator.RFGenStartFrequencyMHZ!=dStartMHZ) ||
-                        (m_objRFEGenerator.RFGenStopFrequencyMHZ!=dStopMHZ)
-                       )
-                    {
-                        m_objRFEAnalyzer.ResetTrackingNormalizedData();
-                        DisplayGroups_RFGen();
-                    }
-                }
-            }
         }
 
         private void OnRFGenFreqSweepStart_Leave(object sender, EventArgs e)
         {
-            ValidateRFGenSweepFreqRanges(true);
+            DisplayGroups_RFGen();
         }
 
         private void OnRFGenFreqSweepStop_Leave(object sender, EventArgs e)
         {
-            ValidateRFGenSweepFreqRanges(true);
+            DisplayGroups_RFGen();
         }
 
         private void OnRFGenFreqSweepSteps_Leave(object sender, EventArgs e)
         {
-            int nSteps = Convert.ToInt32(m_sRFGenFreqSweepSteps.Text);
-            if (nSteps < 2)
-                m_sRFGenFreqSweepSteps.Text = "2";
-            else if (nSteps>9999)
-                m_sRFGenFreqSweepSteps.Text = "9999";
-            ValidateRFGenSweepFreqRanges(true);
+            DisplayGroups_RFGen();
         }
 
-        private void OnRFGenFreqSweepStart_TextChanged(object sender, EventArgs e)
+        private void m_ListSNAOptions_SelectedIndexChanged(object sender, EventArgs e)
         {
-        }
-
-        private void OnRFGenFreqSweepStop_TextChanged(object sender, EventArgs e)
-        {
-        }
-
-        private void OnRFGenFreqSweepSteps_TextChanged(object sender, EventArgs e)
-        {
-        }
-
-        private void OnRFGenFreqCW_TextChanged(object sender, EventArgs e)
-        {
-        }
-
-        private void OnRFGenPowerCW_SelectedValueChanged(object sender, EventArgs e)
-        {
-            if ((m_objRFEAnalyzer != null) && (m_objRFEGenerator != null))
+            try
             {
-                if (m_objRFEAnalyzer.IsTrackingNormalized())
+                //VSWR selected so delete older data from graph as will be wrong
+                if (m_MainTab.SelectedTab == m_tabRFGen)
                 {
-                    m_objRFEAnalyzer.ResetTrackingNormalizedData();
-                    DisplayGroups_RFGen();
+                    m_PointList_Tracking_Avg.Clear();
+                    m_PointList_Tracking_Normal.Clear();
+
+                    UpdateTrackingYAxisType(false);
+                    DisplayTrackingData();
                 }
+                //m_GraphTrackingGenerator.Refresh();
             }
+            catch (Exception obEx)
+            {
+                ReportLog(obEx.ToString(), true);
+            }
+        }  
+
+        private void UpdateTrackingYAxisType(bool bInitialize = true)
+        {
+            m_ToolGroup_RFEGenTracking.InitializeSNAOptions(bInitialize);
+
+            string sText = m_ToolGroup_RFEGenTracking.ListSNAOptions;
+
+            m_GraphTrackingGenerator.GraphPane.YAxis.Title.Text = sText;
+            m_GraphTrackingGenerator.Refresh();
         }
 
         private void InitializeTrackingGeneratorGraph()
@@ -372,16 +238,21 @@ namespace RFExplorerClient
 
             // Get a reference to the GraphPane instance in the ZedGraphControl
             GraphPane myPane = m_GraphTrackingGenerator.GraphPane;
-            myPane.Fill = new Fill(Color.White, Color.LightBlue, 90.0f);
-            myPane.Chart.Fill = new Fill(Color.White, Color.LightBlue, 90.0f);
+
+            m_LimitLineGenerator_Max = new LimitLine();
+            m_LimitLineGenerator_Min = new LimitLine();
+            m_GraphLimitLineGenerator_Max = myPane.AddCurve("Limit Max", m_LimitLineGenerator_Max, Color.Magenta, SymbolType.Circle);
+            m_GraphLimitLineGenerator_Max.Line.Width = 1;
+            m_GraphLimitLineGenerator_Min = myPane.AddCurve("Limit Min", m_LimitLineGenerator_Min, Color.DarkMagenta, SymbolType.Circle);
+            m_GraphLimitLineGenerator_Min.Line.Width = 1;
 
             m_PointList_Tracking_Normal = new PointPairList();
-            m_GraphLine_Tracking_Normal = m_GraphTrackingGenerator.GraphPane.AddCurve("Realtime", m_PointList_Tracking_Normal, Color.Blue, SymbolType.None);
+            m_GraphLine_Tracking_Normal = myPane.AddCurve("Realtime", m_PointList_Tracking_Normal, Color.Blue, SymbolType.None);
             m_GraphLine_Tracking_Normal.Line.Width = 1;
             m_GraphLine_Tracking_Normal.Line.SmoothTension = 0.2F;
 
             m_PointList_Tracking_Avg = new PointPairList();
-            m_GraphLine_Tracking_Avg = m_GraphTrackingGenerator.GraphPane.AddCurve("Average", m_PointList_Tracking_Avg, Color.DarkRed, SymbolType.None);
+            m_GraphLine_Tracking_Avg = myPane.AddCurve("Average", m_PointList_Tracking_Avg, Color.DarkRed, SymbolType.None);
             m_GraphLine_Tracking_Avg.Line.Width = 4;
             m_GraphLine_Tracking_Avg.Line.SmoothTension = 0.3F;
 
@@ -401,7 +272,6 @@ namespace RFExplorerClient
             myPane.Margin.Left = 20;
             myPane.Margin.Right = -5;
 
-
             m_GraphTrackingGenerator.IsShowPointValues = true;
 
             // Show the x axis grid
@@ -417,12 +287,12 @@ namespace RFExplorerClient
             myPane.YAxis.MajorGrid.IsZeroLine = false;
             // Align the Y axis labels so they are flush to the axis
             myPane.YAxis.Scale.Align = AlignP.Inside;
-            myPane.YAxis.Title.Text = "Insertion Loss (dB)";
+            UpdateTrackingYAxisType();
 
             myPane.Title.Text = _RFEGEN_TRACKING_TITLE;
 
             m_GraphTrackingGenerator.IsShowPointValues = true;
-            m_GraphTrackingGenerator.PointValueEvent += new ZedGraphControl.PointValueHandler(GraphPointValueHandler);
+            m_GraphTrackingGenerator.PointValueEvent += new ZedGraphControl.PointValueHandler(GraphPointGeneratorValueHandler);
 
             m_StatusGraphText_Tracking = new TextObj("Signal Generator DISCONNECTED", 0.01, 0.02, CoordType.ChartFraction);
             m_StatusGraphText_Tracking.IsClippedToChartRect = true;
@@ -467,12 +337,20 @@ namespace RFExplorerClient
             m_TrackingProgressText.IsVisible = false;
             myPane.GraphObjList.Add(m_TrackingProgressText);
 
-            //DefineGraphColors();
-
             this.m_tabRFGen.ResumeLayout(false);
             this.m_tabRFGen.PerformLayout();
 
-            m_comboRFGenPowerCW.SelectedIndex = 0;
+            m_MarkersSNA.ConnectToGraph(myPane);
+        }
+
+        private string GraphPointGeneratorValueHandler(ZedGraphControl control, GraphPane pane, CurveItem curve, int iPt)
+        {
+            // Get the PointPair that is under the mouse
+            PointPair pt = curve[iPt];
+            if (m_ToolGroup_RFEGenTracking.ListSNAOptionsIndex != 2)
+                return pt.X.ToString("f3") + "MHZ\r\n" + pt.Y.ToString("f1") + " dB";
+            else
+                return pt.X.ToString("f3") + "MHZ\r\n" + pt.Y.ToString("f2");
         }
 
         private void OnGeneratorButtons_PortConnected(object sender, EventArgs e)
@@ -486,11 +364,8 @@ namespace RFExplorerClient
         }
 
         UInt16 m_nNormalizationRetries = 0; //used to retry once if normalization fails
-        private void OnNormalizeTrackingStart_Click(object sender, EventArgs e)
+        private void OnNormalizeTrackingStartChanged(object sender, EventArgs e)
         {
-            if (DialogResult.Cancel == MessageBox.Show("Connect cables without DUT to normalize SNA setup response", "RF Explorer SNA Tracking", MessageBoxButtons.OKCancel))
-                return;
-
             m_nNormalizationRetries = 0;
             Cursor.Current = Cursors.WaitCursor;
 
@@ -500,15 +375,14 @@ namespace RFExplorerClient
 
             m_objRFEAnalyzer.TrackingRFEGen = m_objRFEGenerator;
             //note: for normalization we always use the value, regardless the checkbox used for tracking
-            m_objRFEAnalyzer.AutoStopSNATrackingCounter = Convert.ToUInt16(m_nRFGENIterationAverage.Value);
+            m_objRFEAnalyzer.AutoStopSNATrackingCounter = m_ToolGroup_RFEGenTracking.Average;
 
-            m_objRFEGenerator.RFGenStartFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqSweepStart.Text);
-            m_objRFEGenerator.RFGenStopFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqSweepStop.Text);
-            m_objRFEGenerator.RFGenSweepSteps = Convert.ToUInt16(m_sRFGenFreqSweepSteps.Text);
-            SetRFGenPower();
+            m_ToolGroupRFEGenFreqSweep.UpdateDeviceFrequency();
+            m_ToolGroup_RFGenCW.UpdateDevicePower();
 
             m_objRFEAnalyzer.StartTrackingSequence(true);
             UpdateButtonStatus();
+            UpdateButtonStatus_RFGen();
 
             Cursor.Current = Cursors.Default;
         }
@@ -523,58 +397,37 @@ namespace RFExplorerClient
             m_GraphTrackingGenerator.Refresh();
         }
 
-        /// <summary>
-        /// updates all group control values from m_objRFEGenerator object
-        /// </summary>
-        private void UpdateRFGeneratorControlsFromObject(bool bResetNormalizationData)
-        {
-            m_sRFGenFreqSweepStart.Text = m_objRFEGenerator.RFGenStartFrequencyMHZ.ToString("f3");
-            m_sRFGenFreqSweepStop.Text = m_objRFEGenerator.RFGenStopFrequencyMHZ.ToString("f3");
-            m_sRFGenFreqSweepSteps.Text = m_objRFEGenerator.RFGenSweepSteps.ToString();
-            m_sRFGenFreqCW.Text = m_objRFEGenerator.RFGenCWFrequencyMHZ.ToString("f3");
-
-            ValidateRFGenSweepFreqRanges(bResetNormalizationData);
-
-            if (m_objRFEGenerator.RFGenHighPowerSwitch)
-            {
-                m_comboRFGenPowerCW.SelectedIndex = 4 + m_objRFEGenerator.RFGenPowerLevel;
-            }
-            else
-            {
-                m_comboRFGenPowerCW.SelectedIndex = m_objRFEGenerator.RFGenPowerLevel;
-            }
-        }
-
-        private void OnTrackingStart_Click(object sender, EventArgs e)
-        {
+        
+        private void OnTrackingStartChanged(object sender, EventArgs e)
+        {  
             if (DialogResult.Cancel == MessageBox.Show("Connect cables to DUT to start tracking", "RF Explorer SNA Tracking", MessageBoxButtons.OKCancel))
                 return;
 
             Cursor.Current = Cursors.WaitCursor;
-
             ClearTrackingGraph();
             CleanSweepData();
             HideNormalizatingMessage();
 
             m_objRFEAnalyzer.TrackingRFEGen = m_objRFEGenerator;
-            if (chkSNAAutoStop.Checked)
-                m_objRFEAnalyzer.AutoStopSNATrackingCounter = Convert.ToUInt16(m_nRFGENIterationAverage.Value);
+
+            if (m_ToolGroup_RFEGenTracking.SNAAutoStop) 
+                m_objRFEAnalyzer.AutoStopSNATrackingCounter = m_ToolGroup_RFEGenTracking.Average;
             else
                 m_objRFEAnalyzer.AutoStopSNATrackingCounter = 0;
 
-            m_objRFEGenerator.RFGenStartFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqSweepStart.Text);
-            m_objRFEGenerator.RFGenStopFrequencyMHZ = Convert.ToDouble(m_sRFGenFreqSweepStop.Text);
-            m_objRFEGenerator.RFGenSweepSteps = Convert.ToUInt16(m_sRFGenFreqSweepSteps.Text);
-            SetRFGenPower();
+            m_ToolGroupRFEGenFreqSweep.UpdateDeviceFrequency();
+
+            m_ToolGroup_RFGenCW.UpdateDevicePower();
 
             m_objRFEAnalyzer.StartTrackingSequence(false);
             Application.DoEvents();
             UpdateButtonStatus();
+            UpdateButtonStatus_RFGen();
 
             Cursor.Current = Cursors.Default;
         }
 
-        private void OnTrackingStop_Click(object sender, EventArgs e)
+        private void OnTrackingStopChanged(object sender, EventArgs e)
         {
             Cursor.Current = Cursors.WaitCursor;
             HideNormalizatingMessage();
@@ -623,6 +476,114 @@ namespace RFExplorerClient
             m_GraphTrackingGenerator.Refresh();
         }
 
+        private void SaveSNAS1P(string sFilename)
+        {
+            try
+            {
+                //if no file path was explicited, add the default folder
+                if (sFilename.IndexOf("\\") < 0)
+                {
+                    sFilename = m_sDefaultUserFolder + "\\" + sFilename;
+                    sFilename = sFilename.Replace("\\\\", "\\");
+                }
+
+                char cCSV = GetCSVDelimiter();
+
+                using (StreamWriter myFile = new StreamWriter(sFilename, false))
+                {
+                    myFile.WriteLine("! RF Explorer SNA Tracking - S1P S-parameter data file");
+                    myFile.WriteLine("! RF Explorer Spectrum Analyzer SN: " + m_objRFEAnalyzer.SerialNumber);
+                    myFile.WriteLine("! RF Explorer Signal Generator SN: " + m_objRFEGenerator.SerialNumber);
+                    myFile.WriteLine("!");
+                    myFile.WriteLine("#  MHZ  S  DB  R  50");
+                    myFile.WriteLine("!");
+                    myFile.WriteLine("! Note SNA only contains dB magnitude, angle is always zero (not available)");
+                    myFile.WriteLine("! symbol  freq-unit  parameter-type  data-format  keyword  impedance-ohms");
+                    myFile.WriteLine("! Sx1 in dB will be S21 if you are measuring gain, or S11 if you are measuring reflection");
+                    myFile.WriteLine("! [freq]   [Sx1 DB]   [angSx1]");
+
+                    foreach (PointPair objPointPair in m_PointList_Tracking_Avg)
+                    {
+                        myFile.WriteLine(objPointPair.X.ToString("0.000") + "  " + objPointPair.Y.ToString("0.00") + "   0.0");
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void SaveSNACSV(string sFilename)
+        {
+            try
+            {
+
+                //if no file path was explicited, add the default folder
+                if (sFilename.IndexOf("\\") < 0)
+                {
+                    sFilename = m_sDefaultUserFolder + "\\" + sFilename;
+                    sFilename = sFilename.Replace("\\\\", "\\");
+                }
+
+                char cCSV = GetCSVDelimiter();
+
+                using (StreamWriter myFile = new StreamWriter(sFilename, false))
+                {
+                    foreach (PointPair objPointPair in m_PointList_Tracking_Avg)
+                    {
+                        myFile.WriteLine(objPointPair.X.ToString("0.000") + cCSV + objPointPair.Y.ToString("0.00"));
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void menuSaveSNACSV_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
+                {
+                    MySaveFileDialog.Filter = _CSV_File_Selector;
+                    MySaveFileDialog.FilterIndex = 1;
+                    MySaveFileDialog.RestoreDirectory = false;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
+
+                    MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.SNATrackingCSVFile);
+
+                    if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        SaveSNACSV(MySaveFileDialog.FileName);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
+        private void menuSaveS1P_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using (SaveFileDialog MySaveFileDialog = new SaveFileDialog())
+                {
+                    MySaveFileDialog.Filter = _S1P_File_Selector;
+                    MySaveFileDialog.FilterIndex = 1;
+                    MySaveFileDialog.RestoreDirectory = false;
+                    MySaveFileDialog.InitialDirectory = m_sDefaultUserFolder;
+
+                    MySaveFileDialog.FileName = GetNewFilename(RFExplorerFileType.SNATrackingS1PFile);
+
+                    if (MySaveFileDialog.ShowDialog() == DialogResult.OK)
+                    {
+                        SaveSNAS1P(MySaveFileDialog.FileName);
+                        m_sDefaultUserFolder = Path.GetDirectoryName(MySaveFileDialog.FileName);
+                        edDefaultFilePath.Text = m_sDefaultUserFolder;
+                    }
+                }
+            }
+            catch (Exception obEx) { MessageBox.Show(obEx.Message); }
+        }
+
         private void DisplayTrackingData_TextProgress(bool bRefresh)
         {
             if (m_objRFEAnalyzer.Mode == RFECommunicator.eMode.MODE_TRACKING)
@@ -630,24 +591,40 @@ namespace RFExplorerClient
                 if (!m_TrackingProgressText.IsVisible)
                     m_TrackingProgressText.IsVisible = true;
 
-                string sTrackingStep = "Tracking step (#" + m_objRFEAnalyzer.TrackingData.Count + "): " + m_objRFEAnalyzer.RFGenTrackingCurrentStep + "/" + m_objRFEGenerator.RFGenSweepSteps;
-                string sStepPercentage = (100.0 * m_objRFEAnalyzer.RFGenTrackingCurrentStep / m_objRFEGenerator.RFGenSweepSteps).ToString("f0") + "%";
-                m_TrackingProgressText.Text = sTrackingStep + " " + sStepPercentage;
                 if (m_objRFEAnalyzer.IsTrackingNormalizing)
                 {
-                    m_TrackingProgressText.Text += "\nNormalization progress (#" + m_objRFEAnalyzer.TrackingNormalizingPass + "): " +
-                        (100.0 * (m_objRFEAnalyzer.RFGenTrackingCurrentStep + m_objRFEAnalyzer.TrackingNormalizingPass * m_objRFEGenerator.RFGenSweepSteps) /
-                         (m_objRFEGenerator.RFGenSweepSteps * RFECommunicator.NORMALIZING_AVG_PASSES)).ToString("f0") + "%"; ;
+                    m_TrackingProgressText.Text = "Normalization progress (#" + (m_objRFEAnalyzer.TrackingNormalizingPass + 1).ToString() + "): " +
+                    (100.0 * (m_objRFEAnalyzer.RFGenTrackingCurrentStep + m_objRFEAnalyzer.TrackingNormalizingPass * m_objRFEGenerator.RFGenSweepSteps) /
+                    (m_objRFEGenerator.RFGenSweepSteps * (double)m_ToolGroup_RFEGenTracking.Average)).ToString("f0") + "%"; 
+                }
+                else
+                {
+                    string sTrackingStep = "Tracking step (#" + (m_objRFEAnalyzer.TrackingData.Count + 1).ToString() + "): " + m_objRFEAnalyzer.RFGenTrackingCurrentStep + "/" + m_objRFEGenerator.RFGenSweepSteps;
+                    string sStepPercentage = (100.0 * m_objRFEAnalyzer.RFGenTrackingCurrentStep / m_objRFEGenerator.RFGenSweepSteps).ToString("f0") + "%";
+                    m_TrackingProgressText.Text = sTrackingStep + " " + sStepPercentage;
                 }
             }
             else
             {
                 if (m_TrackingProgressText.IsVisible)
                     m_TrackingProgressText.IsVisible = false;
-
             }
             if (bRefresh)
                 m_GraphTrackingGenerator.Refresh();
+        }
+
+        private double ConvertDB2VSWR(double fDB, double fClampVSWR = 0)
+        {
+            if (fDB > -0.01)
+                fDB = -0.01; //clamp to real values that are not really caused by noise
+            double fVSWR = (Math.Pow(10, (-fDB / 20)) + 1) / (Math.Pow(10, (-fDB / 20)) - 1);
+            if (fClampVSWR > 1.0)
+            {
+                if (fVSWR > fClampVSWR)
+                    fVSWR = fClampVSWR;
+            }
+
+            return fVSWR;
         }
 
         private void DisplayTrackingData()
@@ -655,10 +632,19 @@ namespace RFExplorerClient
 #if CALLSTACK_REALTIME
             Console.WriteLine("CALLSTACK:DisplayTrackingData");
 #endif
+            bool bPlaySound = false;
+
+            bool bReinitGraphLimits = (m_PointList_Tracking_Avg.Count == 0);
+
             m_PointList_Tracking_Normal.Clear();
             m_GraphLine_Tracking_Normal.Clear();
+            m_GraphLine_Tracking_Normal.Line.IsSmooth = menuSmoothSignals.Checked;
             m_PointList_Tracking_Avg.Clear();
             m_GraphLine_Tracking_Avg.Clear();
+            m_GraphLine_Tracking_Avg.Line.IsSmooth = menuSmoothSignals.Checked;
+
+            m_GraphTrackingGenerator.GraphPane.YAxis.MajorGrid.IsVisible = menuShowGrid.Checked;
+            m_GraphTrackingGenerator.GraphPane.XAxis.MajorGrid.IsVisible = menuShowGrid.Checked;
 
             DisplayTrackingData_TextProgress(false);
 
@@ -668,6 +654,12 @@ namespace RFExplorerClient
                 m_GraphTrackingGenerator.Refresh();
             }
 
+            m_MarkersSNA.HideAllMarkers();
+            //draw all marker except tracking 1
+            UpdateMarkerCollectionFromMenuSNA();
+            //remove old text from all peak track markers and redraw
+            m_MarkersSNA.CleanAllMarkerText(0);
+
             if (m_objRFEAnalyzer.TrackingData.Count == 0)
             {
                 m_GraphTrackingGenerator.Refresh();
@@ -675,24 +667,26 @@ namespace RFExplorerClient
             }
 
             //Use the latest data loaded
-            uint nLastSample=m_objRFEAnalyzer.TrackingData.Count-1;
-            uint nAvailableAverageSamples=1;
-            uint nAverageIterations=Convert.ToUInt16(m_nRFGENIterationAverage.Value);
+            uint nLastSample = m_objRFEAnalyzer.TrackingData.Count - 1;
+            uint nAvailableAverageSamples = 1;
+            uint nAverageIterations = m_ToolGroup_RFEGenTracking.Average; 
             if (nAverageIterations == 0)
                 nAverageIterations = 1;
-            if (nLastSample>=(nAverageIterations-1))
-                nAvailableAverageSamples=nAverageIterations;
+            if (nLastSample >= (nAverageIterations - 1))
+                nAvailableAverageSamples = nAverageIterations;
             else
-                nAvailableAverageSamples=nLastSample+1;
+                nAvailableAverageSamples = nLastSample + 1;
 
             RFESweepData objSweep = m_objRFEAnalyzer.TrackingData.GetData(nLastSample);
-            RFESweepData objSweepAvg = m_objRFEAnalyzer.TrackingData.GetAverage(nLastSample + 1 - nAvailableAverageSamples, nLastSample);
+            RFESweepData objSweepAvg = m_objRFEAnalyzer.TrackingData.GetMedianAverage(nLastSample + 1 - nAvailableAverageSamples, nLastSample);
             objSweep.StepFrequencyMHZ = m_objRFEGenerator.RFGenTrackStepMHZ(); //step tracking frequency is not known by analyzer
 
             double dMinDB = 100;
             double dMaxDB = -120;
+            double dMarginMinDB = 10;
+            double dMarginMaxDB = 10;
 
-            for (UInt16 nInd=0; nInd<objSweep.TotalSteps; nInd++)
+            for (UInt16 nInd = 0; nInd < objSweep.TotalSteps; nInd++)
             {
                 //normal realtime
                 double dDB = objSweep.GetAmplitudeDBM(nInd) - m_objRFEAnalyzer.TrackingNormalizedData.GetAmplitudeDBM(nInd);
@@ -713,6 +707,14 @@ namespace RFExplorerClient
                 }
             }
 
+            bool bUseVSWR = (m_ToolGroup_RFEGenTracking.ListSNAOptionsIndex == 2);
+
+            if (bUseVSWR)
+            {
+                m_PointList_Tracking_Normal.ConvertToVSWR(100);
+                m_PointList_Tracking_Avg.ConvertToVSWR(100);
+            }
+
             m_GraphLine_Tracking_Normal.Points = m_PointList_Tracking_Normal;
             m_GraphLine_Tracking_Normal.IsVisible = true;
             m_GraphLine_Tracking_Normal.Label.IsVisible = true;
@@ -721,16 +723,190 @@ namespace RFExplorerClient
             m_GraphLine_Tracking_Avg.IsVisible = true;
             m_GraphLine_Tracking_Avg.Label.IsVisible = true;
 
+            if (!bUseVSWR)
+            {
+                //Limit lines are not supported in VSWR mode
+                if (m_LimitLineGenerator_Max.Count > 1)
+                {
+                    PointPairList listCheck = null;
+                    SelectSinglePointPairList(ref listCheck);
+                    if (listCheck != null)
+                    {
+                        m_GraphLimitLineGenerator_Max.Points = m_LimitLineGenerator_Max;
+                        m_GraphLimitLineGenerator_Max.IsVisible = true;
+                        if (m_LimitLineGenerator_Max.Intersect(listCheck, true))
+                        {
+                            bPlaySound = true;
+                            m_GraphLimitLineGenerator_Max.Line.Width = 5;
+                        }
+                        else
+                        {
+                            m_GraphLimitLineGenerator_Max.Line.Width = 1;
+                        }
+
+                        int nDummy;
+                        m_LimitLineGenerator_Max.GetMaxMinValues(ref dMinDB, ref dMaxDB, out nDummy, out nDummy);
+                        dMarginMaxDB = 5;
+                    }
+                    else
+                    {
+                        m_GraphLimitLineGenerator_Max.IsVisible = false;
+                    }
+                }
+
+                if (m_LimitLineGenerator_Min.Count > 1)
+                {
+                    PointPairList listCheck = null;
+                    SelectSinglePointPairList(ref listCheck);
+                    if (listCheck != null)
+                    {
+                        m_GraphLimitLineGenerator_Min.Points = m_LimitLineGenerator_Min;
+                        m_GraphLimitLineGenerator_Min.IsVisible = true;
+                        if (m_LimitLineGenerator_Min.Intersect(listCheck, false))
+                        {
+                            bPlaySound = true;
+                            m_GraphLimitLineGenerator_Min.Line.Width = 5;
+                        }
+                        else
+                        {
+                            m_GraphLimitLineGenerator_Min.Line.Width = 1;
+                        }
+
+                        int nDummy;
+                        m_LimitLineGenerator_Min.GetMaxMinValues(ref dMinDB, ref dMaxDB, out nDummy, out nDummy);
+                        dMarginMinDB = 5;
+                    }
+                    else
+                    {
+                        m_GraphLimitLineGenerator_Min.IsVisible = false;
+                    }
+                }
+            }
+            else
+            {
+                m_GraphLimitLineGenerator_Min.IsVisible = false;
+                m_GraphLimitLineGenerator_Max.IsVisible = false;
+            }
+
             m_GraphTrackingGenerator.GraphPane.XAxis.Scale.Min = objSweep.StartFrequencyMHZ;
             m_GraphTrackingGenerator.GraphPane.XAxis.Scale.Max = objSweep.EndFrequencyMHZ;
-            double dGraphMin=m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Min;
-            if ((dGraphMin < dMinDB - 15) || (dGraphMin > dMinDB - 5))
-                m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Min = dMinDB - 10;
+            double dGraphMin = m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Min;
+            if (bReinitGraphLimits)
+                dGraphMin = -1E6;
+            if (bUseVSWR || (dGraphMin < dMinDB - (dMarginMinDB * 1.5)) || (dGraphMin > dMinDB - 5))
+            {
+                if (bUseVSWR)
+                    m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Min = 1;
+                else
+                    m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Min = dMinDB - dMarginMinDB;
+            }
             double dGraphMax = m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Max;
-            if ((dGraphMax > dMaxDB + 15) || (dGraphMax < dMaxDB + 5))
-                m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Max = dMaxDB + 10;
+            if (bReinitGraphLimits)
+                dGraphMax = 1E6;
+            if (bUseVSWR || (dGraphMax > dMaxDB + (dMarginMaxDB * 1.5)) || (dGraphMax < dMaxDB + 5))
+            {
+                if (bUseVSWR)
+                {
+                    m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Max = ConvertDB2VSWR(0.95 * dMaxDB, 105);
+                }
+                else
+                    m_GraphTrackingGenerator.GraphPane.YAxis.Scale.Max = dMaxDB + dMarginMaxDB;
+            }
+
+            if (bPlaySound && menuItemSoundAlarmLimitLine.Checked)
+            {
+                PlayNotificationSound();
+            }
+            else
+            {
+                StopNotificationSound();
+            }
+
+
+            //draw marker 1
+            double fTrackPeakMHZ = 0.0;
+            if (m_arrMarkersEnabledMenu[0].Checked)
+            {
+                int nNormalIndex = -1;
+                int nAvgIndex = -1;
+
+                if (m_ToolGroup_RFEGenTracking.ListSNAOptions.Contains("Return Loss")) 
+                {
+                    nNormalIndex = m_PointList_Tracking_Normal.GetIndexMin();
+                    nAvgIndex = m_PointList_Tracking_Avg.GetIndexMin();
+                }
+                else
+                {
+                    nNormalIndex = m_PointList_Tracking_Normal.GetIndexMax();
+                    nAvgIndex = m_PointList_Tracking_Avg.GetIndexMax();
+                }
+
+                double fTrackDBM = RFECommunicator.MIN_AMPLITUDE_DBM;
+                if (m_ToolGroup_Markers_SNA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Realtime)
+                {
+                    fTrackPeakMHZ = m_PointList_Tracking_Normal[nNormalIndex].X;
+                    fTrackDBM = m_PointList_Tracking_Normal[nNormalIndex].Y;
+                }
+                else if (m_ToolGroup_Markers_SNA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Average)
+                {
+                    fTrackPeakMHZ = m_PointList_Tracking_Avg[nAvgIndex].X;
+                    fTrackDBM = m_PointList_Tracking_Avg[nAvgIndex].Y;
+                }
+                else
+                {
+                    m_arrMarkersEnabledMenu[0].Checked = false;
+                    UpdateSNAMarkerControlContents();
+                }
+                m_MarkersSNA.SetMarkerFrequency(0, fTrackPeakMHZ);
+            }
+
+            if (m_arrMarkersEnabledMenu[0].Checked)
+            {
+                double dAmplitude = m_PointList_Tracking_Normal.InterpolateX(m_MarkersSNA.GetMarkerFrequency(0));
+                m_MarkersSNA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Realtime, dAmplitude);
+                if ((m_ToolGroup_Markers_SNA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Realtime) && menuShowPeak.Checked)
+                {
+                    m_MarkersSNA.SetMarkerText(0, RFECommunicator.RFExplorerSignalType.Realtime, m_MarkersSNA.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString("0.00") + GetCurrentAmplitudeUnitLabel());
+                }
+
+                dAmplitude = m_PointList_Tracking_Avg.InterpolateX(m_MarkersSNA.GetMarkerFrequency(0));
+                m_MarkersSNA.UpdateMarker(0, RFECommunicator.RFExplorerSignalType.Average, dAmplitude);
+                if ((m_ToolGroup_Markers_SNA.TrackSignalPeak == RFECommunicator.RFExplorerSignalType.Average) && menuShowPeak.Checked)
+                {
+                    m_MarkersSNA.SetMarkerText(0, RFECommunicator.RFExplorerSignalType.Average, m_MarkersSNA.GetMarkerFrequency(0).ToString("0.000") + "MHZ\n" + dAmplitude.ToString("0.00") + GetCurrentAmplitudeUnitLabel());
+                }
+            }
+            UpdateMarkerCollectionFromMenuSNA();
+            //remove old text from all peak track markers and redraw
+            m_MarkersSNA.CleanAllMarkerText(0);
+
+            UpdateSNAMarkerControlValues();
             m_GraphTrackingGenerator.AxisChange();
             m_GraphTrackingGenerator.Refresh();
+        }
+
+        private void UpdateMarkerCollectionFromMenuSNA()
+        {
+            for (int nMenuInd = 0; nMenuInd < m_arrMarkersEnabledMenu.Length; nMenuInd++)
+            {
+                if (m_arrMarkersEnabledMenu[nMenuInd].Checked)
+                {
+                    if (menuRealtimeTrace.Checked)
+                    {
+                        if (m_PointList_Tracking_Normal != null && m_PointList_Tracking_Normal.Count > 0)
+                            m_MarkersSNA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Realtime, m_PointList_Tracking_Normal.InterpolateX(m_MarkersSNA.GetMarkerFrequency(nMenuInd)));
+                        else
+                            m_MarkersSNA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Realtime, RFECommunicator.MIN_AMPLITUDE_DBM);
+                    }
+                    if (menuAveragedTrace.Checked)
+                    {
+                        if (m_PointList_Tracking_Avg != null && m_PointList_Tracking_Avg.Count > 0)
+                            m_MarkersSNA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Average, m_PointList_Tracking_Avg.InterpolateX(m_MarkersSNA.GetMarkerFrequency(nMenuInd)));
+                        else
+                            m_MarkersSNA.UpdateMarker(nMenuInd, RFECommunicator.RFExplorerSignalType.Average, RFECommunicator.MIN_AMPLITUDE_DBM);
+                    }
+                }
+            }
         }
 
         #endregion

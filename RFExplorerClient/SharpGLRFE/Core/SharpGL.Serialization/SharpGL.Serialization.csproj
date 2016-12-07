@@ -12,10 +12,14 @@
     <AssemblyName>SharpGL.Serialization</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
-    <SccProjectName>SAK</SccProjectName>
-    <SccLocalPath>SAK</SccLocalPath>
-    <SccAuxPath>SAK</SccAuxPath>
-    <SccProvider>SAK</SccProvider>
+    <SccProjectName>
+    </SccProjectName>
+    <SccLocalPath>
+    </SccLocalPath>
+    <SccAuxPath>
+    </SccAuxPath>
+    <SccProvider>
+    </SccProvider>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -76,7 +80,7 @@
     </ProjectReference>
     <ProjectReference Include="..\SharpGL\SharpGL.csproj">
       <Project>{5EF45533-E2C7-46F2-B4A3-B8F36CD406E0}</Project>
-      <Name>SharpGL %28Core\SharpGL%29</Name>
+      <Name>SharpGL</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
@@ -84,7 +88,8 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>xcopy "$(ProjectDir)bin\$(ConfigurationName)\*.dll" "$(SolutionDir)Deploy\$(ConfigurationName)\" /i /d /y</PostBuildEvent>
+    <PostBuildEvent>
+    </PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
